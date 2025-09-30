@@ -128,15 +128,7 @@ All endpoints follow REST conventions:
 
 Response formats are consistent using Pydantic schemas for validation.
 
-## Deployment Options
-
-### Docker (Recommended)
-```bash
-docker-compose up -d
-```
-- Automatically sets up PostgreSQL
-- Runs application in container
-- Easy to deploy and maintain
+## Deployment
 
 ### Local Development
 ```bash
