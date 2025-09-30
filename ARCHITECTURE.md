@@ -6,7 +6,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                         Frontend                             │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │  Static HTML/CSS/JavaScript (static/index.html)       │  │
+│  │  React Application (frontend/src/)                    │  │
 │  │  - Watchlist cards                                     │  │
 │  │  - Stock table with filtering/sorting                  │  │
 │  │  - Stock detail modal                                  │  │

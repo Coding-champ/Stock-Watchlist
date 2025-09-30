@@ -158,7 +158,7 @@ def main():
     create_alert(tesla['id'], "volatility", "above", 4.0)
     
     print("\n✓ Sample data created successfully!")
-    print(f"\nAccess the application at: http://localhost:8000/static/index.html")
+    print(f"\nAccess the application at: http://localhost:8000/")
     print(f"API documentation at: http://localhost:8000/docs")
 
 

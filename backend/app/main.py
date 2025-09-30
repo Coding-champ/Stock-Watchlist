@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from backend.app.routes import watchlists, stocks, stock_data, alerts
+import os
 
 # Try to create database tables if database is available
 try:
@@ -32,12 +34,17 @@ app.include_router(stocks.router)
 app.include_router(stock_data.router)
 app.include_router(alerts.router)
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Mount React build directory
+frontend_build_path = "frontend/build"
+if os.path.exists(frontend_build_path):
+    app.mount("/static", StaticFiles(directory=frontend_build_path + "/static"), name="static")
 
 
 @app.get("/")
 def read_root():
+    # Serve React app if build exists, otherwise return API info
+    if os.path.exists(frontend_build_path + "/index.html"):
+        return FileResponse(frontend_build_path + "/index.html")
     return {
         "message": "Stock Watchlist API",
         "docs": "/docs",

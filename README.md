@@ -15,7 +15,7 @@ Simple Watchlist for Stocks
 
 - **Backend**: Python with FastAPI
 - **Database**: PostgreSQL with SQLAlchemy ORM
-- **Frontend**: HTML, CSS, JavaScript (Vanilla)
+- **Frontend**: React
 
 ## Data Models
 
@@ -30,6 +30,7 @@ Simple Watchlist for Stocks
 
 - Python 3.8+
 - PostgreSQL database
+- Node.js 14+ and npm (for frontend development)
 
 ### Setup
 
@@ -39,7 +40,7 @@ git clone https://github.com/Coding-champ/Stock-Watchlist.git
 cd Stock-Watchlist
 ```
 
-2. Install dependencies:
+2. Install backend dependencies:
 ```bash
 pip install -r requirements.txt
 ```
@@ -48,19 +49,44 @@ pip install -r requirements.txt
    - Create a PostgreSQL database named `stock_watchlist`
    - Copy `.env.example` to `.env` and update the `DATABASE_URL` if needed
 
-4. Run the application:
+4. Build the React frontend:
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+5. Run the application:
 ```bash
 uvicorn backend.app.main:app --reload
 ```
 
-5. Load sample data (optional):
+6. Load sample data (optional):
 ```bash
 python sample_data.py
 ```
 
-6. Access the application:
-   - Frontend: http://localhost:8000/static/index.html
+7. Access the application:
+   - Frontend: http://localhost:8000/
    - API Documentation: http://localhost:8000/docs
+
+### Development Mode
+
+For frontend development with hot reload:
+
+1. Start the backend (from the root directory):
+```bash
+uvicorn backend.app.main:app --reload
+```
+
+2. In a separate terminal, start the React development server:
+```bash
+cd frontend
+npm start
+```
+
+The React app will run on http://localhost:3000 and proxy API requests to the backend on http://localhost:8000.
 
 ## API Endpoints
 
@@ -156,8 +182,14 @@ Stock-Watchlist/
 │       ├── schemas.py      # Pydantic schemas
 │       ├── database.py     # Database configuration
 │       └── main.py         # FastAPI application
-├── static/
-│   └── index.html          # Frontend application
+├── frontend/
+│   ├── public/             # Static assets
+│   ├── src/
+│   │   ├── components/     # React components
+│   │   ├── App.js          # Main App component
+│   │   ├── App.css         # Global styles
+│   │   └── index.js        # Entry point
+│   └── package.json        # Frontend dependencies
 └── requirements.txt        # Python dependencies
 ```
 
