@@ -30,8 +30,33 @@ Simple Watchlist for Stocks
 
 - Python 3.8+
 - PostgreSQL database
+- Or Docker and Docker Compose (recommended)
 
-### Setup
+### Setup with Docker (Recommended)
+
+1. Clone the repository:
+```bash
+git clone https://github.com/Coding-champ/Stock-Watchlist.git
+cd Stock-Watchlist
+```
+
+2. Start the application with Docker Compose:
+```bash
+docker-compose up -d
+```
+
+3. Wait for the services to start (about 10-15 seconds)
+
+4. Load sample data (optional):
+```bash
+docker-compose exec app python sample_data.py
+```
+
+5. Access the application:
+   - Frontend: http://localhost:8000/static/index.html
+   - API Documentation: http://localhost:8000/docs
+
+### Setup without Docker
 
 1. Clone the repository:
 ```bash
@@ -53,9 +78,14 @@ pip install -r requirements.txt
 uvicorn backend.app.main:app --reload
 ```
 
-5. Access the application:
-   - API Documentation: http://localhost:8000/docs
+5. Load sample data (optional):
+```bash
+python sample_data.py
+```
+
+6. Access the application:
    - Frontend: http://localhost:8000/static/index.html
+   - API Documentation: http://localhost:8000/docs
 
 ## API Endpoints
 

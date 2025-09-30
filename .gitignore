@@ -51,3 +51,9 @@ Thumbs.db
 htmlcov/
 .coverage
 .pytest_cache/
+
+# Docker
+docker-compose.override.yml
+
+# Alembic
+alembic/versions/
