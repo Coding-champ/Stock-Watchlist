@@ -1,2 +1,191 @@
 # Stock-Watchlist
 Simple Watchlist for Stocks
+
+## Features
+
+- **Watchlist Management**: Create, read, update, and delete watchlists
+- **Stock Management**: Add stocks to watchlists, delete, and move between watchlists
+- **Stock Data**: Track current price, P/E ratio (KGV), RSI, and volatility
+- **Filtering & Sorting**: Filter stocks by name, ISIN, or ticker; sort by any column
+- **Detail View**: Click on any stock to see detailed information
+- **Alerts**: Create price and metric alerts with customizable conditions
+- **Columns**: ISIN, Ticker Symbol, Name, Current Price, Country, Industry, Sector, P/E Ratio, RSI, Volatility
+
+## Tech Stack
+
+- **Backend**: Python with FastAPI
+- **Database**: PostgreSQL with SQLAlchemy ORM
+- **Frontend**: HTML, CSS, JavaScript (Vanilla)
+
+## Data Models
+
+1. **Watchlist**: Organizes stocks into groups
+2. **Stock**: Individual stock information
+3. **StockData**: Current market data for stocks
+4. **Alert**: Price and metric alerts
+
+## Installation
+
+### Prerequisites
+
+- Python 3.8+
+- PostgreSQL database
+- Or Docker and Docker Compose (recommended)
+
+### Setup with Docker (Recommended)
+
+1. Clone the repository:
+```bash
+git clone https://github.com/Coding-champ/Stock-Watchlist.git
+cd Stock-Watchlist
+```
+
+2. Start the application with Docker Compose:
+```bash
+docker-compose up -d
+```
+
+3. Wait for the services to start (about 10-15 seconds)
+
+4. Load sample data (optional):
+```bash
+docker-compose exec app python sample_data.py
+```
+
+5. Access the application:
+   - Frontend: http://localhost:8000/static/index.html
+   - API Documentation: http://localhost:8000/docs
+
+### Setup without Docker
+
+1. Clone the repository:
+```bash
+git clone https://github.com/Coding-champ/Stock-Watchlist.git
+cd Stock-Watchlist
+```
+
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+3. Configure database:
+   - Create a PostgreSQL database named `stock_watchlist`
+   - Copy `.env.example` to `.env` and update the `DATABASE_URL` if needed
+
+4. Run the application:
+```bash
+uvicorn backend.app.main:app --reload
+```
+
+5. Load sample data (optional):
+```bash
+python sample_data.py
+```
+
+6. Access the application:
+   - Frontend: http://localhost:8000/static/index.html
+   - API Documentation: http://localhost:8000/docs
+
+## API Endpoints
+
+### Watchlists
+- `GET /watchlists/` - Get all watchlists
+- `GET /watchlists/{id}` - Get specific watchlist with stocks
+- `POST /watchlists/` - Create new watchlist
+- `PUT /watchlists/{id}` - Update watchlist
+- `DELETE /watchlists/{id}` - Delete watchlist
+
+### Stocks
+- `GET /stocks/` - Get all stocks (with filtering and sorting)
+- `GET /stocks/{id}` - Get specific stock
+- `POST /stocks/` - Add stock to watchlist
+- `PUT /stocks/{id}` - Update stock
+- `POST /stocks/{id}/move` - Move stock to another watchlist
+- `DELETE /stocks/{id}` - Delete stock
+
+### Stock Data
+- `GET /stock-data/{stock_id}` - Get historical data for a stock
+- `POST /stock-data/` - Add new stock data entry
+
+### Alerts
+- `GET /alerts/` - Get all alerts (with filtering)
+- `GET /alerts/{id}` - Get specific alert
+- `POST /alerts/` - Create new alert
+- `PUT /alerts/{id}` - Update alert
+- `DELETE /alerts/{id}` - Delete alert
+
+## Database Schema
+
+```sql
+Watchlist:
+  - id (PK)
+  - name (unique)
+  - description
+  - created_at
+  - updated_at
+
+Stock:
+  - id (PK)
+  - watchlist_id (FK)
+  - isin
+  - ticker_symbol
+  - name
+  - country
+  - industry
+  - sector
+  - position
+  - created_at
+  - updated_at
+
+StockData:
+  - id (PK)
+  - stock_id (FK)
+  - current_price
+  - pe_ratio (KGV)
+  - rsi
+  - volatility
+  - timestamp
+
+Alert:
+  - id (PK)
+  - stock_id (FK)
+  - alert_type (price, pe_ratio, rsi, volatility)
+  - condition (above, below, equals)
+  - threshold_value
+  - is_active
+  - created_at
+  - updated_at
+```
+
+## Usage
+
+1. **Create a Watchlist**: Click "Neue Watchlist erstellen" and enter a name
+2. **Add Stocks**: Select a watchlist, then click "Aktie hinzufügen"
+3. **View Stocks**: Click on a watchlist card to see all stocks in a sortable/filterable table
+4. **Stock Details**: Click on any stock row to see detailed information
+5. **Create Alerts**: In the stock detail view, click "Alarm hinzufügen"
+6. **Move Stocks**: Click "Verschieben" on any stock to move it to another watchlist
+7. **Delete**: Use the "Löschen" button to remove stocks or alerts
+
+## Development
+
+The application follows a clean architecture:
+
+```
+Stock-Watchlist/
+├── backend/
+│   └── app/
+│       ├── models/         # Database models
+│       ├── routes/         # API endpoints
+│       ├── schemas.py      # Pydantic schemas
+│       ├── database.py     # Database configuration
+│       └── main.py         # FastAPI application
+├── static/
+│   └── index.html          # Frontend application
+└── requirements.txt        # Python dependencies
+```
+
+## License
+
+MIT
