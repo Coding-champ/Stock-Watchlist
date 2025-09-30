@@ -13,7 +13,7 @@ if command -v uvicorn &> /dev/null; then
     echo ""
     sleep 3
     echo "📊 Stock Watchlist is ready!"
-    echo "   Frontend: http://localhost:8000/static/index.html"
+    echo "   Frontend: http://localhost:8000/"
     echo "   API Docs: http://localhost:8000/docs"
     echo ""
     echo "Press Ctrl+C to stop the server"
