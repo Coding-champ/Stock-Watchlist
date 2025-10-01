@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Text, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from backend.app.database import Base
@@ -38,6 +38,7 @@ class Stock(Base):
     watchlist = relationship("Watchlist", back_populates="stocks")
     stock_data = relationship("StockData", back_populates="stock", cascade="all, delete-orphan")
     alerts = relationship("Alert", back_populates="stock", cascade="all, delete-orphan")
+    extended_cache = relationship("ExtendedStockDataCache", back_populates="stock", uselist=False, cascade="all, delete-orphan")
 
 
 class StockData(Base):
@@ -71,3 +72,31 @@ class Alert(Base):
 
     # Relationships
     stock = relationship("Stock", back_populates="alerts")
+
+
+class ExtendedStockDataCache(Base):
+    """Cache model for extended yfinance stock data"""
+    __tablename__ = "extended_stock_data_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    stock_id = Column(Integer, ForeignKey("stocks.id"), nullable=False, unique=True)
+    
+    # Cached data as JSON
+    extended_data = Column(JSON, nullable=True)  # Complete extended data from yfinance
+    dividends_splits_data = Column(JSON, nullable=True)  # Historical dividends and splits
+    calendar_data = Column(JSON, nullable=True)  # Earnings calendar data
+    analyst_data = Column(JSON, nullable=True)  # Analyst recommendations and estimates
+    holders_data = Column(JSON, nullable=True)  # Institutional and mutual fund holders
+    
+    # Cache metadata
+    cache_type = Column(String, default="extended")  # Type of cached data
+    last_updated = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)  # When cache expires
+    fetch_success = Column(Boolean, default=True)  # Whether last fetch was successful
+    error_message = Column(Text, nullable=True)  # Error message if fetch failed
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    stock = relationship("Stock", back_populates="extended_cache")

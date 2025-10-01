@@ -5,7 +5,12 @@ from typing import List, Optional, Dict, Any
 from backend.app import schemas
 from backend.app.models import Stock as StockModel, StockData as StockDataModel, Watchlist as WatchlistModel
 from backend.app.database import get_db
-from backend.app.services.yfinance_service import get_stock_info, get_current_stock_data
+from backend.app.services.yfinance_service import (
+    get_stock_info, get_current_stock_data, get_extended_stock_data,
+    get_stock_dividends_and_splits, get_stock_calendar_and_earnings,
+    get_analyst_data, get_institutional_holders
+)
+from backend.app.services.cache_service import StockDataCacheService
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
 
@@ -283,3 +288,129 @@ def update_stock_market_data(stock_id: int, db: Session = Depends(get_db)):
             "timestamp": stock_data_entry.timestamp
         }
     }
+
+
+@router.get("/{stock_id}/extended-data", response_model=schemas.ExtendedStockData)
+def get_stock_extended_data(
+    stock_id: int, 
+    force_refresh: bool = Query(False, description="Force refresh cache"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get extended stock data including financial ratios, cashflow, dividends, and risk metrics
+    Uses intelligent caching to improve performance
+    """
+    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    
+    # Use cache service to get data
+    cache_service = StockDataCacheService(db)
+    cached_data, cache_hit = cache_service.get_cached_extended_data(stock_id, force_refresh)
+    
+    if not cached_data or not cached_data.get('extended_data'):
+        raise HTTPException(
+            status_code=400, 
+            detail="Could not fetch extended data for this stock"
+        )
+    
+    extended_data = cached_data['extended_data']
+    
+    return schemas.ExtendedStockData(
+        business_summary=extended_data.get('business_summary'),
+        financial_ratios=schemas.FinancialRatios(**extended_data.get('financial_ratios', {})),
+        cashflow_data=schemas.CashflowData(**extended_data.get('cashflow_data', {})),
+        dividend_info=schemas.DividendInfo(**extended_data.get('dividend_info', {})),
+        price_data=schemas.PriceData(**extended_data.get('price_data', {})),
+        volume_data=schemas.VolumeData(**extended_data.get('volume_data', {})),
+        risk_metrics=schemas.RiskMetrics(**extended_data.get('risk_metrics', {}))
+    )
+
+
+@router.get("/{stock_id}/detailed", response_model=schemas.StockWithExtendedData)
+def get_stock_detailed(
+    stock_id: int, 
+    force_refresh: bool = Query(False, description="Force refresh cache"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get stock with all extended data for the overview page
+    Uses intelligent caching for improved performance
+    """
+    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    
+    # Attach latest stock data
+    latest = db.query(StockDataModel).filter(
+        StockDataModel.stock_id == stock.id
+    ).order_by(desc(StockDataModel.timestamp)).first()
+    stock.latest_data = latest
+    
+    # Use intelligent cache service for performance optimization
+    try:
+        cache_service = StockDataCacheService(db)
+        cached_data, cache_hit = cache_service.get_cached_extended_data(stock_id, force_refresh)
+        extended_data = cached_data.get('extended_data') if cached_data else None
+        
+        if not extended_data:
+            # Fallback to direct API call if cache fails
+            extended_data = get_extended_stock_data(stock.ticker_symbol)
+    except Exception as e:
+        # If cache fails, fallback to direct yfinance call
+        import logging
+        logging.warning(f"Cache service failed for stock {stock_id}: {str(e)}")
+        extended_data = get_extended_stock_data(stock.ticker_symbol)
+    
+    if not extended_data:
+        # Return basic stock data without extended info if all fetch methods fail
+        stock_dict = {
+            "id": stock.id,
+            "isin": stock.isin,
+            "ticker_symbol": stock.ticker_symbol,
+            "name": stock.name,
+            "country": stock.country,
+            "industry": stock.industry,
+            "sector": stock.sector,
+            "watchlist_id": stock.watchlist_id,
+            "position": stock.position,
+            "created_at": stock.created_at,
+            "updated_at": stock.updated_at,
+            "stock_data": stock.stock_data,
+            "latest_data": latest,
+            "extended_data": None
+        }
+        return schemas.StockWithExtendedData(**stock_dict)
+    
+    # Create extended data object if available
+    extended_data_obj = None
+    if extended_data:
+        extended_data_obj = schemas.ExtendedStockData(
+            business_summary=extended_data.get('business_summary'),
+            financial_ratios=schemas.FinancialRatios(**extended_data.get('financial_ratios', {})),
+            cashflow_data=schemas.CashflowData(**extended_data.get('cashflow_data', {})),
+            dividend_info=schemas.DividendInfo(**extended_data.get('dividend_info', {})),
+            price_data=schemas.PriceData(**extended_data.get('price_data', {})),
+            volume_data=schemas.VolumeData(**extended_data.get('volume_data', {})),
+            risk_metrics=schemas.RiskMetrics(**extended_data.get('risk_metrics', {}))
+        )
+    
+    # Create response object
+    stock_dict = {
+        "id": stock.id,
+        "isin": stock.isin,
+        "ticker_symbol": stock.ticker_symbol,
+        "name": stock.name,
+        "country": stock.country,
+        "industry": stock.industry,
+        "sector": stock.sector,
+        "watchlist_id": stock.watchlist_id,
+        "position": stock.position,
+        "created_at": stock.created_at,
+        "updated_at": stock.updated_at,
+        "stock_data": stock.stock_data,
+        "latest_data": latest,
+        "extended_data": extended_data_obj
+    }
+    
+    return schemas.StockWithExtendedData(**stock_dict)

@@ -195,6 +195,15 @@ tr:hover {
   width: 90%;
   max-width: 600px;
   box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-content.expanded {
+  max-width: 95%;
+  width: 95%;
+  margin: 2% auto;
+  max-height: 95vh;
 }
 
 .close {
@@ -431,4 +440,227 @@ tr:hover {
 .manual-mode input::placeholder {
   color: #999;
   font-style: italic;
+}
+
+/* Extended Stock Detail Modal Styles */
+.stock-detail-content {
+  max-height: calc(95vh - 100px);
+  overflow-y: auto;
+}
+
+.business-summary {
+  margin-bottom: 25px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 8px;
+  border-left: 4px solid #007bff;
+}
+
+.business-summary h3 {
+  color: #007bff;
+  margin-bottom: 15px;
+  font-size: 18px;
+}
+
+.business-summary p {
+  line-height: 1.6;
+  color: #555;
+  text-align: justify;
+}
+
+.data-section {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.data-section h3 {
+  color: #333;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #f0f0f0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 15px;
+}
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+  transition: all 0.2s ease;
+}
+
+.detail-item:hover {
+  background: #e9ecef;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.detail-item strong {
+  color: #495057;
+  font-weight: 600;
+  margin-right: 10px;
+  min-width: 140px;
+}
+
+.detail-item span {
+  color: #007bff;
+  font-weight: 500;
+  text-align: right;
+}
+
+.alert-item {
+  padding: 10px 15px;
+  margin-bottom: 10px;
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  border-radius: 5px;
+  color: #155724;
+}
+
+.alert-item.inactive {
+  background: #f8d7da;
+  border-color: #f5c6cb;
+  color: #721c24;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+  font-size: 16px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .modal-content.expanded {
+    width: 98%;
+    margin: 1% auto;
+    padding: 20px;
+  }
+  
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .detail-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+  
+  .detail-item strong {
+    min-width: auto;
+  }
+  
+  .business-summary {
+    padding: 15px;
+  }
+  
+  .data-section {
+    padding: 15px;
+  }
+}
+
+/* History Table Styles */
+.history-table {
+  background: white;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #e0e0e0;
+}
+
+.history-header {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  background: #f8f9fa;
+  padding: 12px 15px;
+  border-bottom: 2px solid #e9ecef;
+  font-weight: 600;
+  color: #495057;
+}
+
+.history-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  padding: 10px 15px;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.2s ease;
+}
+
+.history-row:hover {
+  background-color: #f8f9fa;
+}
+
+.history-row:last-child {
+  border-bottom: none;
+}
+
+.holder-name {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Rating styles */
+.rating {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.rating.buy {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.rating.hold {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.rating.sell {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.rating.strong {
+  font-weight: 700;
+}
+
+/* Responsive table adjustments */
+@media (max-width: 768px) {
+  .history-header,
+  .history-row {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+  
+  .history-header > div:before,
+  .history-row > div:before {
+    content: attr(data-label) ': ';
+    font-weight: bold;
+    color: #666;
+  }
+  
+  .holder-name {
+    max-width: none;
+  }
 }
