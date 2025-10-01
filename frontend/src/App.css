@@ -98,6 +98,14 @@ h1 {
   background-color: #c82333;
 }
 
+.btn-info {
+  background-color: #17a2b8;
+}
+
+.btn-info:hover {
+  background-color: #138496;
+}
+
 .btn-secondary {
   background-color: #6c757d;
 }
@@ -283,4 +291,144 @@ tr:hover {
   display: block;
   color: #555;
   margin-bottom: 5px;
+}
+
+/* yfinance Integration Styles */
+.mode-toggle {
+  display: flex;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid #dee2e6;
+}
+
+.toggle-btn {
+  flex: 1;
+  padding: 12px 20px;
+  border: none;
+  background-color: #f8f9fa;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-size: 14px;
+}
+
+.toggle-btn:hover {
+  background-color: #e9ecef;
+}
+
+.toggle-btn.active {
+  background-color: #007bff;
+  color: white;
+}
+
+.ticker-mode {
+  padding: 20px 0;
+}
+
+.ticker-input-group {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.ticker-input-group input {
+  flex: 1;
+  padding: 12px;
+  border: 2px solid #dee2e6;
+  border-radius: 5px;
+  font-size: 16px;
+  text-transform: uppercase;
+}
+
+.ticker-input-group input:focus {
+  border-color: #007bff;
+  outline: none;
+}
+
+.search-btn {
+  white-space: nowrap;
+  min-width: 120px;
+}
+
+.search-result {
+  margin-top: 20px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 8px;
+  border: 2px solid #28a745;
+}
+
+.search-result h3 {
+  color: #28a745;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stock-info {
+  background: white;
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.stock-info p {
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stock-info strong {
+  color: #333;
+  min-width: 140px;
+}
+
+.btn-primary {
+  background-color: #28a745;
+  font-size: 16px;
+  padding: 12px 24px;
+  width: 100%;
+}
+
+.btn-primary:hover {
+  background-color: #218838;
+}
+
+.help-text {
+  margin-top: 20px;
+  padding: 15px;
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 5px;
+  color: #856404;
+}
+
+.help-text p {
+  margin-bottom: 10px;
+  font-weight: bold;
+}
+
+.help-text ul {
+  margin-left: 20px;
+}
+
+.help-text li {
+  margin-bottom: 5px;
+}
+
+.manual-mode {
+  padding: 20px 0;
+}
+
+.manual-mode .form-group {
+  margin-bottom: 15px;
+}
+
+.manual-mode input::placeholder {
+  color: #999;
+  font-style: italic;
 }

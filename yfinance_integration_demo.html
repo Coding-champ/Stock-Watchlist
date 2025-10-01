@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Watchlist - yfinance Integration Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .demo-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 1.2em;
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .feature {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            border-left: 5px solid #007bff;
+        }
+        
+        .feature h3 {
+            color: #007bff;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .feature ul {
+            margin-left: 20px;
+        }
+        
+        .feature li {
+            margin-bottom: 8px;
+        }
+        
+        .demo-section {
+            background: #fff;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .demo-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #007bff;
+        }
+        
+        .api-example {
+            background: #f1f3f4;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        
+        .steps {
+            counter-reset: step-counter;
+        }
+        
+        .step {
+            counter-increment: step-counter;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #e9ecef;
+            border-radius: 8px;
+            position: relative;
+            padding-left: 60px;
+        }
+        
+        .step::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 15px;
+            top: 15px;
+            background: #007bff;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        .supported-exchanges {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .exchange {
+            background: #28a745;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .exchange h4 {
+            margin-bottom: 10px;
+        }
+        
+        .ticker-examples {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-container">
+        <div class="header">
+            <h1>📊 Stock Watchlist mit yfinance Integration</h1>
+            <p>Aktien automatisch per Ticker-Symbol hinzufügen oder manuell verwalten</p>
+        </div>
+
+        <div class="features">
+            <div class="feature">
+                <h3>🚀 Automatische Aktiensuche</h3>
+                <ul>
+                    <li>Eingabe nur des Ticker-Symbols erforderlich</li>
+                    <li>Automatischer Abruf aller Firmendaten</li>
+                    <li>Aktuelle Kurse und Kennzahlen</li>
+                    <li>Validierung vor dem Hinzufügen</li>
+                </ul>
+            </div>
+            
+            <div class="feature">
+                <h3>📈 Live Marktdaten</h3>
+                <ul>
+                    <li>Aktuelle Aktienkurse</li>
+                    <li>Kurs-Gewinn-Verhältnis (KGV)</li>
+                    <li>Sektor- und Brancheninformationen</li>
+                    <li>Update-Funktion für neueste Daten</li>
+                </ul>
+            </div>
+            
+            <div class="feature">
+                <h3>🌍 Internationale Unterstützung</h3>
+                <ul>
+                    <li>US-amerikanische Aktien</li>
+                    <li>Deutsche Aktien (DAX, MDAX, etc.)</li>
+                    <li>UK Aktien (FTSE)</li>
+                    <li>Weitere internationale Börsen</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>🎯 Neue Frontend-Features</h2>
+            <div class="steps">
+                <div class="step">
+                    <strong>Zwei Modi zur Auswahl:</strong><br>
+                    📈 <strong>Per Ticker-Symbol:</strong> Einfach AAPL, MSFT, etc. eingeben<br>
+                    ✏️ <strong>Manuell:</strong> Alle Daten selbst eingeben
+                </div>
+                
+                <div class="step">
+                    <strong>Intelligente Suche:</strong><br>
+                    Eingabe des Ticker-Symbols → automatische Suche → Vorschau der Aktie → mit einem Klick hinzufügen
+                </div>
+                
+                <div class="step">
+                    <strong>Live-Updates:</strong><br>
+                    "📈 Update" Button in der Aktientabelle aktualisiert Marktdaten über yfinance API
+                </div>
+                
+                <div class="step">
+                    <strong>Verbesserte UX:</strong><br>
+                    Hilfreiche Tipps, Beispiele für Ticker-Symbole, und intuitive Benutzerführung
+                </div>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>🌐 Unterstützte Börsen & Beispiele</h2>
+            <div class="supported-exchanges">
+                <div class="exchange">
+                    <h4>🇺🇸 USA</h4>
+                    <div class="ticker-examples">
+                        AAPL, MSFT, GOOGL<br>
+                        TSLA, AMZN, META
+                    </div>
+                </div>
+                
+                <div class="exchange">
+                    <h4>🇩🇪 Deutschland</h4>
+                    <div class="ticker-examples">
+                        SAP.DE, VOW3.DE<br>
+                        BMW.DE, SIE.DE
+                    </div>
+                </div>
+                
+                <div class="exchange">
+                    <h4>🇬🇧 Großbritannien</h4>
+                    <div class="ticker-examples">
+                        TSCO.L, BP.L<br>
+                        SHEL.L, AZN.L
+                    </div>
+                </div>
+                
+                <div class="exchange">
+                    <h4>🇯🇵 Japan</h4>
+                    <div class="ticker-examples">
+                        7203.T (Toyota)<br>
+                        9984.T (SoftBank)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>🔧 API-Endpunkte</h2>
+            
+            <h3>1. Aktie per Ticker hinzufügen</h3>
+            <div class="api-example">
+POST /stocks/add-by-ticker
+Content-Type: application/json
+
+{
+  "ticker_symbol": "AAPL",
+  "watchlist_id": 1
+}
+            </div>
+            
+            <h3>2. Aktiensuche</h3>
+            <div class="api-example">
+GET /stocks/search/AAPL
+
+Response:
+{
+  "found": true,
+  "stock": {
+    "ticker": "AAPL",
+    "name": "Apple Inc.",
+    "sector": "Technology",
+    "industry": "Consumer Electronics",
+    "country": "US",
+    "current_price": 253.81,
+    "pe_ratio": 25.43
+  }
+}
+            </div>
+            
+            <h3>3. Marktdaten aktualisieren</h3>
+            <div class="api-example">
+POST /stocks/{stock_id}/update-market-data
+
+Response:
+{
+  "message": "Market data updated successfully",
+  "data": {
+    "current_price": 253.81,
+    "pe_ratio": 25.43,
+    "timestamp": "2025-09-30T12:00:00Z"
+  }
+}
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>🚀 So verwenden Sie das neue Feature</h2>
+            <div class="steps">
+                <div class="step">
+                    <strong>Frontend starten:</strong><br>
+                    <code>cd frontend && npm start</code>
+                </div>
+                
+                <div class="step">
+                    <strong>Backend starten:</strong><br>
+                    <code>uvicorn backend.app.main:app --reload</code>
+                </div>
+                
+                <div class="step">
+                    <strong>Watchlist erstellen</strong> und "Aktie hinzufügen" klicken
+                </div>
+                
+                <div class="step">
+                    <strong>"📈 Per Ticker-Symbol"</strong> wählen und z.B. "AAPL" eingeben
+                </div>
+                
+                <div class="step">
+                    <strong>Suchen & Hinzufügen:</strong> Aktie wird automatisch mit allen Daten hinzugefügt!
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 40px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+            <h2>🎉 Ihre Stock Watchlist ist jetzt bereit!</h2>
+            <p>Mit automatischer yfinance-Integration für über 100.000 Aktien weltweit</p>
+        </div>
+    </div>
+</body>
+</html>

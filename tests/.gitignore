@@ -1,0 +1,22 @@
+# Test-spezifische Dateien ignorieren
+*.log
+*.tmp
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Test-Ausgaben
+test_results/
+coverage/
+.coverage
+htmlcov/
+
+# Temporäre Test-Datenbanken
+test_*.db
+test_*.sqlite
+
+# Test-Reports
+junit.xml
+coverage.xml
+test_report.html

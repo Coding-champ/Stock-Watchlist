@@ -1,33 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 
 const API_BASE = process.env.REACT_APP_API_BASE || '';
 
-function StockTable({ stocks, watchlists, currentWatchlistId, onStockClick, onDeleteStock, onMoveStock }) {
-  const [stocksWithData, setStocksWithData] = useState([]);
+function StockTable({ stocks, watchlists, currentWatchlistId, onStockClick, onDeleteStock, onMoveStock, onUpdateMarketData }) {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
-
-  const loadStockData = useCallback(async () => {
-    const stocksData = await Promise.all(
-      stocks.map(async (stock) => {
-        try {
-          const response = await fetch(`${API_BASE}/stock-data/?stock_id=${stock.id}&limit=1`);
-          const data = await response.json();
-          return {
-            ...stock,
-            latestData: data.length > 0 ? data[0] : {}
-          };
-        } catch (error) {
-          console.error(`Error loading data for stock ${stock.id}:`, error);
-          return { ...stock, latestData: {} };
-        }
-      })
-    );
-    setStocksWithData(stocksData);
-  }, [stocks]);
-
-  useEffect(() => {
-    loadStockData();
-  }, [loadStockData]);
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -38,15 +14,15 @@ function StockTable({ stocks, watchlists, currentWatchlistId, onStockClick, onDe
   };
 
   const getSortedStocks = () => {
-    if (!sortConfig.key) return stocksWithData;
+    if (!sortConfig.key) return stocks;
 
-    const sorted = [...stocksWithData].sort((a, b) => {
+    const sorted = [...stocks].sort((a, b) => {
       let aValue, bValue;
 
       if (sortConfig.key === 'current_price' || sortConfig.key === 'pe_ratio' || 
           sortConfig.key === 'rsi' || sortConfig.key === 'volatility') {
-        aValue = a.latestData[sortConfig.key] || 0;
-        bValue = b.latestData[sortConfig.key] || 0;
+        aValue = (a.latest_data?.[sortConfig.key] || a.latestData?.[sortConfig.key]) || 0;
+        bValue = (b.latest_data?.[sortConfig.key] || b.latestData?.[sortConfig.key]) || 0;
       } else {
         aValue = a[sortConfig.key] || '';
         bValue = b[sortConfig.key] || '';
@@ -113,24 +89,37 @@ function StockTable({ stocks, watchlists, currentWatchlistId, onStockClick, onDe
               <td>{stock.ticker_symbol}</td>
               <td>{stock.name}</td>
               <td>
-                {stock.latestData.current_price
-                  ? stock.latestData.current_price.toFixed(2) + ' €'
+                {(stock.latest_data?.current_price || stock.latestData?.current_price)
+                  ? `$${(stock.latest_data?.current_price || stock.latestData?.current_price).toFixed(2)}`
                   : '-'}
               </td>
               <td>{stock.country || '-'}</td>
               <td>{stock.industry || '-'}</td>
               <td>{stock.sector || '-'}</td>
               <td>
-                {stock.latestData.pe_ratio ? stock.latestData.pe_ratio.toFixed(2) : '-'}
+                {(stock.latest_data?.pe_ratio || stock.latestData?.pe_ratio) 
+                  ? (stock.latest_data?.pe_ratio || stock.latestData?.pe_ratio).toFixed(2) 
+                  : '-'}
               </td>
-              <td>{stock.latestData.rsi ? stock.latestData.rsi.toFixed(2) : '-'}</td>
               <td>
-                {stock.latestData.volatility
-                  ? stock.latestData.volatility.toFixed(2) + '%'
+                {(stock.latest_data?.rsi || stock.latestData?.rsi) 
+                  ? (stock.latest_data?.rsi || stock.latestData?.rsi).toFixed(2) 
+                  : '-'}
+              </td>
+              <td>
+                {(stock.latest_data?.volatility || stock.latestData?.volatility)
+                  ? `${(stock.latest_data?.volatility || stock.latestData?.volatility).toFixed(2)}%`
                   : '-'}
               </td>
               <td onClick={(e) => e.stopPropagation()}>
                 <div className="actions">
+                  <button
+                    className="btn btn-info"
+                    onClick={() => onUpdateMarketData && onUpdateMarketData(stock.id)}
+                    title="Marktdaten über yfinance aktualisieren"
+                  >
+                    📈 Update
+                  </button>
                   <button
                     className="btn btn-secondary"
                     onClick={() => handleMoveClick(stock.id)}

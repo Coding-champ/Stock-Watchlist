@@ -49,6 +49,32 @@ pip install -r requirements.txt
    - Create a PostgreSQL database named `stock_watchlist`
    - Copy `.env.example` to `.env` and update the `DATABASE_URL` if needed
 
+## Testing
+
+The project includes a comprehensive test suite located in the `tests/` directory.
+
+### Quick Testing
+For rapid development feedback:
+```bash
+cd tests
+python quick_test.py
+```
+
+### Full Test Suite
+Run all tests with detailed reporting:
+```bash
+cd tests
+python run_all_tests.py
+```
+
+### Test Categories
+- **Environment Tests**: Database connectivity and configuration
+- **API Tests**: Backend endpoint validation  
+- **yfinance Tests**: Stock data service integration
+- **Debug Tools**: Environment and data debugging utilities
+
+See `tests/README.md` for detailed testing documentation.
+
 4. Build the React frontend:
 ```bash
 cd frontend
@@ -67,9 +93,48 @@ uvicorn backend.app.main:app --reload
 python sample_data.py
 ```
 
-7. Access the application:
+7. Initialize the database:
+```bash
+cd tests
+python init_db.py
+cd ..
+```
+
+8. Access the application:
    - Frontend: http://localhost:8000/
    - API Documentation: http://localhost:8000/docs
+
+## 🧪 Testing
+
+### Quick Test Run
+
+**Windows:**
+```bash
+cd tests
+run_tests.bat
+```
+
+**Linux/Mac:**
+```bash
+cd tests
+./run_tests.sh
+```
+
+**Manual:**
+```bash
+cd tests
+python run_all_tests.py
+```
+
+### Individual Tests
+
+- **Database Setup:** `python tests/init_db.py`
+- **Environment Check:** `python tests/debug_env.py`
+- **yfinance Service:** `python tests/test_yfinance_simple.py`
+- **API Tests:** `python tests/test_api.py`
+- **Full Integration:** `python tests/test_yfinance.py`
+
+See `tests/README.md` for detailed test documentation.
 
 ### Development Mode
 

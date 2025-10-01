@@ -105,6 +105,26 @@ function StocksSection({ watchlist, watchlists }) {
     }
   };
 
+  const handleUpdateMarketData = async (stockId) => {
+    try {
+      const response = await fetch(`${API_BASE}/stocks/${stockId}/update-market-data`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(`Marktdaten aktualisiert!\nKurs: $${result.data.current_price || 'N/A'}\nKGV: ${result.data.pe_ratio || 'N/A'}`);
+        loadStocks(); // Aktualisiert die Anzeige
+      } else {
+        const error = await response.json();
+        alert(error.detail || 'Fehler beim Aktualisieren der Marktdaten');
+      }
+    } catch (error) {
+      console.error('Error updating market data:', error);
+      alert('Fehler beim Aktualisieren der Marktdaten');
+    }
+  };
+
   return (
     <div className="section">
       <h2>Aktien in {watchlist.name}</h2>
@@ -132,6 +152,7 @@ function StocksSection({ watchlist, watchlists }) {
           onStockClick={handleStockClick}
           onDeleteStock={handleDeleteStock}
           onMoveStock={handleMoveStock}
+          onUpdateMarketData={handleUpdateMarketData}
         />
       )}
 

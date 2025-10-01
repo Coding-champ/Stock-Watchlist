@@ -41,6 +41,12 @@ class StockCreate(StockBase):
     watchlist_id: int
 
 
+class StockCreateByTicker(BaseModel):
+    """Schema für das Hinzufügen einer Aktie nur mit Ticker-Symbol"""
+    ticker_symbol: str
+    watchlist_id: int
+
+
 class StockUpdate(BaseModel):
     isin: Optional[str] = None
     ticker_symbol: Optional[str] = None

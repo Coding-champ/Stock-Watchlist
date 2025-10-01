@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from backend.app import schemas
-from backend.app.models import Stock as StockModel, StockData as StockDataModel
+from backend.app.models import Stock as StockModel, StockData as StockDataModel, Watchlist as WatchlistModel
 from backend.app.database import get_db
+from backend.app.services.yfinance_service import get_stock_info, get_current_stock_data
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
 
@@ -95,7 +96,7 @@ def update_stock(
     return db_stock
 
 
-@router.post("/{stock_id}/move", response_model=schemas.Stock)
+@router.put("/{stock_id}/move", response_model=schemas.Stock)
 def move_stock(
     stock_id: int,
     move_data: schemas.StockMove,
@@ -153,3 +154,132 @@ def delete_stock(stock_id: int, db: Session = Depends(get_db)):
     db.commit()
     
     return None
+
+
+@router.post("/add-by-ticker", response_model=schemas.Stock, status_code=201)
+def add_stock_by_ticker(stock_data: schemas.StockCreateByTicker, db: Session = Depends(get_db)):
+    """
+    Füge eine Aktie zur Watchlist hinzu, indem nur das Ticker-Symbol angegeben wird.
+    Die restlichen Informationen werden über yfinance API abgerufen.
+    """
+    # Prüfe ob die Watchlist existiert
+    watchlist = db.query(WatchlistModel).filter(WatchlistModel.id == stock_data.watchlist_id).first()
+    if not watchlist:
+        raise HTTPException(status_code=404, detail="Watchlist not found")
+    
+    # Hole Aktieninformationen von yfinance
+    stock_info = get_stock_info(stock_data.ticker_symbol)
+    if not stock_info:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Stock with ticker '{stock_data.ticker_symbol}' not found"
+        )
+    
+    # Prüfe ob die Aktie bereits in der Watchlist existiert
+    existing_stock = db.query(StockModel).filter(
+        StockModel.ticker_symbol == stock_data.ticker_symbol,
+        StockModel.watchlist_id == stock_data.watchlist_id
+    ).first()
+    
+    if existing_stock:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Stock '{stock_data.ticker_symbol}' already exists in this watchlist"
+        )
+    
+    # Bestimme die Position in der Watchlist
+    max_position = db.query(StockModel).filter(
+        StockModel.watchlist_id == stock_data.watchlist_id
+    ).count()
+    
+    # Erstelle neue Aktie mit Daten von yfinance
+    db_stock = StockModel(
+        watchlist_id=stock_data.watchlist_id,
+        ticker_symbol=stock_info.ticker,
+        name=stock_info.name,
+        isin=stock_info.isin or "",
+        country=stock_info.country,
+        industry=stock_info.industry,
+        sector=stock_info.sector,
+        position=max_position
+    )
+    
+    db.add(db_stock)
+    db.commit()
+    db.refresh(db_stock)
+    
+    # Füge aktuelle Marktdaten hinzu, falls verfügbar
+    if stock_info.current_price or stock_info.pe_ratio:
+        stock_data_entry = StockDataModel(
+            stock_id=db_stock.id,
+            current_price=stock_info.current_price,
+            pe_ratio=stock_info.pe_ratio
+        )
+        db.add(stock_data_entry)
+        db.commit()
+        db.refresh(stock_data_entry)
+        db_stock.latest_data = stock_data_entry
+    
+    return db_stock
+
+
+@router.get("/search/{query}")
+def search_stocks(query: str) -> Dict[str, Any]:
+    """
+    Suche nach Aktien anhand eines Ticker-Symbols oder Namens
+    """
+    stock_info = get_stock_info(query.upper())
+    if stock_info:
+        return {
+            "found": True,
+            "stock": {
+                "ticker": stock_info.ticker,
+                "name": stock_info.name,
+                "sector": stock_info.sector,
+                "industry": stock_info.industry,
+                "country": stock_info.country,
+                "current_price": stock_info.current_price,
+                "pe_ratio": stock_info.pe_ratio,
+                "isin": stock_info.isin
+            }
+        }
+    else:
+        return {"found": False, "message": f"No stock found for '{query}'"}
+
+
+@router.post("/{stock_id}/update-market-data")
+def update_stock_market_data(stock_id: int, db: Session = Depends(get_db)):
+    """
+    Aktualisiere die Marktdaten einer Aktie über yfinance
+    """
+    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    
+    # Hole aktuelle Marktdaten
+    market_data = get_current_stock_data(stock.ticker_symbol)
+    if not market_data:
+        raise HTTPException(
+            status_code=400, 
+            detail="Could not fetch market data for this stock"
+        )
+    
+    # Erstelle neuen StockData Eintrag
+    stock_data_entry = StockDataModel(
+        stock_id=stock_id,
+        current_price=market_data.get('current_price'),
+        pe_ratio=market_data.get('pe_ratio')
+    )
+    
+    db.add(stock_data_entry)
+    db.commit()
+    db.refresh(stock_data_entry)
+    
+    return {
+        "message": "Market data updated successfully",
+        "data": {
+            "current_price": stock_data_entry.current_price,
+            "pe_ratio": stock_data_entry.pe_ratio,
+            "timestamp": stock_data_entry.timestamp
+        }
+    }
