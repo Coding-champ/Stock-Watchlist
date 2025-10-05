@@ -1,4 +1,18 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Text, JSON
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Float,
+    DateTime,
+    ForeignKey,
+    Boolean,
+    Text,
+    JSON,
+    UniqueConstraint,
+    Date,
+    BigInteger,
+    Index,
+)
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from backend.app.database import Base
@@ -15,46 +29,129 @@ class Watchlist(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    stocks = relationship("Stock", back_populates="watchlist", cascade="all, delete-orphan")
+    stocks = relationship("Stock", secondary="stocks_in_watchlist", back_populates="watchlists", viewonly=True)
+    stock_watchlist_entries = relationship("StockInWatchlist", back_populates="watchlist", cascade="all, delete-orphan")
 
 
 class Stock(Base):
-    """Stock model for individual stocks in watchlists"""
+    """Stock model for master stock data (Stammdaten)"""
     __tablename__ = "stocks"
 
     id = Column(Integer, primary_key=True, index=True)
-    watchlist_id = Column(Integer, ForeignKey("watchlists.id"), nullable=False)
-    isin = Column(String, nullable=False)
-    ticker_symbol = Column(String, nullable=False)
+    isin = Column(String, nullable=True, index=True)
+    wkn = Column(String, nullable=True, index=True)
+    ticker_symbol = Column(String, nullable=False, index=True, unique=True)
     name = Column(String, nullable=False)
     country = Column(String, nullable=True)
     industry = Column(String, nullable=True)
     sector = Column(String, nullable=True)
-    position = Column(Integer, default=0)  # For ordering stocks in watchlist
+    business_summary = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    watchlist = relationship("Watchlist", back_populates="stocks")
-    stock_data = relationship("StockData", back_populates="stock", cascade="all, delete-orphan")
+    watchlists = relationship("Watchlist", secondary="stocks_in_watchlist", back_populates="stocks", viewonly=True)
+    watchlist_entries = relationship("StockInWatchlist", back_populates="stock", cascade="all, delete-orphan")
+    price_data = relationship("StockPriceData", back_populates="stock", cascade="all, delete-orphan")
+    fundamental_data = relationship("StockFundamentalData", back_populates="stock", cascade="all, delete-orphan")
     alerts = relationship("Alert", back_populates="stock", cascade="all, delete-orphan")
     extended_cache = relationship("ExtendedStockDataCache", back_populates="stock", uselist=False, cascade="all, delete-orphan")
 
 
-class StockData(Base):
-    """Stock data model for current market data"""
-    __tablename__ = "stock_data"
+class StockInWatchlist(Base):
+    """Association table for stocks in watchlists (n:m relationship)"""
+    __tablename__ = "stocks_in_watchlist"
+    __table_args__ = (
+        UniqueConstraint("watchlist_id", "stock_id", name="uq_watchlist_stock"),
+        Index("idx_watchlist_position", "watchlist_id", "position"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    stock_id = Column(Integer, ForeignKey("stocks.id"), nullable=False)
-    current_price = Column(Float, nullable=True)
-    pe_ratio = Column(Float, nullable=True)  # KGV - Kurs-Gewinn-Verhältnis
-    rsi = Column(Float, nullable=True)  # Relative Strength Index
-    volatility = Column(Float, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    watchlist_id = Column(Integer, ForeignKey("watchlists.id", ondelete="CASCADE"), nullable=False)
+    stock_id = Column(Integer, ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False)
+    position = Column(Integer, default=0, nullable=False)
+    exchange = Column(String, nullable=True)  # e.g., "XETRA", "NASDAQ"
+    currency = Column(String, nullable=True)  # e.g., "EUR", "USD"
+    observation_reasons = Column(JSON, nullable=False, default=list)
+    observation_notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    stock = relationship("Stock", back_populates="stock_data")
+    watchlist = relationship("Watchlist", back_populates="stock_watchlist_entries")
+    stock = relationship("Stock", back_populates="watchlist_entries")
+
+
+class StockPriceData(Base):
+    """Historical daily price data for stocks"""
+    __tablename__ = "stock_price_data"
+    __table_args__ = (
+        UniqueConstraint("stock_id", "date", name="uq_stock_price_date"),
+        Index("idx_stock_date", "stock_id", "date"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    stock_id = Column(Integer, ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False)
+    date = Column(Date, nullable=False, index=True)
+    open = Column(Float, nullable=True)
+    high = Column(Float, nullable=True)
+    low = Column(Float, nullable=True)
+    close = Column(Float, nullable=False)
+    volume = Column(BigInteger, nullable=True)
+    adjusted_close = Column(Float, nullable=True)
+    dividends = Column(Float, nullable=True, default=0.0)  # Dividend amount on ex-div date
+    stock_splits = Column(Float, nullable=True)  # Split ratio (e.g., 2.0 for 2:1 split)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    stock = relationship("Stock", back_populates="price_data")
+
+
+class StockFundamentalData(Base):
+    """Quarterly fundamental financial data for stocks"""
+    __tablename__ = "stock_fundamental_data"
+    __table_args__ = (
+        UniqueConstraint("stock_id", "period", name="uq_stock_fundamental_period"),
+        Index("idx_stock_period", "stock_id", "period"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    stock_id = Column(Integer, ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False)
+    period = Column(String, nullable=False, index=True)  # e.g., "FY2025Q3"
+    period_end_date = Column(Date, nullable=True)
+    
+    # Income Statement
+    revenue = Column(Float, nullable=True)
+    earnings = Column(Float, nullable=True)  # Net Income
+    eps_basic = Column(Float, nullable=True)
+    eps_diluted = Column(Float, nullable=True)
+    operating_income = Column(Float, nullable=True)
+    gross_profit = Column(Float, nullable=True)
+    ebitda = Column(Float, nullable=True)
+    
+    # Balance Sheet
+    total_assets = Column(Float, nullable=True)
+    total_liabilities = Column(Float, nullable=True)
+    shareholders_equity = Column(Float, nullable=True)
+    
+    # Cash Flow
+    operating_cashflow = Column(Float, nullable=True)
+    free_cashflow = Column(Float, nullable=True)
+    
+    # Ratios (can be calculated or stored)
+    profit_margin = Column(Float, nullable=True)
+    operating_margin = Column(Float, nullable=True)
+    return_on_equity = Column(Float, nullable=True)
+    return_on_assets = Column(Float, nullable=True)
+    debt_to_equity = Column(Float, nullable=True)
+    current_ratio = Column(Float, nullable=True)
+    quick_ratio = Column(Float, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    stock = relationship("Stock", back_populates="fundamental_data")
 
 
 class Alert(Base):
@@ -63,10 +160,16 @@ class Alert(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     stock_id = Column(Integer, ForeignKey("stocks.id"), nullable=False)
-    alert_type = Column(String, nullable=False)  # 'price', 'pe_ratio', 'rsi', 'volatility'
-    condition = Column(String, nullable=False)  # 'above', 'below', 'equals'
+    alert_type = Column(String, nullable=False)  # 'price', 'pe_ratio', 'rsi', 'volatility', 'price_change_percent', 'ma_cross', 'volume_spike', 'earnings', 'composite'
+    condition = Column(String, nullable=False)  # 'above', 'below', 'equals', 'cross_above', 'cross_below', 'before'
     threshold_value = Column(Float, nullable=False)
+    timeframe_days = Column(Integer, nullable=True)  # For percentage changes (e.g., 1 day, 7 days) or earnings days before
+    composite_conditions = Column(JSON, nullable=True)  # For composite alerts: [{"type": "rsi", "condition": "below", "value": 30}, ...]
     is_active = Column(Boolean, default=True)
+    last_triggered = Column(DateTime, nullable=True)  # When alert was last triggered
+    trigger_count = Column(Integer, default=0)  # How many times triggered
+    expiry_date = Column(DateTime, nullable=True)  # Optional expiry date for auto-cleanup
+    notes = Column(Text, nullable=True)  # Optional user notes
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

@@ -1,6 +1,6 @@
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
-from datetime import datetime
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any, Literal
+from datetime import datetime, date
 
 
 # Watchlist schemas
@@ -29,37 +29,198 @@ class Watchlist(WatchlistBase):
 
 # Stock schemas
 class StockBase(BaseModel):
-    isin: str
+    """Base schema for stock master data (Stammdaten)"""
+    isin: Optional[str] = None
+    wkn: Optional[str] = None
     ticker_symbol: str
     name: str
     country: Optional[str] = None
     industry: Optional[str] = None
     sector: Optional[str] = None
+    business_summary: Optional[str] = None
 
 
 class StockCreate(StockBase):
+    """Create stock with watchlist assignment"""
     watchlist_id: int
+    observation_reasons: List[str] = Field(default_factory=list)
+    observation_notes: Optional[str] = None
+    exchange: Optional[str] = None
+    currency: Optional[str] = None
 
 
 class StockCreateByTicker(BaseModel):
     """Schema für das Hinzufügen einer Aktie nur mit Ticker-Symbol"""
     ticker_symbol: str
     watchlist_id: int
+    observation_reasons: List[str] = Field(default_factory=list)
+    observation_notes: Optional[str] = None
 
 
 class StockUpdate(BaseModel):
     isin: Optional[str] = None
+    wkn: Optional[str] = None
     ticker_symbol: Optional[str] = None
     name: Optional[str] = None
     country: Optional[str] = None
     industry: Optional[str] = None
     sector: Optional[str] = None
+    business_summary: Optional[str] = None
 
 
 class StockMove(BaseModel):
     target_watchlist_id: int
     position: Optional[int] = None
 
+
+class StockCopy(BaseModel):
+    target_watchlist_id: int
+    position: Optional[int] = None
+
+
+# ============================================================================
+# STOCKS IN WATCHLIST SCHEMAS (n:m Relation)
+# ============================================================================
+
+class StockInWatchlistBase(BaseModel):
+    """Base schema for stock-watchlist association"""
+    exchange: Optional[str] = None
+    currency: Optional[str] = None
+    observation_reasons: List[str] = Field(default_factory=list)
+    observation_notes: Optional[str] = None
+    position: int = 0
+
+
+class StockInWatchlistCreate(StockInWatchlistBase):
+    """Create stock-watchlist association"""
+    watchlist_id: int
+    stock_id: int
+
+
+class StockInWatchlistUpdate(BaseModel):
+    """Update stock-watchlist association"""
+    exchange: Optional[str] = None
+    currency: Optional[str] = None
+    observation_reasons: Optional[List[str]] = None
+    observation_notes: Optional[str] = None
+    position: Optional[int] = None
+
+
+class StockInWatchlist(StockInWatchlistBase):
+    """Stock-watchlist association response"""
+    id: int
+    watchlist_id: int
+    stock_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
+# STOCK PRICE DATA SCHEMAS (Historical)
+# ============================================================================
+
+class StockPriceDataBase(BaseModel):
+    """Base schema for historical stock price data"""
+    date: date
+    open: Optional[float] = None
+    high: Optional[float] = None
+    low: Optional[float] = None
+    close: float
+    volume: Optional[int] = None
+    adjusted_close: Optional[float] = None
+    dividends: Optional[float] = 0.0
+    stock_splits: Optional[float] = None
+
+
+class StockPriceData(StockPriceDataBase):
+    """Historical stock price data response"""
+    id: int
+    stock_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class HistoricalPriceRequest(BaseModel):
+    """Request schema for loading historical prices"""
+    period: str = "max"  # "1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"
+    interval: str = "1d"  # "1d", "1wk", "1mo"
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+
+
+class HistoricalPriceResponse(BaseModel):
+    """Response schema for historical prices"""
+    stock_id: int
+    ticker_symbol: str
+    count: int
+    date_range: Dict[str, Optional[str]]  # {"start": "2020-01-01", "end": "2024-12-31"}
+    data: List[StockPriceData]
+
+
+# ============================================================================
+# STOCK FUNDAMENTAL DATA SCHEMAS (Quarterly)
+# ============================================================================
+
+class StockFundamentalDataBase(BaseModel):
+    """Base schema for quarterly fundamental data"""
+    period: str  # e.g., "FY2025Q3"
+    period_end_date: Optional[date] = None
+    
+    # Income Statement
+    revenue: Optional[float] = None
+    earnings: Optional[float] = None
+    eps_basic: Optional[float] = None
+    eps_diluted: Optional[float] = None
+    operating_income: Optional[float] = None
+    gross_profit: Optional[float] = None
+    ebitda: Optional[float] = None
+    
+    # Balance Sheet
+    total_assets: Optional[float] = None
+    total_liabilities: Optional[float] = None
+    shareholders_equity: Optional[float] = None
+    
+    # Cash Flow
+    operating_cashflow: Optional[float] = None
+    free_cashflow: Optional[float] = None
+    
+    # Ratios
+    profit_margin: Optional[float] = None
+    operating_margin: Optional[float] = None
+    return_on_equity: Optional[float] = None
+    return_on_assets: Optional[float] = None
+    debt_to_equity: Optional[float] = None
+    current_ratio: Optional[float] = None
+    quick_ratio: Optional[float] = None
+
+
+class StockFundamentalData(StockFundamentalDataBase):
+    """Quarterly fundamental data response"""
+    id: int
+    stock_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class FundamentalDataResponse(BaseModel):
+    """Response schema for fundamental data"""
+    stock_id: int
+    ticker_symbol: str
+    count: int
+    data: List[StockFundamentalData]
+
+
+# ============================================================================
+# LEGACY STOCK DATA SCHEMAS (will be deprecated)
+# ============================================================================
 
 # StockData schemas
 class StockDataBase(BaseModel):
@@ -231,13 +392,19 @@ class ExtendedStockData(BaseModel):
 
 
 class Stock(StockBase):
+    """Stock response schema - includes watchlist context for API compatibility"""
     id: int
-    watchlist_id: int
-    position: int
+    # These fields are populated from StockInWatchlist for API compatibility
+    watchlist_id: Optional[int] = None  # Current watchlist context
+    position: Optional[int] = None  # Position in current watchlist
+    observation_reasons: List[str] = Field(default_factory=list)  # From StockInWatchlist
+    observation_notes: Optional[str] = None  # From StockInWatchlist
+    exchange: Optional[str] = None  # From StockInWatchlist
+    currency: Optional[str] = None  # From StockInWatchlist
     created_at: datetime
     updated_at: datetime
-    stock_data: Optional[List[StockData]] = []
-    latest_data: Optional[StockData] = None
+    stock_data: Optional[List[StockData]] = []  # DEPRECATED - kept for backwards compatibility
+    latest_data: Optional[StockData] = None  # Populated from stock_price_data and stock_fundamental_data
 
     class Config:
         from_attributes = True
@@ -250,6 +417,27 @@ class StockWithExtendedData(Stock):
         from_attributes = True
 
 
+class BulkStockAddRequest(BaseModel):
+    watchlist_id: int
+    identifiers: List[str]
+    identifier_type: Literal["auto", "ticker", "isin"] = "auto"
+
+
+class BulkStockAddItem(BaseModel):
+    identifier: str
+    resolved_ticker: Optional[str] = None
+    status: Literal["created", "exists", "not_found", "invalid", "error"]
+    message: Optional[str] = None
+    stock: Optional[Stock] = None
+
+
+class BulkStockAddResponse(BaseModel):
+    watchlist_id: int
+    results: List[BulkStockAddItem]
+    created_count: int
+    failed_count: int
+
+
 # Watchlist with stocks
 class WatchlistWithStocks(Watchlist):
     stocks: List[Stock] = []
@@ -260,28 +448,202 @@ class WatchlistWithStocks(Watchlist):
 
 # Alert schemas
 class AlertBase(BaseModel):
-    alert_type: str  # 'price', 'pe_ratio', 'rsi', 'volatility'
-    condition: str  # 'above', 'below', 'equals'
-    threshold_value: float
+    alert_type: str  # 'price', 'pe_ratio', 'rsi', 'volatility', 'price_change_percent', 'ma_cross', 'volume_spike', 'earnings', 'composite'
+    condition: str  # 'above', 'below', 'equals', 'cross_above', 'cross_below', 'before'
+    threshold_value: Optional[float] = None
+    timeframe_days: Optional[int] = None  # For percentage changes, earnings days before
+    composite_conditions: Optional[List[Dict[str, Any]]] = None  # For composite alerts
     is_active: bool = True
+    expiry_date: Optional[datetime] = None
+    notes: Optional[str] = None
 
 
-class AlertCreate(AlertBase):
-    stock_id: int
+class AlertCreate(BaseModel):
+    stock_id: Optional[int] = None
+    stock_symbol: Optional[str] = None
+    alert_type: str
+    condition: str
+    threshold_value: Optional[float] = None
+    threshold: Optional[float] = None  # Alternative field name
+    timeframe_days: Optional[int] = None
+    composite_conditions: Optional[List[Dict[str, Any]]] = None
+    is_active: bool = True
+    expiry_date: Optional[datetime] = None
+    notes: Optional[str] = None
 
 
 class AlertUpdate(BaseModel):
     alert_type: Optional[str] = None
     condition: Optional[str] = None
     threshold_value: Optional[float] = None
+    timeframe_days: Optional[int] = None
+    composite_conditions: Optional[List[Dict[str, Any]]] = None
     is_active: Optional[bool] = None
+    expiry_date: Optional[datetime] = None
+    notes: Optional[str] = None
 
 
 class Alert(AlertBase):
     id: int
     stock_id: int
+    last_triggered: Optional[datetime] = None
+    trigger_count: int = 0
     created_at: datetime
     updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
+# CALCULATED METRICS SCHEMAS
+# ============================================================================
+
+# Phase 1: Basic Indicators
+class Week52Metrics(BaseModel):
+    distance_from_52w_high: Optional[float] = None
+    distance_from_52w_low: Optional[float] = None
+    position_in_52w_range: Optional[float] = None
+
+
+class SMAMetrics(BaseModel):
+    distance_from_sma50: Optional[float] = None
+    distance_from_sma200: Optional[float] = None
+    golden_cross: Optional[bool] = None
+    death_cross: Optional[bool] = None
+    trend: Optional[Literal['bullish', 'bearish', 'neutral']] = None
+    price_above_sma50: Optional[bool] = None
+    price_above_sma200: Optional[bool] = None
+
+
+class VolumeMetrics(BaseModel):
+    relative_volume: Optional[float] = None
+    volume_ratio: Optional[float] = None
+    volume_category: Optional[Literal['very_low', 'low', 'normal', 'high', 'very_high']] = None
+
+
+class Phase1BasicIndicators(BaseModel):
+    week_52_metrics: Week52Metrics
+    sma_metrics: SMAMetrics
+    volume_metrics: VolumeMetrics
+    fcf_yield: Optional[float] = None
+
+
+# Phase 2: Valuation Scores
+class ValueMetrics(BaseModel):
+    value_score: Optional[float] = None
+    pe_score: Optional[float] = None
+    pb_score: Optional[float] = None
+    ps_score: Optional[float] = None
+    value_category: Optional[Literal['undervalued', 'fair', 'overvalued']] = None
+
+
+class QualityMetrics(BaseModel):
+    quality_score: Optional[float] = None
+    roe_score: Optional[float] = None
+    roa_score: Optional[float] = None
+    profitability_score: Optional[float] = None
+    financial_health_score: Optional[float] = None
+    quality_category: Optional[Literal['excellent', 'good', 'average', 'poor']] = None
+
+
+class DividendMetrics(BaseModel):
+    dividend_safety_score: Optional[float] = None
+    payout_sustainability: Optional[float] = None
+    yield_sustainability: Optional[float] = None
+    dividend_growth_potential: Optional[float] = None
+    safety_category: Optional[Literal['very_safe', 'safe', 'moderate', 'risky', 'very_risky']] = None
+
+
+class Phase2ValuationScores(BaseModel):
+    peg_ratio: Optional[float] = None
+    value_metrics: ValueMetrics
+    quality_metrics: QualityMetrics
+    dividend_metrics: DividendMetrics
+
+
+# Phase 3: Advanced Analysis
+class MACDMetrics(BaseModel):
+    macd_line: Optional[float] = None
+    signal_line: Optional[float] = None
+    histogram: Optional[float] = None
+    trend: Optional[Literal['bullish', 'bearish', 'neutral']] = None
+
+
+class StochasticMetrics(BaseModel):
+    k_percent: Optional[float] = None
+    d_percent: Optional[float] = None
+    signal: Optional[Literal['overbought', 'oversold', 'neutral']] = None
+    is_overbought: bool = False
+    is_oversold: bool = False
+
+
+class VolatilityMetrics(BaseModel):
+    volatility_30d: Optional[float] = None
+    volatility_90d: Optional[float] = None
+    volatility_1y: Optional[float] = None
+    volatility_category: Optional[Literal['very_low', 'low', 'moderate', 'high', 'very_high']] = None
+
+
+class DrawdownMetrics(BaseModel):
+    max_drawdown: Optional[float] = None
+    max_drawdown_duration: Optional[int] = None
+    current_drawdown: Optional[float] = None
+
+
+class AnalystMetrics(BaseModel):
+    upside_potential: Optional[float] = None
+    target_mean: Optional[float] = None
+    target_high: Optional[float] = None
+    target_low: Optional[float] = None
+    consensus_strength: Optional[Literal['strong', 'moderate', 'weak']] = None
+    recommendation_score: Optional[float] = None
+    number_of_analysts: Optional[int] = None
+
+
+class BetaAdjustedMetrics(BaseModel):
+    sharpe_ratio: Optional[float] = None
+    alpha: Optional[float] = None
+    treynor_ratio: Optional[float] = None
+    sortino_ratio: Optional[float] = None
+    beta_adjusted_return: Optional[float] = None
+    information_ratio: Optional[float] = None
+    downside_deviation: Optional[float] = None
+    total_return: Optional[float] = None
+    annualized_return: Optional[float] = None
+    risk_rating: Optional[Literal['low', 'moderate', 'high', 'very_high']] = None
+
+
+class RiskAdjustedPerformance(BaseModel):
+    overall_score: Optional[float] = None
+    rating: Optional[Literal['excellent', 'good', 'average', 'poor']] = None
+    sharpe_contribution: Optional[float] = None
+    alpha_contribution: Optional[float] = None
+    sortino_contribution: Optional[float] = None
+    information_contribution: Optional[float] = None
+
+
+class Phase3AdvancedAnalysis(BaseModel):
+    macd: Optional[MACDMetrics] = None
+    stochastic: Optional[StochasticMetrics] = None
+    volatility: Optional[VolatilityMetrics] = None
+    drawdown: Optional[DrawdownMetrics] = None
+    beta_adjusted_metrics: Optional[BetaAdjustedMetrics] = None
+    risk_adjusted_performance: Optional[RiskAdjustedPerformance] = None
+    analyst_metrics: AnalystMetrics
+
+
+# Complete Calculated Metrics
+class CalculatedMetrics(BaseModel):
+    phase1_basic_indicators: Phase1BasicIndicators
+    phase2_valuation_scores: Phase2ValuationScores
+    phase3_advanced_analysis: Phase3AdvancedAnalysis
+    calculation_timestamp: str
+
+
+# Extended Stock Data with Calculated Metrics
+class StockWithCalculatedMetrics(StockWithExtendedData):
+    calculated_metrics: Optional[CalculatedMetrics] = None
 
     class Config:
         from_attributes = True

@@ -2,7 +2,21 @@ import React, { useState } from 'react';
 
 const API_BASE = process.env.REACT_APP_API_BASE || '';
 
-function WatchlistSection({ watchlists, currentWatchlist, onWatchlistSelect, onWatchlistsChange }) {
+const getInitials = (name = '') => {
+  const trimmed = (name || '').trim();
+  if (!trimmed) {
+    return 'WL';
+  }
+
+  const parts = trimmed.split(/\s+/).slice(0, 2);
+  const initials = parts
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('');
+
+  return initials || trimmed.slice(0, 2).toUpperCase();
+};
+
+function WatchlistSection({ watchlists, currentWatchlist, onWatchlistSelect, onWatchlistsChange, onShowToast }) {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ name: '', description: '' });
 
@@ -16,41 +30,89 @@ function WatchlistSection({ watchlists, currentWatchlist, onWatchlistSelect, onW
       });
       
       if (response.ok) {
+        const created = await response.json();
         setShowModal(false);
         setFormData({ name: '', description: '' });
         onWatchlistsChange();
+        if (onShowToast) {
+          onShowToast(`Watchlist erstellt · ${created?.name || formData.name}`, 'success');
+        }
       } else {
-        alert('Fehler beim Erstellen der Watchlist');
+        let message = 'Fehler beim Erstellen der Watchlist';
+        try {
+          const errorBody = await response.json();
+          if (errorBody?.detail) {
+            message = errorBody.detail;
+          }
+        } catch (parseError) {
+          console.warn('Watchlist create: konnte Fehlermeldung nicht parsen', parseError);
+        }
+
+        if (onShowToast) {
+          onShowToast(`Erstellung fehlgeschlagen · ${message}`, 'error');
+        } else {
+          alert(message);
+        }
       }
     } catch (error) {
       console.error('Error creating watchlist:', error);
-      alert('Fehler beim Erstellen der Watchlist');
+      if (onShowToast) {
+        onShowToast('Erstellung fehlgeschlagen · Bitte erneut versuchen', 'error');
+      } else {
+        alert('Fehler beim Erstellen der Watchlist');
+      }
     }
   };
 
   return (
-    <div className="section">
-      <h2>Meine Watchlists</h2>
-      <button className="btn" onClick={() => setShowModal(true)}>
-        + Neue Watchlist
-      </button>
+    <section className="panel panel--watchlists" aria-label="Watchlists">
+      <div className="panel__header">
+        <div className="panel__title-group">
+          <span className="panel__eyebrow">Listen</span>
+          <h2 className="panel__title">Meine Watchlists</h2>
+          <p className="panel__subtitle">
+            Strukturiere deine Marktbeobachtung in fokussierten Sammlungen.
+          </p>
+        </div>
+        <button type="button" className="btn" onClick={() => setShowModal(true)}>
+          <span className="btn__icon" aria-hidden="true">＋</span>
+          <span>Neue Watchlist</span>
+        </button>
+      </div>
 
-      <div className="watchlist-container">
+  <div className="watchlist-container">
         {watchlists.length === 0 ? (
-          <div className="empty-state">
-            Keine Watchlists vorhanden. Erstellen Sie eine neue Watchlist.
+          <div className="empty-state empty-state--card">
+            <h3>Leg direkt los</h3>
+            <p>Erstelle deine erste Watchlist und sammle spannende Titel an einem Ort.</p>
+            <button type="button" className="btn btn--ghost" onClick={() => setShowModal(true)}>
+              <span className="btn__icon" aria-hidden="true">＋</span>
+              <span>Watchlist anlegen</span>
+            </button>
           </div>
         ) : (
-          watchlists.map((wl) => (
-            <div
-              key={wl.id}
-              className={`watchlist-card ${currentWatchlist?.id === wl.id ? 'active' : ''}`}
-              onClick={() => onWatchlistSelect(wl)}
-            >
-              <h3>{wl.name}</h3>
-              <p>{wl.description || 'Keine Beschreibung'}</p>
-            </div>
-          ))
+          watchlists.map((wl) => {
+            const initials = getInitials(wl.name);
+            const isActive = currentWatchlist?.id === wl.id;
+
+            return (
+              <button
+                key={wl.id}
+                type="button"
+                className={`watchlist-card ${isActive ? 'active' : ''}`}
+                onClick={() => onWatchlistSelect(wl)}
+                aria-pressed={isActive}
+              >
+                <span className="watchlist-card__icon" aria-hidden="true">{initials}</span>
+                <div className="watchlist-card__body">
+                  <span className="watchlist-card__badge">Watchlist</span>
+                  <h3 className="watchlist-card__title">{wl.name}</h3>
+                  <p className="watchlist-card__description">{wl.description || 'Keine Beschreibung hinterlegt.'}</p>
+                </div>
+                <span className="watchlist-card__chevron" aria-hidden="true">›</span>
+              </button>
+            );
+          })
         )}
       </div>
 
@@ -81,7 +143,7 @@ function WatchlistSection({ watchlists, currentWatchlist, onWatchlistSelect, onW
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 

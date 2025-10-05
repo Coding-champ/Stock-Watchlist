@@ -1,0 +1,594 @@
+/* ========================================
+   CALCULATED METRICS STYLING
+   ======================================== */
+
+/* Tooltip Container */
+.metric-tooltip-container {
+  position: relative;
+  display: inline-block;
+}
+
+.metric-tooltip-trigger {
+  cursor: help;
+  border-bottom: 1px dotted #999;
+}
+
+.metric-tooltip-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  background: #ffffff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 12px 16px;
+  min-width: 280px;
+  max-width: 400px;
+  z-index: 1000;
+  font-size: 13px;
+  line-height: 1.5;
+  animation: tooltipFadeIn 0.2s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.metric-tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #333;
+  font-weight: 600;
+}
+
+.metric-tooltip-icon {
+  font-size: 16px;
+}
+
+.metric-tooltip-body {
+  color: #555;
+}
+
+.metric-tooltip-description {
+  margin: 0 0 10px 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.metric-tooltip-value {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.metric-tooltip-value .label {
+  color: #666;
+  font-weight: normal;
+}
+
+.metric-tooltip-value .value {
+  color: #007bff;
+}
+
+.metric-tooltip-interpretation {
+  margin-top: 10px;
+}
+
+.interpretation-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #333;
+}
+
+.interpretation-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.interpretation-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.interpretation-list li.current {
+  background: #e7f3ff;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  color: #007bff;
+}
+
+.interpretation-list .range {
+  font-family: 'Courier New', monospace;
+  color: #666;
+  min-width: 80px;
+}
+
+.interpretation-list .label {
+  flex: 1;
+}
+
+.interpretation-list .indicator {
+  color: #007bff;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+
+/* ========================================
+   CALCULATED METRICS TAB
+   ======================================== */
+
+.calculated-metrics-container {
+  padding: 20px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.calculated-metrics-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #007bff;
+}
+
+.calculated-metrics-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+}
+
+.calculated-metrics-title .icon {
+  font-size: 24px;
+}
+
+.calculated-metrics-refresh {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.refresh-button {
+  padding: 8px 16px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s;
+}
+
+.refresh-button:hover {
+  background: #0056b3;
+}
+
+.refresh-button:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+.last-updated {
+  font-size: 12px;
+  color: #666;
+}
+
+.loading-spinner {
+  text-align: center;
+  padding: 40px;
+  font-size: 16px;
+  color: #666;
+}
+
+.error-message {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 16px;
+  border-radius: 4px;
+  border: 1px solid #f5c6cb;
+  margin-bottom: 20px;
+}
+
+
+/* ========================================
+   PHASE SECTIONS
+   ======================================== */
+
+.metrics-phase-section {
+  margin-bottom: 30px;
+  background: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.phase-section-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.phase-section-header.phase-1 {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.phase-section-header.phase-2 {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.phase-section-header.phase-3 {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.phase-section-body {
+  padding: 20px;
+}
+
+
+/* ========================================
+   PHASE 2: SCORE CARDS
+   ======================================== */
+
+.score-cards-container {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.score-card {
+  background: #f8f9fa;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.score-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.score-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  letter-spacing: 0.5px;
+}
+
+.score-card-value {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.score-card-value .denominator {
+  font-size: 18px;
+  color: #999;
+  font-weight: 400;
+}
+
+.score-bar {
+  width: 100%;
+  height: 12px;
+  background: #e9ecef;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  position: relative;
+}
+
+.score-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.5s ease-out;
+}
+
+.score-bar-fill.excellent {
+  background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
+}
+
+.score-bar-fill.good {
+  background: linear-gradient(90deg, #84cc16 0%, #65a30d 100%);
+}
+
+.score-bar-fill.moderate {
+  background: linear-gradient(90deg, #eab308 0%, #ca8a04 100%);
+}
+
+.score-bar-fill.poor {
+  background: linear-gradient(90deg, #f97316 0%, #ea580c 100%);
+}
+
+.score-bar-fill.bad {
+  background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+}
+
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.score-badge.excellent {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.score-badge.good {
+  background: #ecfccb;
+  color: #365314;
+}
+
+.score-badge.moderate {
+  background: #fef3c7;
+  color: #78350f;
+}
+
+.score-badge.poor {
+  background: #fed7aa;
+  color: #7c2d12;
+}
+
+.score-badge.bad {
+  background: #fee2e2;
+  color: #7f1d1d;
+}
+
+
+/* ========================================
+   PHASE 1: KEY INDICATORS
+   ======================================== */
+
+.indicator-row {
+  display: flex;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.indicator-row:last-child {
+  border-bottom: none;
+}
+
+.indicator-label {
+  font-weight: 600;
+  color: #333;
+  min-width: 160px;
+}
+
+.indicator-value {
+  flex: 1;
+  font-size: 15px;
+  color: #555;
+}
+
+.indicator-trend {
+  margin-left: 8px;
+  font-size: 18px;
+}
+
+.indicator-trend.up {
+  color: #22c55e;
+}
+
+.indicator-trend.down {
+  color: #ef4444;
+}
+
+.indicator-trend.neutral {
+  color: #6c757d;
+}
+
+.week52-range-container {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.week52-range-label {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.week52-range-bar {
+  position: relative;
+  height: 30px;
+  background: linear-gradient(90deg, #ef4444 0%, #eab308 50%, #22c55e 100%);
+  border-radius: 15px;
+  margin: 10px 0;
+}
+
+.week52-range-marker {
+  position: absolute;
+  top: -8px;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 46px;
+  background: #1e293b;
+  border-radius: 2px;
+}
+
+.week52-range-marker::before {
+  content: '●';
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 20px;
+  color: #1e293b;
+}
+
+.week52-range-values {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #666;
+  margin-top: 8px;
+}
+
+.week52-current-value {
+  text-align: center;
+  margin-top: 10px;
+  font-weight: 600;
+  color: #333;
+}
+
+
+/* ========================================
+   PHASE 3: ADVANCED METRICS
+   ======================================== */
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.metric-box {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.metric-box-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.metric-box-content {
+  font-size: 15px;
+  color: #333;
+}
+
+.metric-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.metric-item:last-child {
+  border-bottom: none;
+}
+
+.metric-item-label {
+  color: #666;
+  font-size: 14px;
+}
+
+.metric-item-value {
+  font-weight: 600;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.metric-badge-small {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.metric-badge-small.low {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.metric-badge-small.moderate {
+  background: #fef3c7;
+  color: #78350f;
+}
+
+.metric-badge-small.high {
+  background: #fed7aa;
+  color: #7c2d12;
+}
+
+.metric-badge-small.very-high {
+  background: #fee2e2;
+  color: #7f1d1d;
+}
+
+.metric-badge-small.buy {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.metric-badge-small.sell {
+  background: #fee2e2;
+  color: #7f1d1d;
+}
+
+.metric-badge-small.neutral {
+  background: #e9ecef;
+  color: #495057;
+}
+
+
+/* ========================================
+   RESPONSIVE (für später)
+   ======================================== */
+
+@media (max-width: 768px) {
+  .score-cards-container {
+    grid-template-columns: 1fr;
+  }
+  
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}

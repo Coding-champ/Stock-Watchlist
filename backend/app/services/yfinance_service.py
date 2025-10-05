@@ -4,10 +4,56 @@ yfinance service for fetching stock information
 
 import yfinance as yf
 import pandas as pd
+import numpy as np
 from typing import Optional, Dict, Any, List
 import logging
 
+
 logger = logging.getLogger(__name__)
+
+
+def _is_probable_isin(identifier: str) -> bool:
+    """Rough validation to check if a string looks like an ISIN."""
+    if len(identifier) != 12:
+        return False
+    country_code = identifier[:2]
+    if not country_code.isalpha():
+        return False
+    return identifier.isalnum()
+
+
+def get_ticker_from_isin(isin: str) -> Optional[str]:
+    """Resolve an ISIN to a ticker symbol using yfinance utilities."""
+    try:
+        ticker = yf.utils.get_ticker_by_isin(isin)
+        if ticker:
+            return ticker.upper()
+    except Exception as exc:
+        logger.error(f"Error resolving ISIN {isin} to ticker: {exc}")
+    return None
+
+
+def get_stock_info_by_identifier(identifier: str) -> Optional["StockInfo"]:
+    """
+    Try to resolve stock information using either a ticker symbol or an ISIN.
+    """
+    if not identifier:
+        return None
+
+    normalized = identifier.strip().upper()
+    if not normalized:
+        return None
+
+    stock_info = get_stock_info(normalized)
+    if stock_info:
+        return stock_info
+
+    if _is_probable_isin(normalized):
+        ticker = get_ticker_from_isin(normalized)
+        if ticker:
+            return get_stock_info(ticker)
+
+    return None
 
 
 class StockInfo:
@@ -127,6 +173,69 @@ def get_current_stock_data(ticker_symbol: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Error fetching market data for {ticker_symbol}: {e}")
         return None
+
+
+def _calculate_rsi(close_prices: pd.Series, period: int = 14) -> Optional[float]:
+    """Calculate RSI using Wilder's smoothing."""
+    if close_prices is None or close_prices.empty or len(close_prices) < period + 1:
+        return None
+
+    delta = close_prices.diff()
+    gains = delta.clip(lower=0)
+    losses = -delta.clip(upper=0)
+
+    average_gain = gains.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+    average_loss = losses.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+
+    if average_loss.iloc[-1] == 0:
+        return 100.0
+
+    relative_strength = average_gain / average_loss
+    rsi_series = 100 - (100 / (1 + relative_strength))
+    rsi_value = rsi_series.iloc[-1]
+
+    if pd.isna(rsi_value):
+        return None
+
+    return float(rsi_value)
+
+
+def _calculate_annualized_volatility(close_prices: pd.Series, window: int = 30, trading_days: int = 252) -> Optional[float]:
+    """Calculate annualized volatility over the given window."""
+    if close_prices is None or close_prices.empty:
+        return None
+
+    returns = close_prices.pct_change().dropna()
+    if returns.empty:
+        return None
+
+    window_returns = returns.tail(window) if len(returns) >= window else returns
+    std_dev = window_returns.std()
+
+    if pd.isna(std_dev):
+        return None
+
+    annualized = std_dev * (trading_days ** 0.5)
+    return float(annualized * 100)  # convert to percentage
+
+
+def get_stock_indicators(ticker_symbol: str, rsi_period: int = 14, volatility_window: int = 30) -> Dict[str, Optional[float]]:
+    """Fetch historical data to compute RSI and volatility."""
+    try:
+        ticker = yf.Ticker(ticker_symbol)
+        history = ticker.history(period="6mo")
+
+        if history is None or history.empty or "Close" not in history.columns:
+            return {"rsi": None, "volatility": None}
+
+        close_prices = history["Close"].dropna()
+        rsi_value = _calculate_rsi(close_prices, period=rsi_period)
+        volatility_value = _calculate_annualized_volatility(close_prices, window=volatility_window)
+
+        return {"rsi": rsi_value, "volatility": volatility_value}
+    except Exception as exc:
+        logger.error(f"Error calculating indicators for {ticker_symbol}: {exc}")
+        return {"rsi": None, "volatility": None}
 
 
 def get_extended_stock_data(ticker_symbol: str) -> Optional[Dict[str, Any]]:
@@ -455,3 +564,319 @@ def search_stocks(query: str, limit: int = 10) -> List[Dict[str, Any]]:
             'country': stock_info.country
         }]
     return []
+
+
+def get_historical_prices(ticker_symbol: str, period: str = "1y") -> Optional[pd.DataFrame]:
+    """
+    Get historical price data for technical analysis
+    
+    Args:
+        ticker_symbol: Stock ticker symbol
+        period: Time period ('1mo', '3mo', '6mo', '1y', '2y', '5y', 'max')
+        
+    Returns:
+        DataFrame with columns: Open, High, Low, Close, Volume
+    """
+    try:
+        ticker = yf.Ticker(ticker_symbol)
+        hist = ticker.history(period=period)
+        
+        if hist.empty:
+            logger.warning(f"No historical data found for {ticker_symbol}")
+            return None
+        
+        # Return only OHLCV columns
+        return hist[['Open', 'High', 'Low', 'Close', 'Volume']]
+        
+    except Exception as e:
+        logger.error(f"Error fetching historical prices for {ticker_symbol}: {e}")
+        return None
+
+
+def get_chart_data(
+    ticker_symbol: str,
+    period: str = "1y",
+    interval: str = "1d",
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    include_dividends: bool = True,
+    include_volume: bool = True
+) -> Optional[Dict[str, Any]]:
+    """
+    Get comprehensive historical chart data for a stock
+    
+    Args:
+        ticker_symbol: Stock ticker symbol
+        period: Time period - Valid periods: 1d,5d,1mo,3mo,6mo,1y,2y,3y,5y,10y,ytd,max
+        interval: Data interval - Valid intervals: 1m,2m,5m,15m,30m,60m,90m,1h,1d,5d,1wk,1mo,3mo
+                  Note: Intraday data (1m-90m) is only available for periods up to 60 days
+        start: Start date in format 'YYYY-MM-DD' (overrides period if provided with end)
+        end: End date in format 'YYYY-MM-DD' (overrides period if provided with start)
+        include_dividends: Include dividend data
+        include_volume: Include volume data
+        
+    Returns:
+        Dictionary with chart data in format suitable for frontend:
+        {
+            'dates': [...],          # List of timestamps
+            'open': [...],           # Opening prices
+            'high': [...],           # High prices
+            'low': [...],            # Low prices
+            'close': [...],          # Closing prices
+            'volume': [...],         # Trading volume (if include_volume=True)
+            'dividends': [...],      # Dividend payments (if include_dividends=True)
+            'splits': [...],         # Stock splits (if include_dividends=True)
+            'metadata': {
+                'symbol': str,
+                'period': str,
+                'interval': str,
+                'first_date': str,
+                'last_date': str,
+                'data_points': int
+            }
+        }
+    """
+    try:
+        ticker = yf.Ticker(ticker_symbol)
+        
+        # Use start/end dates if provided, otherwise use period
+        if start and end:
+            hist = ticker.history(start=start, end=end, interval=interval)
+        else:
+            hist = ticker.history(period=period, interval=interval)
+        
+        if hist is None or hist.empty:
+            logger.warning(f"No chart data found for {ticker_symbol} (period={period}, interval={interval})")
+            return None
+        
+        # Convert index to string format for JSON serialization
+        dates = [date.isoformat() for date in hist.index]
+        
+        # Prepare base chart data
+        chart_data = {
+            'dates': dates,
+            'open': hist['Open'].tolist(),
+            'high': hist['High'].tolist(),
+            'low': hist['Low'].tolist(),
+            'close': hist['Close'].tolist(),
+        }
+        
+        # Add volume if requested
+        if include_volume and 'Volume' in hist.columns:
+            chart_data['volume'] = hist['Volume'].tolist()
+        
+        # Add dividends and splits if requested
+        if include_dividends:
+            if 'Dividends' in hist.columns:
+                # Filter out zero dividends and convert to list of events
+                dividends_series = hist['Dividends']
+                dividend_events = [
+                    {
+                        'date': dates[i],
+                        'amount': float(dividends_series.iloc[i])
+                    }
+                    for i in range(len(dividends_series))
+                    if dividends_series.iloc[i] > 0
+                ]
+                chart_data['dividends'] = dividend_events
+            else:
+                chart_data['dividends'] = []
+            
+            if 'Stock Splits' in hist.columns:
+                # Filter out 0 splits and convert to list of events
+                splits_series = hist['Stock Splits']
+                split_events = [
+                    {
+                        'date': dates[i],
+                        'ratio': float(splits_series.iloc[i])
+                    }
+                    for i in range(len(splits_series))
+                    if splits_series.iloc[i] > 0
+                ]
+                chart_data['splits'] = split_events
+            else:
+                chart_data['splits'] = []
+        
+        # Add metadata
+        chart_data['metadata'] = {
+            'symbol': ticker_symbol.upper(),
+            'period': period,
+            'interval': interval,
+            'first_date': dates[0] if dates else None,
+            'last_date': dates[-1] if dates else None,
+            'data_points': len(dates)
+        }
+        
+        return chart_data
+        
+    except Exception as e:
+        logger.error(f"Error fetching chart data for {ticker_symbol}: {e}")
+        return None
+
+
+def get_intraday_chart_data(ticker_symbol: str, days: int = 1) -> Optional[Dict[str, Any]]:
+    """
+    Get intraday chart data with appropriate interval
+    
+    Args:
+        ticker_symbol: Stock ticker symbol
+        days: Number of days (1-60)
+        
+    Returns:
+        Dictionary with intraday chart data
+    """
+    # Determine appropriate period and interval
+    if days <= 1:
+        period = "1d"
+        interval = "5m"  # 5-minute intervals for 1 day
+    elif days <= 5:
+        period = "5d"
+        interval = "15m"  # 15-minute intervals for up to 5 days
+    elif days <= 30:
+        period = f"{days}d"
+        interval = "30m"  # 30-minute intervals for up to 30 days
+    else:
+        period = "60d"
+        interval = "1h"  # Hourly intervals for up to 60 days
+    
+    return get_chart_data(
+        ticker_symbol=ticker_symbol,
+        period=period,
+        interval=interval,
+        include_dividends=False,  # Usually not needed for intraday
+        include_volume=True
+    )
+
+
+def _clean_for_json(data):
+    """
+    Replace NaN, Inf, and -Inf values with None for JSON serialization
+    """
+    if isinstance(data, list):
+        return [None if pd.isna(x) or np.isinf(x) else x for x in data]
+    elif isinstance(data, dict):
+        return {k: _clean_for_json(v) for k, v in data.items()}
+    elif isinstance(data, (pd.Series, np.ndarray)):
+        return _clean_for_json(data.tolist())
+    elif pd.isna(data) or (isinstance(data, float) and np.isinf(data)):
+        return None
+    return data
+
+
+def calculate_technical_indicators(
+    ticker_symbol: str,
+    period: str = "1y",
+    indicators: Optional[List[str]] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Calculate technical indicators from historical data
+    
+    Args:
+        ticker_symbol: Stock ticker symbol
+        period: Time period for historical data
+        indicators: List of indicators to calculate. Available:
+                   - 'sma_20': 20-day Simple Moving Average
+                   - 'sma_50': 50-day Simple Moving Average
+                   - 'sma_200': 200-day Simple Moving Average
+                   - 'ema_12': 12-day Exponential Moving Average
+                   - 'ema_26': 26-day Exponential Moving Average
+                   - 'rsi': Relative Strength Index (14-day)
+                   - 'macd': Moving Average Convergence Divergence
+                   - 'bollinger': Bollinger Bands (20-day)
+                   - 'volatility': Historical Volatility (30-day)
+                   
+    Returns:
+        Dictionary with calculated indicators
+    """
+    if indicators is None:
+        indicators = ['sma_20', 'sma_50', 'rsi']
+    
+    try:
+        ticker = yf.Ticker(ticker_symbol)
+        hist = ticker.history(period=period)
+        
+        if hist is None or hist.empty:
+            return None
+        
+        close_prices = hist['Close']
+        dates = [date.isoformat() for date in hist.index]
+        
+        result = {
+            'dates': dates,
+            'close': _clean_for_json(close_prices),
+            'indicators': {}
+        }
+        
+        # Simple Moving Averages
+        if 'sma_20' in indicators:
+            result['indicators']['sma_20'] = _clean_for_json(close_prices.rolling(window=20).mean())
+        if 'sma_50' in indicators:
+            result['indicators']['sma_50'] = _clean_for_json(close_prices.rolling(window=50).mean())
+        if 'sma_200' in indicators:
+            result['indicators']['sma_200'] = _clean_for_json(close_prices.rolling(window=200).mean())
+        
+        # Exponential Moving Averages
+        if 'ema_12' in indicators:
+            result['indicators']['ema_12'] = _clean_for_json(close_prices.ewm(span=12, adjust=False).mean())
+        if 'ema_26' in indicators:
+            result['indicators']['ema_26'] = _clean_for_json(close_prices.ewm(span=26, adjust=False).mean())
+        
+        # RSI
+        if 'rsi' in indicators:
+            rsi_values = _calculate_rsi_series(close_prices, period=14)
+            if rsi_values is not None:
+                result['indicators']['rsi'] = _clean_for_json(rsi_values)
+        
+        # MACD
+        if 'macd' in indicators:
+            ema_12 = close_prices.ewm(span=12, adjust=False).mean()
+            ema_26 = close_prices.ewm(span=26, adjust=False).mean()
+            macd_line = ema_12 - ema_26
+            signal_line = macd_line.ewm(span=9, adjust=False).mean()
+            histogram = macd_line - signal_line
+            
+            result['indicators']['macd'] = {
+                'macd': _clean_for_json(macd_line),
+                'signal': _clean_for_json(signal_line),
+                'histogram': _clean_for_json(histogram)
+            }
+        
+        # Bollinger Bands
+        if 'bollinger' in indicators:
+            sma_20 = close_prices.rolling(window=20).mean()
+            std_20 = close_prices.rolling(window=20).std()
+            upper_band = sma_20 + (std_20 * 2)
+            lower_band = sma_20 - (std_20 * 2)
+            
+            result['indicators']['bollinger'] = {
+                'middle': _clean_for_json(sma_20),
+                'upper': _clean_for_json(upper_band),
+                'lower': _clean_for_json(lower_band)
+            }
+        
+        # Historical Volatility
+        if 'volatility' in indicators:
+            returns = close_prices.pct_change()
+            volatility = returns.rolling(window=30).std() * (252 ** 0.5) * 100
+            result['indicators']['volatility'] = _clean_for_json(volatility)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error calculating technical indicators for {ticker_symbol}: {e}")
+        return None
+
+
+def _calculate_rsi_series(prices: pd.Series, period: int = 14) -> Optional[pd.Series]:
+    """Calculate RSI as a series (for technical analysis)"""
+    try:
+        delta = prices.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+        
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        
+        return rsi
+    except Exception:
+        return None

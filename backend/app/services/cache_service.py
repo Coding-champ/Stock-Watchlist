@@ -230,3 +230,205 @@ class StockDataCacheService:
         except Exception as e:
             logger.error(f"Error getting cache stats: {str(e)}")
             return {'error': str(e)}
+
+
+# ============================================================================
+# Simple In-Memory Cache Service
+# ============================================================================
+
+class SimpleCache:
+    """
+    Simple in-memory cache for calculated metrics
+    Uses a dictionary with expiration timestamps
+    """
+    
+    def __init__(self):
+        self._cache: Dict[str, Tuple[Any, datetime]] = {}
+    
+    def get(self, key: str) -> Optional[Any]:
+        """
+        Get value from cache
+        
+        Args:
+            key: Cache key
+            
+        Returns:
+            Cached value or None if not found/expired
+        """
+        if key in self._cache:
+            value, expiry = self._cache[key]
+            if datetime.now() < expiry:
+                logger.info(f"Cache hit: {key}")
+                return value
+            else:
+                # Expired, remove from cache
+                del self._cache[key]
+                logger.info(f"Cache expired: {key}")
+        return None
+    
+    def set(self, key: str, value: Any, ttl: int = 3600):
+        """
+        Set value in cache
+        
+        Args:
+            key: Cache key
+            value: Value to cache
+            ttl: Time to live in seconds (default: 1 hour)
+        """
+        expiry = datetime.now() + timedelta(seconds=ttl)
+        self._cache[key] = (value, expiry)
+        logger.info(f"Cached: {key} (TTL: {ttl}s)")
+    
+    def delete(self, key: str):
+        """Delete key from cache"""
+        if key in self._cache:
+            del self._cache[key]
+            logger.info(f"Deleted from cache: {key}")
+    
+    def clear(self):
+        """Clear all cache entries"""
+        count = len(self._cache)
+        self._cache.clear()
+        logger.info(f"Cleared {count} cache entries")
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get cache statistics"""
+        total = len(self._cache)
+        expired = sum(1 for _, (_, expiry) in self._cache.items() if datetime.now() >= expiry)
+        valid = total - expired
+        
+        return {
+            'total_entries': total,
+            'valid_entries': valid,
+            'expired_entries': expired
+        }
+
+
+# Global cache instance
+cache_service = SimpleCache()
+
+
+# ============================================================================
+# Chart Data Cache Helper Functions
+# ============================================================================
+
+def get_chart_cache_key(ticker: str, period: str, interval: str) -> str:
+    """Generate cache key for chart data"""
+    return f"chart:{ticker}:{period}:{interval}"
+
+
+def get_indicators_cache_key(ticker: str, period: str, indicators: str) -> str:
+    """Generate cache key for technical indicators"""
+    return f"indicators:{ticker}:{period}:{indicators}"
+
+
+def get_comparison_cache_key(tickers: list, period: str) -> str:
+    """Generate cache key for chart comparison"""
+    tickers_str = ",".join(sorted(tickers))
+    return f"comparison:{tickers_str}:{period}"
+
+
+def cache_chart_data(ticker: str, period: str, interval: str, data: Any, ttl: int = 1800):
+    """
+    Cache chart data with 30-minute default TTL
+    
+    Args:
+        ticker: Stock ticker symbol
+        period: Time period (1d, 1mo, 1y, etc.)
+        interval: Data interval (1m, 1h, 1d, etc.)
+        data: Chart data to cache
+        ttl: Time to live in seconds (default: 1800 = 30 minutes)
+    """
+    cache_key = get_chart_cache_key(ticker, period, interval)
+    cache_service.set(cache_key, data, ttl=ttl)
+
+
+def get_cached_chart_data(ticker: str, period: str, interval: str) -> Optional[Any]:
+    """
+    Get cached chart data
+    
+    Args:
+        ticker: Stock ticker symbol
+        period: Time period
+        interval: Data interval
+        
+    Returns:
+        Cached chart data or None
+    """
+    cache_key = get_chart_cache_key(ticker, period, interval)
+    return cache_service.get(cache_key)
+
+
+def cache_indicators(ticker: str, period: str, indicators: list, data: Any, ttl: int = 1800):
+    """
+    Cache technical indicators with 30-minute default TTL
+    
+    Args:
+        ticker: Stock ticker symbol
+        period: Time period
+        indicators: List of indicators
+        data: Indicator data to cache
+        ttl: Time to live in seconds (default: 1800 = 30 minutes)
+    """
+    indicators_str = ",".join(sorted(indicators))
+    cache_key = get_indicators_cache_key(ticker, period, indicators_str)
+    cache_service.set(cache_key, data, ttl=ttl)
+
+
+def get_cached_indicators(ticker: str, period: str, indicators: list) -> Optional[Any]:
+    """
+    Get cached technical indicators
+    
+    Args:
+        ticker: Stock ticker symbol
+        period: Time period
+        indicators: List of indicators
+        
+    Returns:
+        Cached indicator data or None
+    """
+    indicators_str = ",".join(sorted(indicators))
+    cache_key = get_indicators_cache_key(ticker, period, indicators_str)
+    return cache_service.get(cache_key)
+
+
+def cache_comparison_data(tickers: list, period: str, data: Any, ttl: int = 1800):
+    """
+    Cache chart comparison data with 30-minute default TTL
+    
+    Args:
+        tickers: List of stock ticker symbols
+        period: Time period
+        data: Comparison data to cache
+        ttl: Time to live in seconds (default: 1800 = 30 minutes)
+    """
+    cache_key = get_comparison_cache_key(tickers, period)
+    cache_service.set(cache_key, data, ttl=ttl)
+
+
+def get_cached_comparison_data(tickers: list, period: str) -> Optional[Any]:
+    """
+    Get cached chart comparison data
+    
+    Args:
+        tickers: List of stock ticker symbols
+        period: Time period
+        
+    Returns:
+        Cached comparison data or None
+    """
+    cache_key = get_comparison_cache_key(tickers, period)
+    return cache_service.get(cache_key)
+
+
+def invalidate_chart_cache(ticker: str):
+    """
+    Invalidate all chart-related cache for a ticker
+    
+    Args:
+        ticker: Stock ticker symbol
+    """
+    # This is a simple implementation - in production you might want
+    # to track all keys for a ticker and delete them specifically
+    logger.info(f"Chart cache invalidation requested for {ticker}")
+    # For now, users can force refresh by not using cache
