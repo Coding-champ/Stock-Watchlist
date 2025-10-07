@@ -84,6 +84,10 @@ function StockChart({ stock, isEmbedded = false }) {
     '261.8': false
   });
   const [fibonacciData, setFibonacciData] = useState(null);
+  
+  // Support/Resistance toggles
+  const [showSupportResistance, setShowSupportResistance] = useState(false);
+  const [supportResistanceData, setSupportResistanceData] = useState(null);
 
   // Fetch chart data
   const fetchChartData = useCallback(async () => {
@@ -197,12 +201,21 @@ function StockChart({ stock, isEmbedded = false }) {
           } else {
             setFibonacciData(null);
           }
+          
+          // Fetch Support/Resistance data
+          const supportResistance = crossoverJson?.metrics?.basic_indicators?.support_resistance;
+          if (supportResistance) {
+            setSupportResistanceData(supportResistance);
+          } else {
+            setSupportResistanceData(null);
+          }
         }
       } catch (crossoverErr) {
         console.error('Error fetching crossover data:', crossoverErr);
         // Don't fail the whole chart if crossover data fails
         setCrossoverData(null);
         setFibonacciData(null);
+        setSupportResistanceData(null);
       }
       
     } catch (err) {
@@ -464,6 +477,42 @@ function StockChart({ stock, isEmbedded = false }) {
         />
       );
     }).filter(Boolean);
+  };
+
+  // Render Support/Resistance Levels
+  const renderSupportResistanceLevels = () => {
+    if (!showSupportResistance || !supportResistanceData) return null;
+    
+    const allLevels = [
+      ...supportResistanceData.support.map(level => ({ ...level, type: 'support' })),
+      ...supportResistanceData.resistance.map(level => ({ ...level, type: 'resistance' }))
+    ];
+    
+    return allLevels.map((level, index) => {
+      const color = level.type === 'support' ? '#27ae60' : '#e74c3c';
+      const icon = level.type === 'support' ? '🟢' : '🔴';
+      const labelText = `${icon} ${level.type === 'support' ? 'Support' : 'Resistance'} - $${level.price.toFixed(2)} (${level.strength}× getestet)`;
+      
+      // Linienstärke basierend auf Stärke (1-3px)
+      const strokeWidth = Math.min(level.strength, 3);
+      
+      return (
+        <ReferenceLine
+          key={`sr-${level.type}-${index}`}
+          y={level.price}
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeDasharray="0"
+          label={{
+            value: labelText,
+            position: 'right',
+            fill: color,
+            fontSize: 9,
+            fontWeight: 'bold'
+          }}
+        />
+      );
+    });
   };
 
   // Candlestick custom shape for Bar component
@@ -853,6 +902,42 @@ function StockChart({ stock, isEmbedded = false }) {
                 </div>
               )}
             </div>
+            
+            {/* Support/Resistance Controls */}
+            <div className="support-resistance-controls" style={{ 
+              marginTop: '10px', 
+              paddingTop: '10px', 
+              borderTop: '1px solid #ddd',
+              backgroundColor: '#f8f9fa',
+              padding: '10px',
+              borderRadius: '6px'
+            }}>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={showSupportResistance}
+                  onChange={(e) => setShowSupportResistance(e.target.checked)}
+                />
+                <span style={{ fontWeight: 'bold' }}>📊 Support & Resistance</span>
+              </label>
+              
+              {showSupportResistance && supportResistanceData && (
+                <div style={{ 
+                  marginLeft: '10px', 
+                  marginTop: '8px',
+                  fontSize: '11px',
+                  color: '#666'
+                }}>
+                  <div style={{ display: 'flex', gap: '15px' }}>
+                    <span>🟢 Support: {supportResistanceData.support.length}</span>
+                    <span>🔴 Resistance: {supportResistanceData.resistance.length}</span>
+                  </div>
+                  <div style={{ marginTop: '5px', fontSize: '10px', fontStyle: 'italic' }}>
+                    Linienstärke = Anzahl Tests
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1006,6 +1091,9 @@ function StockChart({ stock, isEmbedded = false }) {
               {/* Fibonacci Levels */}
               {renderFibonacciLevels()}
               
+              {/* Support/Resistance Levels */}
+              {renderSupportResistanceLevels()}
+              
               {/* Golden Cross / Death Cross Markers */}
               {renderCrossoverMarkers()}
             </ComposedChart>
@@ -1130,6 +1218,9 @@ function StockChart({ stock, isEmbedded = false }) {
               
               {/* Fibonacci Levels */}
               {renderFibonacciLevels()}
+              
+              {/* Support/Resistance Levels */}
+              {renderSupportResistanceLevels()}
               
               {/* Golden Cross / Death Cross Markers */}
               {renderCrossoverMarkers()}
