@@ -505,6 +505,100 @@ def calculate_stochastic_oscillator(high_prices: pd.Series,
     return result
 
 
+def calculate_atr(high_prices: pd.Series,
+                  low_prices: pd.Series,
+                  close_prices: pd.Series,
+                  period: int = 14) -> Dict[str, Any]:
+    """
+    Berechnet Average True Range (ATR) für Volatilitätsmessung und Stop-Loss-Platzierung
+    
+    Args:
+        high_prices: High prices
+        low_prices: Low prices
+        close_prices: Close prices
+        period: ATR period (default: 14)
+        
+    Returns:
+        Dict mit:
+        - atr_current: Aktueller ATR-Wert
+        - atr_percentage: ATR als % vom aktuellen Preis
+        - stop_loss_conservative: Aktueller Preis - 1.5x ATR
+        - stop_loss_standard: Aktueller Preis - 2x ATR
+        - stop_loss_aggressive: Aktueller Preis - 3x ATR
+        - take_profit_conservative: Aktueller Preis + 2x ATR
+        - take_profit_standard: Aktueller Preis + 3x ATR
+        - take_profit_aggressive: Aktueller Preis + 4x ATR
+        - volatility_rating: 'low', 'moderate', 'high', 'very_high'
+    """
+    result = {
+        'atr_current': None,
+        'atr_percentage': None,
+        'stop_loss_conservative': None,
+        'stop_loss_standard': None,
+        'stop_loss_aggressive': None,
+        'take_profit_conservative': None,
+        'take_profit_standard': None,
+        'take_profit_aggressive': None,
+        'volatility_rating': None,
+        'risk_reward_ratio': None  # Standard 2x ATR Stop vs 3x ATR Target = 1:1.5
+    }
+    
+    if (high_prices is None or low_prices is None or close_prices is None or 
+        len(close_prices) < period + 1):
+        return result
+    
+    try:
+        # True Range berechnen
+        # TR = max(high - low, abs(high - prev_close), abs(low - prev_close))
+        high_low = high_prices - low_prices
+        high_close = abs(high_prices - close_prices.shift())
+        low_close = abs(low_prices - close_prices.shift())
+        
+        # Maximum der drei Werte
+        true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+        
+        # ATR = Exponential Moving Average von True Range
+        atr = true_range.ewm(span=period, adjust=False).mean()
+        
+        # Aktuelle Werte
+        current_price = close_prices.iloc[-1]
+        current_atr = atr.iloc[-1]
+        
+        result['atr_current'] = float(current_atr)
+        result['atr_percentage'] = float((current_atr / current_price) * 100)
+        
+        # Stop-Loss Levels (unter dem aktuellen Preis für Long-Positionen)
+        result['stop_loss_conservative'] = float(current_price - (1.5 * current_atr))
+        result['stop_loss_standard'] = float(current_price - (2.0 * current_atr))
+        result['stop_loss_aggressive'] = float(current_price - (3.0 * current_atr))
+        
+        # Take-Profit Levels (über dem aktuellen Preis)
+        result['take_profit_conservative'] = float(current_price + (2.0 * current_atr))
+        result['take_profit_standard'] = float(current_price + (3.0 * current_atr))
+        result['take_profit_aggressive'] = float(current_price + (4.0 * current_atr))
+        
+        # Risk/Reward Ratio (Standard: 2x ATR Stop vs 3x ATR Target)
+        stop_distance = 2.0 * current_atr
+        target_distance = 3.0 * current_atr
+        result['risk_reward_ratio'] = float(target_distance / stop_distance)
+        
+        # Volatility Rating basierend auf ATR als Prozentsatz
+        atr_pct = result['atr_percentage']
+        if atr_pct < 2:
+            result['volatility_rating'] = 'low'
+        elif atr_pct < 4:
+            result['volatility_rating'] = 'moderate'
+        elif atr_pct < 6:
+            result['volatility_rating'] = 'high'
+        else:
+            result['volatility_rating'] = 'very_high'
+        
+    except Exception as e:
+        logger.error(f"Error calculating ATR: {e}")
+    
+    return result
+
+
 def calculate_volatility_metrics(close_prices: pd.Series) -> Dict[str, Optional[float]]:
     """
     Berechnet Volatilitäts-Metriken für verschiedene Zeiträume
@@ -1010,6 +1104,16 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
                 historical_prices['Close']
             )
             result['phase3_advanced_analysis'].update(stochastic_metrics)
+        
+        # ATR (Average True Range) - merge the dict into phase3
+        if all(col in historical_prices.columns for col in ['High', 'Low', 'Close']):
+            atr_metrics = calculate_atr(
+                historical_prices['High'],
+                historical_prices['Low'],
+                historical_prices['Close'],
+                period=14
+            )
+            result['phase3_advanced_analysis'].update(atr_metrics)
         
         # Volatility Metrics - merge the dict into phase3
         if 'Close' in historical_prices.columns:

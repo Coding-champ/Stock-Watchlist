@@ -783,6 +783,7 @@ def calculate_technical_indicators(
                    - 'rsi': Relative Strength Index (14-day)
                    - 'macd': Moving Average Convergence Divergence
                    - 'bollinger': Bollinger Bands (20-day)
+                   - 'atr' or 'atr_14': Average True Range (14-day)
                    - 'volatility': Historical Volatility (30-day)
                    
     Returns:
@@ -860,10 +861,45 @@ def calculate_technical_indicators(
             volatility = returns.rolling(window=30).std() * (252 ** 0.5) * 100
             result['indicators']['volatility'] = _clean_for_json(volatility)
         
+        # ATR (Average True Range)
+        if 'atr' in indicators or 'atr_14' in indicators:
+            # Check if required columns exist
+            if all(col in hist.columns for col in ['High', 'Low', 'Close']):
+                atr_values = _calculate_atr_series(hist['High'], hist['Low'], hist['Close'], period=14)
+                if atr_values is not None:
+                    result['indicators']['atr'] = _clean_for_json(atr_values)
+        
         return result
         
     except Exception as e:
         logger.error(f"Error calculating technical indicators for {ticker_symbol}: {e}")
+        return None
+
+
+def _calculate_atr_series(high_prices: pd.Series, 
+                          low_prices: pd.Series, 
+                          close_prices: pd.Series, 
+                          period: int = 14) -> Optional[pd.Series]:
+    """Calculate ATR as a series (for technical analysis)"""
+    try:
+        if len(close_prices) < period + 1:
+            logger.warning(f"Not enough data for ATR calculation. Need {period + 1}, have {len(close_prices)}")
+            return None
+        
+        # True Range berechnen
+        high_low = high_prices - low_prices
+        high_close = abs(high_prices - close_prices.shift())
+        low_close = abs(low_prices - close_prices.shift())
+        
+        # Maximum der drei Werte
+        true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+        
+        # ATR = Exponential Moving Average von True Range
+        atr = true_range.ewm(span=period, adjust=False).mean()
+        
+        return atr
+    except Exception as e:
+        logger.error(f"Error calculating ATR series: {e}", exc_info=True)
         return None
 
 

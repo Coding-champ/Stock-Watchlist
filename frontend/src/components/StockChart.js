@@ -61,6 +61,8 @@ function StockChart({ stock, isEmbedded = false }) {
   const [showVolume, setShowVolume] = useState(true);
   const [showRSI, setShowRSI] = useState(false);
   const [showMACD, setShowMACD] = useState(false);
+  const [showBollinger, setShowBollinger] = useState(false);
+  const [showATR, setShowATR] = useState(false);
 
   // Fetch chart data
   const fetchChartData = useCallback(async () => {
@@ -92,7 +94,7 @@ function StockChart({ stock, isEmbedded = false }) {
       // Fetch indicators if needed
       let indicatorsJson = null;
       // Always fetch all indicators to avoid re-loading when toggling visibility
-      const indicatorsList = ['sma_50', 'sma_200', 'rsi', 'macd'];
+      const indicatorsList = ['sma_50', 'sma_200', 'rsi', 'macd', 'bollinger', 'atr'];
       
       const indicatorsResponse = await fetch(
         `${API_BASE}/stock-data/${stock.id}/technical-indicators?period=${period}&${indicatorsList.map(i => `indicators=${i}`).join('&')}`
@@ -120,7 +122,11 @@ function StockChart({ stock, isEmbedded = false }) {
         rsi: indicatorsJson?.indicators?.rsi?.[index],
         macd: indicatorsJson?.indicators?.macd?.macd?.[index],
         macdSignal: indicatorsJson?.indicators?.macd?.signal?.[index],
-        macdHistogram: indicatorsJson?.indicators?.macd?.histogram?.[index]
+        macdHistogram: indicatorsJson?.indicators?.macd?.histogram?.[index],
+        bollingerUpper: indicatorsJson?.indicators?.bollinger?.upper?.[index],
+        bollingerMiddle: indicatorsJson?.indicators?.bollinger?.middle?.[index],
+        bollingerLower: indicatorsJson?.indicators?.bollinger?.lower?.[index],
+        atr: indicatorsJson?.indicators?.atr?.[index]
       }));
       
       // Calculate 10-day Volume Moving Average
@@ -249,6 +255,32 @@ function StockChart({ stock, isEmbedded = false }) {
             <span className="tooltip-label" style={{ color: '#9467bd' }}>SMA 200:</span>
             {' '}
             <span className="tooltip-value">${data.sma200?.toFixed(2)}</span>
+          </p>
+        )}
+        {showBollinger && data.bollingerUpper && (
+          <>
+            <p>
+              <span className="tooltip-label" style={{ color: '#e74c3c' }}>BB Upper:</span>
+              {' '}
+              <span className="tooltip-value">${data.bollingerUpper?.toFixed(2)}</span>
+            </p>
+            <p>
+              <span className="tooltip-label" style={{ color: '#95a5a6' }}>BB Middle:</span>
+              {' '}
+              <span className="tooltip-value">${data.bollingerMiddle?.toFixed(2)}</span>
+            </p>
+            <p>
+              <span className="tooltip-label" style={{ color: '#27ae60' }}>BB Lower:</span>
+              {' '}
+              <span className="tooltip-value">${data.bollingerLower?.toFixed(2)}</span>
+            </p>
+          </>
+        )}
+        {showATR && data.atr && (
+          <p>
+            <span className="tooltip-label" style={{ color: '#f39c12' }}>ATR:</span>
+            {' '}
+            <span className="tooltip-value">${data.atr?.toFixed(2)}</span>
           </p>
         )}
       </div>
@@ -494,6 +526,22 @@ function StockChart({ stock, isEmbedded = false }) {
               />
               <span>MACD</span>
             </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={showBollinger}
+                onChange={(e) => setShowBollinger(e.target.checked)}
+              />
+              <span>Bollinger Bands</span>
+            </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={showATR}
+                onChange={(e) => setShowATR(e.target.checked)}
+              />
+              <span>ATR</span>
+            </label>
           </div>
         </div>
 
@@ -593,6 +641,43 @@ function StockChart({ stock, isEmbedded = false }) {
                   name="SMA 200"
                 />
               )}
+              
+              {/* Bollinger Bands */}
+              {showBollinger && (
+                <>
+                  <Area
+                    type="monotone"
+                    dataKey="bollingerUpper"
+                    stroke="#e74c3c"
+                    strokeWidth={1.5}
+                    strokeDasharray="3 3"
+                    fill="#e74c3c"
+                    fillOpacity={0.1}
+                    dot={false}
+                    name="Bollinger Upper"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="bollingerLower"
+                    stroke="#27ae60"
+                    strokeWidth={1.5}
+                    strokeDasharray="3 3"
+                    fill="#27ae60"
+                    fillOpacity={0.1}
+                    dot={false}
+                    name="Bollinger Lower"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="bollingerMiddle"
+                    stroke="#95a5a6"
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                    dot={false}
+                    name="Bollinger Middle"
+                  />
+                </>
+              )}
             </ComposedChart>
           ) : (
             <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -661,6 +746,43 @@ function StockChart({ stock, isEmbedded = false }) {
                   dot={false}
                   name="SMA 200"
                 />
+              )}
+              
+              {/* Bollinger Bands */}
+              {showBollinger && (
+                <>
+                  <Area
+                    type="monotone"
+                    dataKey="bollingerUpper"
+                    stroke="#e74c3c"
+                    strokeWidth={1.5}
+                    strokeDasharray="3 3"
+                    fill="#e74c3c"
+                    fillOpacity={0.1}
+                    dot={false}
+                    name="Bollinger Upper"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="bollingerLower"
+                    stroke="#27ae60"
+                    strokeWidth={1.5}
+                    strokeDasharray="3 3"
+                    fill="#27ae60"
+                    fillOpacity={0.1}
+                    dot={false}
+                    name="Bollinger Lower"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="bollingerMiddle"
+                    stroke="#95a5a6"
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                    dot={false}
+                    name="Bollinger Middle"
+                  />
+                </>
               )}
             </ComposedChart>
           )}
@@ -835,6 +957,91 @@ function StockChart({ stock, isEmbedded = false }) {
               />
             </ComposedChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* ATR Chart */}
+      {showATR && (() => {
+        // Calculate ATR domain for better visibility
+        const atrValues = chartData.map(d => d.atr).filter(v => v != null);
+        const minATR = Math.min(...atrValues);
+        const maxATR = Math.max(...atrValues);
+        const padding = (maxATR - minATR) * 0.1; // 10% padding
+        const atrDomain = [Math.max(0, minATR - padding), maxATR + padding];
+        
+        return (
+          <div className="chart-section">
+            <h4 className="chart-subtitle">ATR (14) - Average True Range</h4>
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="atrGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f39c12" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#f39c12" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fontSize: 9, angle: -45, textAnchor: 'end' }}
+                  height={60}
+                  interval="preserveStartEnd"
+                  minTickGap={40}
+                />
+                <YAxis 
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(value) => `$${value.toFixed(2)}`}
+                  domain={atrDomain}
+                />
+                <Tooltip 
+                  formatter={(value, name) => [`$${value?.toFixed(2)}`, name]}
+                  contentStyle={{ 
+                    backgroundColor: 'rgba(255, 255, 255, 0.98)', 
+                    border: '1px solid #ddd',
+                    borderRadius: '6px',
+                    padding: '10px'
+                  }}
+                  labelStyle={{ fontWeight: 'bold', color: '#333' }}
+                  cursor={{ stroke: '#f39c12', strokeWidth: 1, strokeDasharray: '5 5' }}
+                />
+                <Legend />
+                
+                <Line
+                  type="monotone"
+                  dataKey="atr"
+                  stroke="#f39c12"
+                  strokeWidth={3}
+                  dot={false}
+                  name="ATR (14)"
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        );
+      })()}
+      
+      {/* ATR Info Box */}
+      {showATR && (
+        <div className="chart-section">
+          <div className="atr-info" style={{ 
+            padding: '10px', 
+            fontSize: '12px', 
+            color: '#666',
+            backgroundColor: '#f8f9fa',
+            borderRadius: '4px',
+            margin: '10px 0'
+          }}>
+            <p style={{ margin: '5px 0' }}>
+              💡 <strong>ATR Interpretation:</strong> Höhere Werte = höhere Volatilität
+            </p>
+            <p style={{ margin: '5px 0' }}>
+              🎯 <strong>Stop-Loss Empfehlung:</strong> 1.5-2x ATR unter Einstiegspreis
+            </p>
+            <p style={{ margin: '5px 0' }}>
+              📊 <strong>Position Size:</strong> Bei hohem ATR kleinere Positionen wählen
+            </p>
+          </div>
         </div>
       )}
 

@@ -476,6 +476,107 @@ function CalculatedMetricsTab({ stockId }) {
               </div>
             </div>
 
+            {/* ATR & Stop-Loss Levels */}
+            {phase3.atr_current && (
+              <div className="metric-box">
+                <div className="metric-box-title">🎯 ATR & Stop-Loss Levels</div>
+                <div className="metric-box-content">
+                  <div className="metric-item">
+                    <span className="metric-item-label">
+                      <MetricTooltip
+                        title="ATR (14)"
+                        description="Average True Range - misst die durchschnittliche Preisbewegung. Wichtig für Stop-Loss-Platzierung."
+                      >
+                        <span>ATR (14)</span>
+                      </MetricTooltip>
+                    </span>
+                    <span className="metric-item-value">
+                      {formatCurrency(phase3.atr_current)}
+                      <span style={{ marginLeft: '8px', fontSize: '12px', color: '#666' }}>
+                        ({formatNumber(phase3.atr_percentage, 2)}% des Preises)
+                      </span>
+                      {phase3.volatility_rating && (
+                        <span 
+                          className={`metric-badge-small ${phase3.volatility_rating.replace('_', '-')}`}
+                          style={{ background: getRiskRatingColor(phase3.volatility_rating), marginLeft: '8px' }}
+                        >
+                          {getRiskRatingLabel(phase3.volatility_rating)}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  
+                  <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '6px' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#333' }}>
+                      📊 Stop-Loss Empfehlungen (Long Position):
+                    </div>
+                    <div className="metric-item" style={{ borderBottom: '1px solid #e0e0e0', paddingBottom: '8px', marginBottom: '8px' }}>
+                      <span className="metric-item-label" style={{ color: '#f39c12' }}>
+                        🟡 Conservative (1.5x ATR)
+                      </span>
+                      <span className="metric-item-value" style={{ color: '#f39c12', fontWeight: 'bold' }}>
+                        {formatCurrency(phase3.stop_loss_conservative)}
+                      </span>
+                    </div>
+                    <div className="metric-item" style={{ borderBottom: '1px solid #e0e0e0', paddingBottom: '8px', marginBottom: '8px' }}>
+                      <span className="metric-item-label" style={{ color: '#e67e22' }}>
+                        🟠 Standard (2x ATR)
+                      </span>
+                      <span className="metric-item-value" style={{ color: '#e67e22', fontWeight: 'bold' }}>
+                        {formatCurrency(phase3.stop_loss_standard)}
+                      </span>
+                    </div>
+                    <div className="metric-item" style={{ paddingBottom: '8px' }}>
+                      <span className="metric-item-label" style={{ color: '#e74c3c' }}>
+                        🔴 Aggressive (3x ATR)
+                      </span>
+                      <span className="metric-item-value" style={{ color: '#e74c3c', fontWeight: 'bold' }}>
+                        {formatCurrency(phase3.stop_loss_aggressive)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#e8f5e9', borderRadius: '6px' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#333' }}>
+                      🎯 Take-Profit Empfehlungen:
+                    </div>
+                    <div className="metric-item" style={{ borderBottom: '1px solid #c8e6c9', paddingBottom: '8px', marginBottom: '8px' }}>
+                      <span className="metric-item-label" style={{ color: '#81c784' }}>
+                        Conservative (2x ATR)
+                      </span>
+                      <span className="metric-item-value" style={{ color: '#81c784', fontWeight: 'bold' }}>
+                        {formatCurrency(phase3.take_profit_conservative)}
+                      </span>
+                    </div>
+                    <div className="metric-item" style={{ borderBottom: '1px solid #c8e6c9', paddingBottom: '8px', marginBottom: '8px' }}>
+                      <span className="metric-item-label" style={{ color: '#66bb6a' }}>
+                        Standard (3x ATR)
+                      </span>
+                      <span className="metric-item-value" style={{ color: '#66bb6a', fontWeight: 'bold' }}>
+                        {formatCurrency(phase3.take_profit_standard)}
+                      </span>
+                    </div>
+                    <div className="metric-item" style={{ paddingBottom: '8px' }}>
+                      <span className="metric-item-label" style={{ color: '#4caf50' }}>
+                        Aggressive (4x ATR)
+                      </span>
+                      <span className="metric-item-value" style={{ color: '#4caf50', fontWeight: 'bold' }}>
+                        {formatCurrency(phase3.take_profit_aggressive)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {phase3.risk_reward_ratio && (
+                    <div style={{ marginTop: '10px', padding: '8px', backgroundColor: '#fff3cd', borderRadius: '4px', textAlign: 'center' }}>
+                      <span style={{ fontSize: '13px', color: '#856404' }}>
+                        ⚖️ <strong>Risk/Reward Ratio (2x:3x ATR):</strong> 1:{formatNumber(phase3.risk_reward_ratio, 1)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Beta-Adjusted Performance */}
             <div className="metric-box">
               <div className="metric-box-title">🎯 Risk-Adjusted Performance</div>
