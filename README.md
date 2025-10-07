@@ -428,8 +428,8 @@ response = requests.get(
 metrics = response.json()
 
 # Access specific metrics
-sharpe_ratio = metrics['phase3_advanced_analysis']['beta_adjusted_metrics']['sharpe_ratio']
-risk_score = metrics['phase3_advanced_analysis']['risk_adjusted_performance']['overall_score']
+sharpe_ratio = metrics['advanced_analysis']['beta_adjusted_metrics']['sharpe_ratio']
+risk_score = metrics['advanced_analysis']['risk_adjusted_performance']['overall_score']
 
 print(f"Sharpe Ratio: {sharpe_ratio:.3f}")
 print(f"Risk-Adjusted Score: {risk_score:.1f}/100")
@@ -446,8 +446,8 @@ fetch('http://localhost:8000/api/stocks/1/with-calculated-metrics?period=1y')
     const metrics = stock.calculated_metrics;
     
     console.log(`${stock.name} (${stock.ticker_symbol})`);
-    console.log(`Value Score: ${metrics.phase2_valuation_scores.value_metrics.value_score}/100`);
-    console.log(`Quality Score: ${metrics.phase2_valuation_scores.quality_metrics.quality_score}/100`);
+    console.log(`Value Score: ${metrics.valuation_scores.value_metrics.value_score}/100`);
+    console.log(`Quality Score: ${metrics.valuation_scores.quality_metrics.quality_score}/100`);
   });
 ```
 

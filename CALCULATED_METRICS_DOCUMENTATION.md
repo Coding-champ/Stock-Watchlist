@@ -165,19 +165,19 @@ GET /api/stock-data/{stock_id}/calculated-metrics
 **Response:**
 ```json
 {
-  "phase1_basic_indicators": {
+  "basic_indicators": {
     "week_52_metrics": { ... },
     "sma_metrics": { ... },
     "volume_metrics": { ... },
     "fcf_yield": 2.48
   },
-  "phase2_valuation_scores": {
+  "valuation_scores": {
     "peg_ratio": 2.5,
     "value_metrics": { ... },
     "quality_metrics": { ... },
     "dividend_metrics": { ... }
   },
-  "phase3_advanced_analysis": {
+  "advanced_analysis": {
     "macd": { ... },
     "stochastic": { ... },
     "volatility": { ... },
@@ -284,7 +284,7 @@ period="2y"   # 2 Jahre für stabilere Indikatoren
 ### 3. **Null-Werte behandeln**
 Nicht alle Metriken sind immer verfügbar:
 ```python
-if metrics['phase2_valuation_scores']['peg_ratio']:
+if metrics['valuation_scores']['peg_ratio']:
     # PEG Ratio verfügbar
     pass
 ```

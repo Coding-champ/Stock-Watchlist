@@ -63,7 +63,7 @@ def test_calculated_metrics():
     print("PHASE 1: BASIC INDICATORS")
     print("="*80)
     
-    phase1 = metrics['phase1_basic_indicators']
+    phase1 = metrics['basic_indicators']
     
     print("\n📊 52-Week Metrics:")
     week52 = phase1['week_52_metrics']
@@ -89,7 +89,7 @@ def test_calculated_metrics():
     print("PHASE 2: VALUATION SCORES")
     print("="*80)
     
-    phase2 = metrics['phase2_valuation_scores']
+    phase2 = metrics['valuation_scores']
     
     print(f"\n📉 PEG Ratio: {phase2['peg_ratio']:.2f}" if phase2['peg_ratio'] else "  N/A")
     
@@ -117,7 +117,7 @@ def test_calculated_metrics():
     print("PHASE 3: ADVANCED ANALYSIS")
     print("="*80)
     
-    phase3 = metrics['phase3_advanced_analysis']
+    phase3 = metrics['advanced_analysis']
     
     if phase3.get('macd'):
         print("\n📊 MACD:")

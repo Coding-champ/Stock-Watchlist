@@ -183,9 +183,9 @@ function CalculatedMetricsTab({ stockId }) {
     );
   }
 
-  const phase1 = metrics.phase1_basic_indicators || {};
-  const phase2 = metrics.phase2_valuation_scores || {};
-  const phase3 = metrics.phase3_advanced_analysis || {};
+  const basicIndicators = metrics.basic_indicators || {};
+  const valuationScores = metrics.valuation_scores || {};
+  const advancedAnalysis = metrics.advanced_analysis || {};
 
   return (
     <div className="calculated-metrics-container">
@@ -220,30 +220,30 @@ function CalculatedMetricsTab({ stockId }) {
             <div className="score-card">
               <MetricTooltip
                 title="Value Score"
-                value={`${formatNumber(phase2.value_score, 1)}/100`}
+                value={`${formatNumber(valuationScores.value_score, 1)}/100`}
                 description="Bewertet die Unterbewertung einer Aktie basierend auf KGV, KBV und anderen Faktoren."
                 interpretation={[
-                  { range: '80-100', label: 'Exzellent', isCurrent: phase2.value_score >= 80 },
-                  { range: '60-79', label: 'Gut', isCurrent: phase2.value_score >= 60 && phase2.value_score < 80 },
-                  { range: '40-59', label: 'Moderat', isCurrent: phase2.value_score >= 40 && phase2.value_score < 60 },
-                  { range: '20-39', label: 'Schwach', isCurrent: phase2.value_score >= 20 && phase2.value_score < 40 },
-                  { range: '0-19', label: 'Schlecht', isCurrent: phase2.value_score < 20 }
+                  { range: '80-100', label: 'Exzellent', isCurrent: valuationScores.value_score >= 80 },
+                  { range: '60-79', label: 'Gut', isCurrent: valuationScores.value_score >= 60 && valuationScores.value_score < 80 },
+                  { range: '40-59', label: 'Moderat', isCurrent: valuationScores.value_score >= 40 && valuationScores.value_score < 60 },
+                  { range: '20-39', label: 'Schwach', isCurrent: valuationScores.value_score >= 20 && valuationScores.value_score < 40 },
+                  { range: '0-19', label: 'Schlecht', isCurrent: valuationScores.value_score < 20 }
                 ]}
               >
                 <div className="score-card-title">Value Score</div>
               </MetricTooltip>
               <div className="score-card-value">
-                {formatNumber(phase2.value_score, 0)}
+                {formatNumber(valuationScores.value_score, 0)}
                 <span className="denominator">/100</span>
               </div>
               <div className="score-bar">
                 <div 
-                  className={`score-bar-fill ${getScoreClass(phase2.value_score)}`}
-                  style={{ width: `${phase2.value_score || 0}%` }}
+                  className={`score-bar-fill ${getScoreClass(valuationScores.value_score)}`}
+                  style={{ width: `${valuationScores.value_score || 0}%` }}
                 />
               </div>
-              <div className={`score-badge ${getScoreClass(phase2.value_score)}`}>
-                {getScoreLabel(phase2.value_score)}
+              <div className={`score-badge ${getScoreClass(valuationScores.value_score)}`}>
+                {getScoreLabel(valuationScores.value_score)}
               </div>
             </div>
 
@@ -251,30 +251,30 @@ function CalculatedMetricsTab({ stockId }) {
             <div className="score-card">
               <MetricTooltip
                 title="Quality Score"
-                value={`${formatNumber(phase2.quality_score, 1)}/100`}
+                value={`${formatNumber(valuationScores.quality_score, 1)}/100`}
                 description="Misst die Qualität des Unternehmens anhand von ROE, Gewinnmargen und Verschuldung."
                 interpretation={[
-                  { range: '80-100', label: 'Exzellent', isCurrent: phase2.quality_score >= 80 },
-                  { range: '60-79', label: 'Gut', isCurrent: phase2.quality_score >= 60 && phase2.quality_score < 80 },
-                  { range: '40-59', label: 'Moderat', isCurrent: phase2.quality_score >= 40 && phase2.quality_score < 60 },
-                  { range: '20-39', label: 'Schwach', isCurrent: phase2.quality_score >= 20 && phase2.quality_score < 40 },
-                  { range: '0-19', label: 'Schlecht', isCurrent: phase2.quality_score < 20 }
+                  { range: '80-100', label: 'Exzellent', isCurrent: valuationScores.quality_score >= 80 },
+                  { range: '60-79', label: 'Gut', isCurrent: valuationScores.quality_score >= 60 && valuationScores.quality_score < 80 },
+                  { range: '40-59', label: 'Moderat', isCurrent: valuationScores.quality_score >= 40 && valuationScores.quality_score < 60 },
+                  { range: '20-39', label: 'Schwach', isCurrent: valuationScores.quality_score >= 20 && valuationScores.quality_score < 40 },
+                  { range: '0-19', label: 'Schlecht', isCurrent: valuationScores.quality_score < 20 }
                 ]}
               >
                 <div className="score-card-title">Quality Score</div>
               </MetricTooltip>
               <div className="score-card-value">
-                {formatNumber(phase2.quality_score, 0)}
+                {formatNumber(valuationScores.quality_score, 0)}
                 <span className="denominator">/100</span>
               </div>
               <div className="score-bar">
                 <div 
-                  className={`score-bar-fill ${getScoreClass(phase2.quality_score)}`}
-                  style={{ width: `${phase2.quality_score || 0}%` }}
+                  className={`score-bar-fill ${getScoreClass(valuationScores.quality_score)}`}
+                  style={{ width: `${valuationScores.quality_score || 0}%` }}
                 />
               </div>
-              <div className={`score-badge ${getScoreClass(phase2.quality_score)}`}>
-                {getScoreLabel(phase2.quality_score)}
+              <div className={`score-badge ${getScoreClass(valuationScores.quality_score)}`}>
+                {getScoreLabel(valuationScores.quality_score)}
               </div>
             </div>
 
@@ -282,30 +282,30 @@ function CalculatedMetricsTab({ stockId }) {
             <div className="score-card">
               <MetricTooltip
                 title="Dividend Score"
-                value={`${formatNumber(phase2.dividend_score, 1)}/100`}
+                value={`${formatNumber(valuationScores.dividend_score, 1)}/100`}
                 description="Bewertet die Dividendenattraktivität basierend auf Rendite, Ausschüttungsquote und Nachhaltigkeit."
                 interpretation={[
-                  { range: '80-100', label: 'Exzellent', isCurrent: phase2.dividend_score >= 80 },
-                  { range: '60-79', label: 'Gut', isCurrent: phase2.dividend_score >= 60 && phase2.dividend_score < 80 },
-                  { range: '40-59', label: 'Moderat', isCurrent: phase2.dividend_score >= 40 && phase2.dividend_score < 60 },
-                  { range: '20-39', label: 'Schwach', isCurrent: phase2.dividend_score >= 20 && phase2.dividend_score < 40 },
-                  { range: '0-19', label: 'Schlecht', isCurrent: phase2.dividend_score < 20 }
+                  { range: '80-100', label: 'Exzellent', isCurrent: valuationScores.dividend_score >= 80 },
+                  { range: '60-79', label: 'Gut', isCurrent: valuationScores.dividend_score >= 60 && valuationScores.dividend_score < 80 },
+                  { range: '40-59', label: 'Moderat', isCurrent: valuationScores.dividend_score >= 40 && valuationScores.dividend_score < 60 },
+                  { range: '20-39', label: 'Schwach', isCurrent: valuationScores.dividend_score >= 20 && valuationScores.dividend_score < 40 },
+                  { range: '0-19', label: 'Schlecht', isCurrent: valuationScores.dividend_score < 20 }
                 ]}
               >
                 <div className="score-card-title">Dividend Score</div>
               </MetricTooltip>
               <div className="score-card-value">
-                {formatNumber(phase2.dividend_score, 0)}
+                {formatNumber(valuationScores.dividend_score, 0)}
                 <span className="denominator">/100</span>
               </div>
               <div className="score-bar">
                 <div 
-                  className={`score-bar-fill ${getScoreClass(phase2.dividend_score)}`}
-                  style={{ width: `${phase2.dividend_score || 0}%` }}
+                  className={`score-bar-fill ${getScoreClass(valuationScores.dividend_score)}`}
+                  style={{ width: `${valuationScores.dividend_score || 0}%` }}
                 />
               </div>
-              <div className={`score-badge ${getScoreClass(phase2.dividend_score)}`}>
-                {getScoreLabel(phase2.dividend_score)}
+              <div className={`score-badge ${getScoreClass(valuationScores.dividend_score)}`}>
+                {getScoreLabel(valuationScores.dividend_score)}
               </div>
             </div>
           </div>
@@ -319,25 +319,25 @@ function CalculatedMetricsTab({ stockId }) {
         </div>
         <div className="phase-section-body">
           {/* 52-Week Range */}
-          {phase1.week_52_high && phase1.week_52_low && phase1.current_price && (
+          {basicIndicators.week_52_high && basicIndicators.week_52_low && basicIndicators.current_price && (
             <div className="week52-range-container">
               <div className="week52-range-label">52-Wochen Range</div>
               <div className="week52-range-bar">
                 <div 
                   className="week52-range-marker"
                   style={{ 
-                    left: `${((phase1.current_price - phase1.week_52_low) / 
-                            (phase1.week_52_high - phase1.week_52_low)) * 100}%` 
+                    left: `${((basicIndicators.current_price - basicIndicators.week_52_low) / 
+                            (basicIndicators.week_52_high - basicIndicators.week_52_low)) * 100}%` 
                   }}
                 />
               </div>
               <div className="week52-range-values">
-                <span>Tief: {formatCurrency(phase1.week_52_low)}</span>
-                <span>Hoch: {formatCurrency(phase1.week_52_high)}</span>
+                <span>Tief: {formatCurrency(basicIndicators.week_52_low)}</span>
+                <span>Hoch: {formatCurrency(basicIndicators.week_52_high)}</span>
               </div>
               <div className="week52-current-value">
-                Aktuell: {formatCurrency(phase1.current_price)} 
-                ({formatNumber(phase1.percent_from_low, 1)}% vom Tief)
+                Aktuell: {formatCurrency(basicIndicators.current_price)} 
+                ({formatNumber(basicIndicators.percent_from_low, 1)}% vom Tief)
               </div>
             </div>
           )}
@@ -346,10 +346,10 @@ function CalculatedMetricsTab({ stockId }) {
           <div className="indicator-row">
             <div className="indicator-label">SMA 50</div>
             <div className="indicator-value">
-              {formatCurrency(phase1.sma_50)}
-              {phase1.current_price && phase1.sma_50 && (
-                <span className={`indicator-trend ${phase1.current_price > phase1.sma_50 ? 'up' : 'down'}`}>
-                  {getTrendIcon(phase1.current_price - phase1.sma_50)}
+              {formatCurrency(basicIndicators.sma_50)}
+              {basicIndicators.current_price && basicIndicators.sma_50 && (
+                <span className={`indicator-trend ${basicIndicators.current_price > basicIndicators.sma_50 ? 'up' : 'down'}`}>
+                  {getTrendIcon(basicIndicators.current_price - basicIndicators.sma_50)}
                 </span>
               )}
             </div>
@@ -358,10 +358,10 @@ function CalculatedMetricsTab({ stockId }) {
           <div className="indicator-row">
             <div className="indicator-label">SMA 200</div>
             <div className="indicator-value">
-              {formatCurrency(phase1.sma_200)}
-              {phase1.current_price && phase1.sma_200 && (
-                <span className={`indicator-trend ${phase1.current_price > phase1.sma_200 ? 'up' : 'down'}`}>
-                  {getTrendIcon(phase1.current_price - phase1.sma_200)}
+              {formatCurrency(basicIndicators.sma_200)}
+              {basicIndicators.current_price && basicIndicators.sma_200 && (
+                <span className={`indicator-trend ${basicIndicators.current_price > basicIndicators.sma_200 ? 'up' : 'down'}`}>
+                  {getTrendIcon(basicIndicators.current_price - basicIndicators.sma_200)}
                 </span>
               )}
             </div>
@@ -377,10 +377,10 @@ function CalculatedMetricsTab({ stockId }) {
               </MetricTooltip>
             </div>
             <div className="indicator-value">
-              {formatNumber(phase1.volume_ratio, 2)}x
-              {phase1.volume_ratio && (
+              {formatNumber(basicIndicators.volume_ratio, 2)}x
+              {basicIndicators.volume_ratio && (
                 <span style={{ marginLeft: '8px', fontSize: '13px', color: '#666' }}>
-                  ({formatNumber((phase1.volume_ratio - 1) * 100, 0)}% {phase1.volume_ratio > 1 ? 'über' : 'unter'} Durchschnitt)
+                  ({formatNumber((basicIndicators.volume_ratio - 1) * 100, 0)}% {basicIndicators.volume_ratio > 1 ? 'über' : 'unter'} Durchschnitt)
                 </span>
               )}
             </div>
@@ -396,7 +396,7 @@ function CalculatedMetricsTab({ stockId }) {
               </MetricTooltip>
             </div>
             <div className="indicator-value">
-              {formatNumber(phase1.fcf_yield, 2, '%')}
+              {formatNumber(basicIndicators.fcf_yield, 2, '%')}
             </div>
           </div>
         </div>
@@ -423,17 +423,17 @@ function CalculatedMetricsTab({ stockId }) {
                     </MetricTooltip>
                   </span>
                   <span className="metric-item-value">
-                    {formatNumber(phase3.macd, 2)}
-                    {phase3.macd && phase3.macd_signal && (
-                      <span className={`metric-badge-small ${phase3.macd > phase3.macd_signal ? 'buy' : 'sell'}`}>
-                        {phase3.macd > phase3.macd_signal ? 'BUY ↑' : 'SELL ↓'}
+                    {formatNumber(advancedAnalysis.macd, 2)}
+                    {advancedAnalysis.macd && advancedAnalysis.macd_signal && (
+                      <span className={`metric-badge-small ${advancedAnalysis.macd > advancedAnalysis.macd_signal ? 'buy' : 'sell'}`}>
+                        {advancedAnalysis.macd > advancedAnalysis.macd_signal ? 'BUY ↑' : 'SELL ↓'}
                       </span>
                     )}
                   </span>
                 </div>
                 <div className="metric-item">
                   <span className="metric-item-label">MACD Signal</span>
-                  <span className="metric-item-value">{formatNumber(phase3.macd_signal, 2)}</span>
+                  <span className="metric-item-value">{formatNumber(advancedAnalysis.macd_signal, 2)}</span>
                 </div>
                 <div className="metric-item">
                   <span className="metric-item-label">
@@ -445,21 +445,21 @@ function CalculatedMetricsTab({ stockId }) {
                     </MetricTooltip>
                   </span>
                   <span className="metric-item-value">
-                    {formatNumber(phase3.stochastic_k, 1, '%')}
-                    {phase3.stochastic_k && (
+                    {formatNumber(advancedAnalysis.stochastic_k, 1, '%')}
+                    {advancedAnalysis.stochastic_k && (
                       <span className={`metric-badge-small ${
-                        phase3.stochastic_k > 80 ? 'sell' : 
-                        phase3.stochastic_k < 20 ? 'buy' : 'neutral'
+                        advancedAnalysis.stochastic_k > 80 ? 'sell' : 
+                        advancedAnalysis.stochastic_k < 20 ? 'buy' : 'neutral'
                       }`}>
-                        {phase3.stochastic_k > 80 ? 'Überkauft' : 
-                         phase3.stochastic_k < 20 ? 'Überverkauft' : 'Neutral'}
+                        {advancedAnalysis.stochastic_k > 80 ? 'Überkauft' : 
+                         advancedAnalysis.stochastic_k < 20 ? 'Überverkauft' : 'Neutral'}
                       </span>
                     )}
                   </span>
                 </div>
                 <div className="metric-item">
                   <span className="metric-item-label">RSI (14)</span>
-                  <span className="metric-item-value">{formatNumber(phase3.rsi, 1)}</span>
+                  <span className="metric-item-value">{formatNumber(advancedAnalysis.rsi, 1)}</span>
                 </div>
               </div>
             </div>
@@ -478,20 +478,20 @@ function CalculatedMetricsTab({ stockId }) {
                     </MetricTooltip>
                   </span>
                   <span className="metric-item-value">
-                    {formatNumber(phase3.volatility_30d, 2, '%')}
-                    {phase3.volatility_rating && (
+                    {formatNumber(advancedAnalysis.volatility_30d, 2, '%')}
+                    {advancedAnalysis.volatility_rating && (
                       <span 
-                        className={`metric-badge-small ${phase3.volatility_rating.replace('_', '-')}`}
-                        style={{ background: getRiskRatingColor(phase3.volatility_rating) }}
+                        className={`metric-badge-small ${advancedAnalysis.volatility_rating.replace('_', '-')}`}
+                        style={{ background: getRiskRatingColor(advancedAnalysis.volatility_rating) }}
                       >
-                        {getRiskRatingLabel(phase3.volatility_rating)}
+                        {getRiskRatingLabel(advancedAnalysis.volatility_rating)}
                       </span>
                     )}
                   </span>
                 </div>
                 <div className="metric-item">
                   <span className="metric-item-label">Max Drawdown</span>
-                  <span className="metric-item-value">{formatNumber(phase3.max_drawdown, 2, '%')}</span>
+                  <span className="metric-item-value">{formatNumber(advancedAnalysis.max_drawdown, 2, '%')}</span>
                 </div>
                 <div className="metric-item">
                   <span className="metric-item-label">
@@ -503,10 +503,10 @@ function CalculatedMetricsTab({ stockId }) {
                     </MetricTooltip>
                   </span>
                   <span className="metric-item-value">
-                    {formatNumber(phase3.beta, 2)}
-                    {phase3.beta && (
+                    {formatNumber(advancedAnalysis.beta, 2)}
+                    {advancedAnalysis.beta && (
                       <span style={{ marginLeft: '8px', fontSize: '12px', color: '#666' }}>
-                        ({formatNumber(Math.abs(phase3.beta - 1) * 100, 0)}% {phase3.beta > 1 ? 'volatiler' : 'stabiler'})
+                        ({formatNumber(Math.abs(advancedAnalysis.beta - 1) * 100, 0)}% {advancedAnalysis.beta > 1 ? 'volatiler' : 'stabiler'})
                       </span>
                     )}
                   </span>
@@ -613,7 +613,7 @@ function CalculatedMetricsTab({ stockId }) {
             )}
 
             {/* ATR & Stop-Loss Levels */}
-            {phase3.atr_current && (
+            {advancedAnalysis.atr_current && (
               <div className="metric-box">
                 <div className="metric-box-title">🎯 ATR & Stop-Loss Levels</div>
                 <div className="metric-box-content">
@@ -627,16 +627,16 @@ function CalculatedMetricsTab({ stockId }) {
                       </MetricTooltip>
                     </span>
                     <span className="metric-item-value">
-                      {formatCurrency(phase3.atr_current)}
+                      {formatCurrency(advancedAnalysis.atr_current)}
                       <span style={{ marginLeft: '8px', fontSize: '12px', color: '#666' }}>
-                        ({formatNumber(phase3.atr_percentage, 2)}% des Preises)
+                        ({formatNumber(advancedAnalysis.atr_percentage, 2)}% des Preises)
                       </span>
-                      {phase3.volatility_rating && (
+                      {advancedAnalysis.volatility_rating && (
                         <span 
-                          className={`metric-badge-small ${phase3.volatility_rating.replace('_', '-')}`}
-                          style={{ background: getRiskRatingColor(phase3.volatility_rating), marginLeft: '8px' }}
+                          className={`metric-badge-small ${advancedAnalysis.volatility_rating.replace('_', '-')}`}
+                          style={{ background: getRiskRatingColor(advancedAnalysis.volatility_rating), marginLeft: '8px' }}
                         >
-                          {getRiskRatingLabel(phase3.volatility_rating)}
+                          {getRiskRatingLabel(advancedAnalysis.volatility_rating)}
                         </span>
                       )}
                     </span>
@@ -651,7 +651,7 @@ function CalculatedMetricsTab({ stockId }) {
                         🟡 Conservative (1.5x ATR)
                       </span>
                       <span className="metric-item-value" style={{ color: '#f39c12', fontWeight: 'bold' }}>
-                        {formatCurrency(phase3.stop_loss_conservative)}
+                        {formatCurrency(advancedAnalysis.stop_loss_conservative)}
                       </span>
                     </div>
                     <div className="metric-item" style={{ borderBottom: '1px solid #e0e0e0', paddingBottom: '8px', marginBottom: '8px' }}>
@@ -659,7 +659,7 @@ function CalculatedMetricsTab({ stockId }) {
                         🟠 Standard (2x ATR)
                       </span>
                       <span className="metric-item-value" style={{ color: '#e67e22', fontWeight: 'bold' }}>
-                        {formatCurrency(phase3.stop_loss_standard)}
+                        {formatCurrency(advancedAnalysis.stop_loss_standard)}
                       </span>
                     </div>
                     <div className="metric-item" style={{ paddingBottom: '8px' }}>
@@ -667,7 +667,7 @@ function CalculatedMetricsTab({ stockId }) {
                         🔴 Aggressive (3x ATR)
                       </span>
                       <span className="metric-item-value" style={{ color: '#e74c3c', fontWeight: 'bold' }}>
-                        {formatCurrency(phase3.stop_loss_aggressive)}
+                        {formatCurrency(advancedAnalysis.stop_loss_aggressive)}
                       </span>
                     </div>
                   </div>
@@ -681,7 +681,7 @@ function CalculatedMetricsTab({ stockId }) {
                         Conservative (2x ATR)
                       </span>
                       <span className="metric-item-value" style={{ color: '#81c784', fontWeight: 'bold' }}>
-                        {formatCurrency(phase3.take_profit_conservative)}
+                        {formatCurrency(advancedAnalysis.take_profit_conservative)}
                       </span>
                     </div>
                     <div className="metric-item" style={{ borderBottom: '1px solid #c8e6c9', paddingBottom: '8px', marginBottom: '8px' }}>
@@ -689,7 +689,7 @@ function CalculatedMetricsTab({ stockId }) {
                         Standard (3x ATR)
                       </span>
                       <span className="metric-item-value" style={{ color: '#66bb6a', fontWeight: 'bold' }}>
-                        {formatCurrency(phase3.take_profit_standard)}
+                        {formatCurrency(advancedAnalysis.take_profit_standard)}
                       </span>
                     </div>
                     <div className="metric-item" style={{ paddingBottom: '8px' }}>
@@ -697,15 +697,15 @@ function CalculatedMetricsTab({ stockId }) {
                         Aggressive (4x ATR)
                       </span>
                       <span className="metric-item-value" style={{ color: '#4caf50', fontWeight: 'bold' }}>
-                        {formatCurrency(phase3.take_profit_aggressive)}
+                        {formatCurrency(advancedAnalysis.take_profit_aggressive)}
                       </span>
                     </div>
                   </div>
 
-                  {phase3.risk_reward_ratio && (
+                  {advancedAnalysis.risk_reward_ratio && (
                     <div style={{ marginTop: '10px', padding: '8px', backgroundColor: '#fff3cd', borderRadius: '4px', textAlign: 'center' }}>
                       <span style={{ fontSize: '13px', color: '#856404' }}>
-                        ⚖️ <strong>Risk/Reward Ratio (2x:3x ATR):</strong> 1:{formatNumber(phase3.risk_reward_ratio, 1)}
+                        ⚖️ <strong>Risk/Reward Ratio (2x:3x ATR):</strong> 1:{formatNumber(advancedAnalysis.risk_reward_ratio, 1)}
                       </span>
                     </div>
                   )}
@@ -723,24 +723,24 @@ function CalculatedMetricsTab({ stockId }) {
                       title="Sharpe Ratio"
                       description="Rendite pro Risikoeinheit. Höhere Werte sind besser."
                       interpretation={[
-                        { range: '> 1.0', label: 'Exzellent', isCurrent: phase3.sharpe_ratio > 1.0 },
-                        { range: '0.5-1.0', label: 'Gut', isCurrent: phase3.sharpe_ratio >= 0.5 && phase3.sharpe_ratio <= 1.0 },
-                        { range: '0-0.5', label: 'Schwach', isCurrent: phase3.sharpe_ratio >= 0 && phase3.sharpe_ratio < 0.5 },
-                        { range: '< 0', label: 'Schlecht', isCurrent: phase3.sharpe_ratio < 0 }
+                        { range: '> 1.0', label: 'Exzellent', isCurrent: advancedAnalysis.sharpe_ratio > 1.0 },
+                        { range: '0.5-1.0', label: 'Gut', isCurrent: advancedAnalysis.sharpe_ratio >= 0.5 && advancedAnalysis.sharpe_ratio <= 1.0 },
+                        { range: '0-0.5', label: 'Schwach', isCurrent: advancedAnalysis.sharpe_ratio >= 0 && advancedAnalysis.sharpe_ratio < 0.5 },
+                        { range: '< 0', label: 'Schlecht', isCurrent: advancedAnalysis.sharpe_ratio < 0 }
                       ]}
                     >
                       <span>Sharpe Ratio</span>
                     </MetricTooltip>
                   </span>
                   <span className="metric-item-value">
-                    {formatNumber(phase3.sharpe_ratio, 2)}
-                    {phase3.sharpe_ratio && (
+                    {formatNumber(advancedAnalysis.sharpe_ratio, 2)}
+                    {advancedAnalysis.sharpe_ratio && (
                       <span className={`metric-badge-small ${
-                        phase3.sharpe_ratio > 1.0 ? 'buy' : 
-                        phase3.sharpe_ratio > 0.5 ? 'neutral' : 'sell'
+                        advancedAnalysis.sharpe_ratio > 1.0 ? 'buy' : 
+                        advancedAnalysis.sharpe_ratio > 0.5 ? 'neutral' : 'sell'
                       }`}>
-                        {phase3.sharpe_ratio > 1.0 ? 'Exzellent' : 
-                         phase3.sharpe_ratio > 0.5 ? 'Gut' : 'Schwach'}
+                        {advancedAnalysis.sharpe_ratio > 1.0 ? 'Exzellent' : 
+                         advancedAnalysis.sharpe_ratio > 0.5 ? 'Gut' : 'Schwach'}
                       </span>
                     )}
                   </span>
@@ -755,25 +755,25 @@ function CalculatedMetricsTab({ stockId }) {
                     </MetricTooltip>
                   </span>
                   <span className="metric-item-value">
-                    {formatNumber(phase3.alpha, 2, '%')}
-                    {phase3.alpha && (
+                    {formatNumber(advancedAnalysis.alpha, 2, '%')}
+                    {advancedAnalysis.alpha && (
                       <span style={{ marginLeft: '8px' }}>
-                        {phase3.alpha > 0 ? '🚀' : '📉'}
+                        {advancedAnalysis.alpha > 0 ? '🚀' : '📉'}
                       </span>
                     )}
                   </span>
                 </div>
                 <div className="metric-item">
                   <span className="metric-item-label">Treynor Ratio</span>
-                  <span className="metric-item-value">{formatNumber(phase3.treynor_ratio, 2)}</span>
+                  <span className="metric-item-value">{formatNumber(advancedAnalysis.treynor_ratio, 2)}</span>
                 </div>
                 <div className="metric-item">
                   <span className="metric-item-label">Sortino Ratio</span>
-                  <span className="metric-item-value">{formatNumber(phase3.sortino_ratio, 2)}</span>
+                  <span className="metric-item-value">{formatNumber(advancedAnalysis.sortino_ratio, 2)}</span>
                 </div>
                 <div className="metric-item">
                   <span className="metric-item-label">Information Ratio</span>
-                  <span className="metric-item-value">{formatNumber(phase3.information_ratio, 2)}</span>
+                  <span className="metric-item-value">{formatNumber(advancedAnalysis.information_ratio, 2)}</span>
                 </div>
               </div>
             </div>
@@ -789,42 +789,42 @@ function CalculatedMetricsTab({ stockId }) {
                   borderRadius: '8px'
                 }}>
                   <div style={{ fontSize: '48px', fontWeight: '700', color: '#007bff', marginBottom: '10px' }}>
-                    {formatNumber(phase3.risk_adjusted_performance_score, 1)}
+                    {formatNumber(advancedAnalysis.risk_adjusted_performance_score, 1)}
                     <span style={{ fontSize: '24px', color: '#999' }}>/100</span>
                   </div>
                   <div className="score-bar" style={{ maxWidth: '300px', margin: '0 auto 15px' }}>
                     <div 
-                      className={`score-bar-fill ${getScoreClass(phase3.risk_adjusted_performance_score)}`}
-                      style={{ width: `${phase3.risk_adjusted_performance_score || 0}%` }}
+                      className={`score-bar-fill ${getScoreClass(advancedAnalysis.risk_adjusted_performance_score)}`}
+                      style={{ width: `${advancedAnalysis.risk_adjusted_performance_score || 0}%` }}
                     />
                   </div>
-                  <div className={`score-badge ${getScoreClass(phase3.risk_adjusted_performance_score)}`}>
-                    {getScoreLabel(phase3.risk_adjusted_performance_score)}
+                  <div className={`score-badge ${getScoreClass(advancedAnalysis.risk_adjusted_performance_score)}`}>
+                    {getScoreLabel(advancedAnalysis.risk_adjusted_performance_score)}
                   </div>
                   
                   {/* Contributions */}
-                  {phase3.sharpe_contribution !== undefined && (
+                  {advancedAnalysis.sharpe_contribution !== undefined && (
                     <div style={{ marginTop: '20px', fontSize: '13px', color: '#666', textAlign: 'left' }}>
                       <div style={{ fontWeight: '600', marginBottom: '8px' }}>Beiträge zum Score:</div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
                         <span>Sharpe Ratio:</span>
-                        <strong>{formatNumber(phase3.sharpe_contribution, 1)} Punkte</strong>
+                        <strong>{formatNumber(advancedAnalysis.sharpe_contribution, 1)} Punkte</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
                         <span>Alpha:</span>
-                        <strong>{formatNumber(phase3.alpha_contribution, 1)} Punkte</strong>
+                        <strong>{formatNumber(advancedAnalysis.alpha_contribution, 1)} Punkte</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
                         <span>Treynor Ratio:</span>
-                        <strong>{formatNumber(phase3.treynor_contribution, 1)} Punkte</strong>
+                        <strong>{formatNumber(advancedAnalysis.treynor_contribution, 1)} Punkte</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
                         <span>Sortino Ratio:</span>
-                        <strong>{formatNumber(phase3.sortino_contribution, 1)} Punkte</strong>
+                        <strong>{formatNumber(advancedAnalysis.sortino_contribution, 1)} Punkte</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
                         <span>Information Ratio:</span>
-                        <strong>{formatNumber(phase3.information_ratio_contribution, 1)} Punkte</strong>
+                        <strong>{formatNumber(advancedAnalysis.information_ratio_contribution, 1)} Punkte</strong>
                       </div>
                     </div>
                   )}

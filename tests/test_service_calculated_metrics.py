@@ -82,9 +82,9 @@ class TestCalculatedMetricsService:
         )
         
         # Check that result contains all phases
-        assert 'phase1_basic_indicators' in result
-        assert 'phase2_valuation_scores' in result
-        assert 'phase3_advanced_analysis' in result
+        assert 'basic_indicators' in result
+        assert 'valuation_scores' in result
+        assert 'advanced_analysis' in result
         assert 'calculation_timestamp' in result
         
         print("\n✅ All metrics calculated successfully")
@@ -96,7 +96,7 @@ class TestCalculatedMetricsService:
             historical_prices=sample_historical_prices
         )
         
-        phase1 = result['phase1_basic_indicators']
+        phase1 = result['basic_indicators']
         
         # Check 52-week metrics
         assert 'week_52_metrics' in phase1
@@ -129,7 +129,7 @@ class TestCalculatedMetricsService:
             historical_prices=sample_historical_prices
         )
         
-        phase2 = result['phase2_valuation_scores']
+        phase2 = result['valuation_scores']
         
         # Check value metrics
         assert 'value_metrics' in phase2
@@ -158,7 +158,7 @@ class TestCalculatedMetricsService:
             historical_prices=sample_historical_prices
         )
         
-        phase3 = result['phase3_advanced_analysis']
+        phase3 = result['advanced_analysis']
         
         # Check MACD
         assert 'macd' in phase3
@@ -199,7 +199,7 @@ class TestCalculatedMetricsService:
             historical_prices=sample_historical_prices
         )
         
-        beta_metrics = result['phase3_advanced_analysis']['beta_adjusted_metrics']
+        beta_metrics = result['advanced_analysis']['beta_adjusted_metrics']
         
         # Check all beta-adjusted metrics are present
         assert beta_metrics['sharpe_ratio'] is not None
@@ -223,7 +223,7 @@ class TestCalculatedMetricsService:
             historical_prices=sample_historical_prices
         )
         
-        perf = result['phase3_advanced_analysis']['risk_adjusted_performance']
+        perf = result['advanced_analysis']['risk_adjusted_performance']
         
         # Check overall score and rating
         assert perf['overall_score'] is not None
@@ -279,7 +279,7 @@ class TestEdgeCases:
         
         # Should still return result, with None values where data is missing
         assert result is not None
-        assert 'phase1_basic_indicators' in result
+        assert 'basic_indicators' in result
         print("\n✅ Handles missing data gracefully")
     
     def test_short_historical_data(self, sample_extended_data):
@@ -300,7 +300,7 @@ class TestEdgeCases:
         
         # Should still work with 30 days (minimum for beta calculations)
         assert result is not None
-        assert result['phase3_advanced_analysis']['beta_adjusted_metrics'] is not None
+        assert result['advanced_analysis']['beta_adjusted_metrics'] is not None
         print("\n✅ Works with 30-day minimum data")
 
 

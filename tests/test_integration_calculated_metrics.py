@@ -205,26 +205,26 @@ class TestCalculatedMetricsEndpoint:
         data = response.json()
         
         # Check structure
-        assert 'phase1_basic_indicators' in data
-        assert 'phase2_valuation_scores' in data
-        assert 'phase3_advanced_analysis' in data
+        assert 'basic_indicators' in data
+        assert 'valuation_scores' in data
+        assert 'advanced_analysis' in data
         assert 'calculation_timestamp' in data
         
         # Check Phase 1
-        phase1 = data['phase1_basic_indicators']
+        phase1 = data['basic_indicators']
         assert 'week_52_metrics' in phase1
         assert 'sma_metrics' in phase1
         assert 'volume_metrics' in phase1
         assert 'fcf_yield' in phase1
         
         # Check Phase 2
-        phase2 = data['phase2_valuation_scores']
+        phase2 = data['valuation_scores']
         assert 'value_metrics' in phase2
         assert 'quality_metrics' in phase2
         assert 'dividend_metrics' in phase2
         
         # Check Phase 3
-        phase3 = data['phase3_advanced_analysis']
+        phase3 = data['advanced_analysis']
         assert 'macd' in phase3
         assert 'stochastic' in phase3
         assert 'volatility' in phase3
@@ -351,9 +351,9 @@ class TestStockWithCalculatedMetrics:
         
         # Check calculated metrics structure
         metrics = data['calculated_metrics']
-        assert 'phase1_basic_indicators' in metrics
-        assert 'phase2_valuation_scores' in metrics
-        assert 'phase3_advanced_analysis' in metrics
+        assert 'basic_indicators' in metrics
+        assert 'valuation_scores' in metrics
+        assert 'advanced_analysis' in metrics
     
     def test_get_stock_with_calculated_metrics_not_found(self, client):
         """Test with non-existent stock"""
@@ -387,7 +387,7 @@ class TestCalculatedMetricsContent:
         mock_analyst_data.return_value = None
         
         response = client.get(f"/api/stock-data/{sample_stock.id}/calculated-metrics")
-        phase1 = response.json()['phase1_basic_indicators']
+        phase1 = response.json()['basic_indicators']
         
         # 52-week metrics
         week52 = phase1['week_52_metrics']
@@ -423,7 +423,7 @@ class TestCalculatedMetricsContent:
         mock_analyst_data.return_value = None
         
         response = client.get(f"/api/stock-data/{sample_stock.id}/calculated-metrics")
-        phase2 = response.json()['phase2_valuation_scores']
+        phase2 = response.json()['valuation_scores']
         
         # Value score
         if phase2['value_metrics']['value_score'] is not None:
@@ -456,7 +456,7 @@ class TestCalculatedMetricsContent:
         mock_analyst_data.return_value = None
         
         response = client.get(f"/api/stock-data/{sample_stock.id}/calculated-metrics")
-        phase3 = response.json()['phase3_advanced_analysis']
+        phase3 = response.json()['advanced_analysis']
         
         # Beta-adjusted metrics
         beta_metrics = phase3['beta_adjusted_metrics']

@@ -1013,39 +1013,39 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
         Dict mit allen berechneten Metriken, organisiert nach Phasen
     """
     result = {
-        'phase1_basic_indicators': {},
-        'phase2_valuation_scores': {},
-        'phase3_advanced_analysis': {},
+        'basic_indicators': {},
+        'valuation_scores': {},
+        'advanced_analysis': {},
         'calculation_timestamp': datetime.now().isoformat()
     }
     
     # ========== PHASE 1 ==========
     
-    # 52-Wochen Distanz - merge the dict into phase1
+    # 52-Wochen Distanz - merge the dict into basic_indicators
     week_52_metrics = calculate_52week_distance(
         stock_data.get('current_price'),
         stock_data.get('fifty_two_week_high'),
         stock_data.get('fifty_two_week_low')
     )
-    result['phase1_basic_indicators'].update(week_52_metrics)
+    result['basic_indicators'].update(week_52_metrics)
     
-    # SMA Crossover - merge the dict into phase1
+    # SMA Crossover - merge the dict into basic_indicators
     sma_metrics = calculate_sma_crossover(
         stock_data.get('current_price'),
         stock_data.get('fifty_day_average'),
         stock_data.get('two_hundred_day_average')
     )
-    result['phase1_basic_indicators'].update(sma_metrics)
+    result['basic_indicators'].update(sma_metrics)
     
-    # Relative Volume - merge the dict into phase1
+    # Relative Volume - merge the dict into basic_indicators
     volume_metrics = calculate_relative_volume(
         stock_data.get('volume'),
         stock_data.get('average_volume')
     )
-    result['phase1_basic_indicators'].update(volume_metrics)
+    result['basic_indicators'].update(volume_metrics)
     
     # Free Cashflow Yield
-    result['phase1_basic_indicators']['fcf_yield'] = calculate_free_cashflow_yield(
+    result['basic_indicators']['fcf_yield'] = calculate_free_cashflow_yield(
         stock_data.get('free_cashflow'),
         stock_data.get('market_cap')
     )
@@ -1053,20 +1053,20 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
     # ========== PHASE 2 ==========
     
     # PEG Ratio
-    result['phase2_valuation_scores']['peg_ratio'] = calculate_peg_ratio(
+    result['valuation_scores']['peg_ratio'] = calculate_peg_ratio(
         stock_data.get('pe_ratio'),
         stock_data.get('earnings_growth')
     )
     
-    # Value Score - merge the dict into phase2
+    # Value Score - merge the dict into valuation_scores
     value_metrics = calculate_value_score(
         stock_data.get('pe_ratio'),
         stock_data.get('price_to_book'),
         stock_data.get('price_to_sales')
     )
-    result['phase2_valuation_scores'].update(value_metrics)
+    result['valuation_scores'].update(value_metrics)
     
-    # Quality Score - merge the dict into phase2
+    # Quality Score - merge the dict into valuation_scores
     quality_metrics = calculate_quality_score(
         stock_data.get('return_on_equity'),
         stock_data.get('return_on_assets'),
@@ -1074,9 +1074,9 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
         stock_data.get('operating_margins'),
         stock_data.get('debt_to_equity')
     )
-    result['phase2_valuation_scores'].update(quality_metrics)
+    result['valuation_scores'].update(quality_metrics)
     
-    # Dividend Safety Score - merge the dict into phase2
+    # Dividend Safety Score - merge the dict into valuation_scores
     dividend_metrics = calculate_dividend_safety_score(
         stock_data.get('dividend_yield'),
         stock_data.get('payout_ratio'),
@@ -1084,28 +1084,28 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
         stock_data.get('dividend_rate'),
         stock_data.get('five_year_avg_dividend_yield')
     )
-    result['phase2_valuation_scores'].update(dividend_metrics)
+    result['valuation_scores'].update(dividend_metrics)
     
     # ========== PHASE 3 ==========
     
     if historical_prices is not None and not historical_prices.empty:
-        # MACD - merge the dict into phase3
+        # MACD - merge the dict into advanced_analysis
         if 'Close' in historical_prices.columns:
             macd_metrics = calculate_macd(
                 historical_prices['Close']
             )
-            result['phase3_advanced_analysis'].update(macd_metrics)
+            result['advanced_analysis'].update(macd_metrics)
         
-        # Stochastic Oscillator - merge the dict into phase3
+        # Stochastic Oscillator - merge the dict into advanced_analysis
         if all(col in historical_prices.columns for col in ['High', 'Low', 'Close']):
             stochastic_metrics = calculate_stochastic_oscillator(
                 historical_prices['High'],
                 historical_prices['Low'],
                 historical_prices['Close']
             )
-            result['phase3_advanced_analysis'].update(stochastic_metrics)
+            result['advanced_analysis'].update(stochastic_metrics)
         
-        # ATR (Average True Range) - merge the dict into phase3
+        # ATR (Average True Range) - merge the dict into advanced_analysis
         if all(col in historical_prices.columns for col in ['High', 'Low', 'Close']):
             atr_metrics = calculate_atr(
                 historical_prices['High'],
@@ -1113,45 +1113,45 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
                 historical_prices['Close'],
                 period=14
             )
-            result['phase3_advanced_analysis'].update(atr_metrics)
+            result['advanced_analysis'].update(atr_metrics)
         
-        # Volatility Metrics - merge the dict into phase3
+        # Volatility Metrics - merge the dict into advanced_analysis
         if 'Close' in historical_prices.columns:
             volatility_metrics = calculate_volatility_metrics(
                 historical_prices['Close']
             )
-            result['phase3_advanced_analysis'].update(volatility_metrics)
+            result['advanced_analysis'].update(volatility_metrics)
             
             drawdown_metrics = calculate_maximum_drawdown(
                 historical_prices['Close']
             )
-            result['phase3_advanced_analysis'].update(drawdown_metrics)
+            result['advanced_analysis'].update(drawdown_metrics)
             
-            # Beta-Adjusted Metrics - merge the dict into phase3
+            # Beta-Adjusted Metrics - merge the dict into advanced_analysis
             beta_adjusted = calculate_beta_adjusted_metrics(
                 historical_prices['Close'],
                 stock_data.get('beta'),
                 risk_free_rate=0.03,  # 3% risikofreier Zins (anpassbar)
                 market_return=0.10    # 10% erwartete Marktrendite (anpassbar)
             )
-            result['phase3_advanced_analysis'].update(beta_adjusted)
+            result['advanced_analysis'].update(beta_adjusted)
             
-            # Risk-Adjusted Performance Score - merge the dict into phase3
+            # Risk-Adjusted Performance Score - merge the dict into advanced_analysis
             risk_adjusted_perf = calculate_risk_adjusted_performance_score(
                 beta_adjusted.get('sharpe_ratio'),
                 beta_adjusted.get('alpha'),
                 beta_adjusted.get('sortino_ratio'),
                 beta_adjusted.get('information_ratio')
             )
-            result['phase3_advanced_analysis'].update(risk_adjusted_perf)
+            result['advanced_analysis'].update(risk_adjusted_perf)
     
-    # Analyst Metrics - merge the dict into phase3
+    # Analyst Metrics - merge the dict into advanced_analysis
     analyst_metrics = calculate_analyst_metrics(
         stock_data.get('price_targets'),
         stock_data.get('current_price'),
         stock_data.get('recommendations')
     )
-    result['phase3_advanced_analysis'].update(analyst_metrics)
+    result['advanced_analysis'].update(analyst_metrics)
     
     return result
 

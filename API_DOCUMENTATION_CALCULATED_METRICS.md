@@ -28,7 +28,7 @@ The Calculated Metrics API provides comprehensive stock analysis through multi-p
 
 ```json
 {
-  "phase1_basic_indicators": {
+  "basic_indicators": {
     "week_52_metrics": {
       "distance_from_52w_high": -10.5,
       "distance_from_52w_low": 45.2,
@@ -50,7 +50,7 @@ The Calculated Metrics API provides comprehensive stock analysis through multi-p
     },
     "fcf_yield": 2.67
   },
-  "phase2_valuation_scores": {
+  "valuation_scores": {
     "value_metrics": {
       "pe_score": 65.0,
       "pb_score": 70.0,
@@ -73,7 +73,7 @@ The Calculated Metrics API provides comprehensive stock analysis through multi-p
       "rating": "very_safe"
     }
   },
-  "phase3_advanced_analysis": {
+  "advanced_analysis": {
     "macd": {
       "macd_line": 2.5,
       "signal_line": 1.8,
@@ -141,7 +141,7 @@ curl -X GET "http://localhost:8000/api/stock-data/1/calculated-metrics?period=1y
 
 ```json
 {
-  "phase1_basic_indicators": {
+  "basic_indicators": {
     "week_52_metrics": {
       "distance_from_52w_high": -10.5,
       "position_in_52w_range": 75.0
@@ -199,9 +199,9 @@ curl -X GET "http://localhost:8000/api/stock-data/1/calculated-metrics?period=1y
     }
   },
   "calculated_metrics": {
-    "phase1_basic_indicators": { "...": "..." },
-    "phase2_valuation_scores": { "...": "..." },
-    "phase3_advanced_analysis": { "...": "..." }
+    "basic_indicators": { "...": "..." },
+    "valuation_scores": { "...": "..." },
+    "advanced_analysis": { "...": "..." }
   }
 }
 ```
@@ -413,7 +413,7 @@ response = requests.get(
 )
 
 metrics = response.json()
-print(f"Sharpe Ratio: {metrics['phase3_advanced_analysis']['beta_adjusted_metrics']['sharpe_ratio']}")
+print(f"Sharpe Ratio: {metrics['advanced_analysis']['beta_adjusted_metrics']['sharpe_ratio']}")
 ```
 
 ### JavaScript (fetch)
@@ -424,7 +424,7 @@ fetch('http://localhost:8000/api/stocks/1/with-calculated-metrics?period=1y')
   .then(response => response.json())
   .then(data => {
     const metrics = data.calculated_metrics;
-    console.log('Risk Score:', metrics.phase3_advanced_analysis.risk_adjusted_performance.overall_score);
+    console.log('Risk Score:', metrics.advanced_analysis.risk_adjusted_performance.overall_score);
   });
 ```
 

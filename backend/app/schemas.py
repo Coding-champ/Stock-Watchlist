@@ -635,9 +635,9 @@ class Phase3AdvancedAnalysis(BaseModel):
 
 # Complete Calculated Metrics
 class CalculatedMetrics(BaseModel):
-    phase1_basic_indicators: Phase1BasicIndicators
-    phase2_valuation_scores: Phase2ValuationScores
-    phase3_advanced_analysis: Phase3AdvancedAnalysis
+    basic_indicators: Phase1BasicIndicators
+    valuation_scores: Phase2ValuationScores
+    advanced_analysis: Phase3AdvancedAnalysis
     calculation_timestamp: str
 
 

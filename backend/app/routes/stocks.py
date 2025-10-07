@@ -957,9 +957,9 @@ def get_stock_detailed(
                             }
                         },
                         "calculated_metrics": {
-                            "phase1_basic_indicators": {"...": "..."},
-                            "phase2_valuation_scores": {"...": "..."},
-                            "phase3_advanced_analysis": {"...": "..."}
+                            "basic_indicators": {"...": "..."},
+                            "valuation_scores": {"...": "..."},
+                            "advanced_analysis": {"...": "..."}
                         }
                     }
                 }
