@@ -45,6 +45,7 @@ function StockChart({ stock, isEmbedded = false }) {
   const [indicators, setIndicators] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [crossoverData, setCrossoverData] = useState(null);
   
   // Chart settings
   const [period, setPeriod] = useState('1y');
@@ -64,6 +65,7 @@ function StockChart({ stock, isEmbedded = false }) {
   const [showBollinger, setShowBollinger] = useState(false);
   const [showATR, setShowATR] = useState(false);
   const [showVWAP, setShowVWAP] = useState(false);
+  const [showCrossovers, setShowCrossovers] = useState(true);
 
   // Fetch chart data
   const fetchChartData = useCallback(async () => {
@@ -157,6 +159,24 @@ function StockChart({ stock, isEmbedded = false }) {
       // Store indicators for potential future use
       // eslint-disable-next-line no-unused-vars
       setIndicators(indicatorsJson);
+      
+      // Fetch crossover data
+      try {
+        const crossoverResponse = await fetch(`${API_BASE}/stock-data/${stock.id}/calculated-metrics`);
+        if (crossoverResponse.ok) {
+          const crossoverJson = await crossoverResponse.json();
+          const smaCrossovers = crossoverJson?.metrics?.basic_indicators?.sma_crossovers;
+          if (smaCrossovers && smaCrossovers.all_crossovers) {
+            setCrossoverData(smaCrossovers);
+          } else {
+            setCrossoverData(null);
+          }
+        }
+      } catch (crossoverErr) {
+        console.error('Error fetching crossover data:', crossoverErr);
+        // Don't fail the whole chart if crossover data fails
+        setCrossoverData(null);
+      }
       
     } catch (err) {
       console.error('Error fetching chart data:', err);
@@ -309,6 +329,54 @@ function StockChart({ stock, isEmbedded = false }) {
     }
     
     return <circle cx={cx} cy={cy} r={0} fill={fill} />;
+  };
+
+  // Render Golden Cross / Death Cross markers
+  const renderCrossoverMarkers = () => {
+    if (!showCrossovers || !crossoverData || !crossoverData.all_crossovers || !chartData) return null;
+    
+    return crossoverData.all_crossovers.map((crossover, index) => {
+      // Find the matching date in chartData
+      const crossoverDate = new Date(crossover.date).toLocaleDateString('de-DE', { 
+        month: 'short', 
+        day: 'numeric',
+        ...(period === 'max' || period === '1y' ? { year: '2-digit' } : {})
+      });
+      
+      const dataIndex = chartData.findIndex(d => d.date === crossoverDate);
+      if (dataIndex === -1) return null; // Date not in visible range
+      
+      // Dynamic positioning: if crossover is in the right half of chart, position label on left
+      const positionPercent = (dataIndex / chartData.length) * 100;
+      const isRightSide = positionPercent > 50;
+      
+      console.log(`Crossover at ${crossoverDate}: index=${dataIndex}, total=${chartData.length}, position=${positionPercent.toFixed(1)}%, rightSide=${isRightSide}`);
+      
+      const isGolden = crossover.type === 'golden_cross';
+      const color = isGolden ? '#4caf50' : '#f44336';
+      const price = crossover.price ? `$${crossover.price.toFixed(2)}` : '';
+      const emoji = isGolden ? '🌟' : '💀';
+      const label = isGolden ? 'Golden Cross' : 'Death Cross';
+      
+      return (
+        <ReferenceLine
+          key={`crossover-${index}`}
+          x={crossoverDate}
+          stroke={color}
+          strokeWidth={2}
+          strokeDasharray="3 3"
+          label={{
+            value: `${emoji} ${label}${price ? ' @ ' + price : ''}`,
+            position: 'top',
+            fill: color,
+            fontSize: 10,
+            fontWeight: 'bold',
+            dx: isRightSide ? -50 : 10,
+            dy: 5
+          }}
+        />
+      );
+    });
   };
 
   // Candlestick custom shape for Bar component
@@ -559,6 +627,14 @@ function StockChart({ stock, isEmbedded = false }) {
               />
               <span>VWAP</span>
             </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={showCrossovers}
+                onChange={(e) => setShowCrossovers(e.target.checked)}
+              />
+              <span>🌟 Golden/Death Cross</span>
+            </label>
           </div>
         </div>
 
@@ -708,6 +784,9 @@ function StockChart({ stock, isEmbedded = false }) {
                   strokeDasharray="5 5"
                 />
               )}
+              
+              {/* Golden Cross / Death Cross Markers */}
+              {renderCrossoverMarkers()}
             </ComposedChart>
           ) : (
             <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -827,6 +906,9 @@ function StockChart({ stock, isEmbedded = false }) {
                   strokeDasharray="5 5"
                 />
               )}
+              
+              {/* Golden Cross / Death Cross Markers */}
+              {renderCrossoverMarkers()}
             </ComposedChart>
           )}
         </ResponsiveContainer>

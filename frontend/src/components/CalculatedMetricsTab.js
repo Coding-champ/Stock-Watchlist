@@ -183,9 +183,11 @@ function CalculatedMetricsTab({ stockId }) {
     );
   }
 
-  const basicIndicators = metrics.basic_indicators || {};
-  const valuationScores = metrics.valuation_scores || {};
-  const advancedAnalysis = metrics.advanced_analysis || {};
+  // Extract nested metrics object
+  const metricsData = metrics.metrics || {};
+  const basicIndicators = metricsData.basic_indicators || {};
+  const valuationScores = metricsData.valuation_scores || {};
+  const advancedAnalysis = metricsData.advanced_analysis || {};
 
   return (
     <div className="calculated-metrics-container">
@@ -366,6 +368,64 @@ function CalculatedMetricsTab({ stockId }) {
               )}
             </div>
           </div>
+
+          {/* SMA Crossover Badge */}
+          {basicIndicators.sma_crossovers && basicIndicators.sma_crossovers.last_crossover_type && (
+            <div style={{ 
+              margin: '20px 0', 
+              padding: '15px', 
+              backgroundColor: basicIndicators.sma_crossovers.last_crossover_type === 'golden_cross' ? '#e8f5e9' : '#ffebee',
+              borderRadius: '8px',
+              borderLeft: `4px solid ${basicIndicators.sma_crossovers.last_crossover_type === 'golden_cross' ? '#4caf50' : '#f44336'}`
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+                <span style={{ fontSize: '24px', marginRight: '10px' }}>
+                  {basicIndicators.sma_crossovers.last_crossover_type === 'golden_cross' ? '🌟' : '💀'}
+                </span>
+                <div>
+                  <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#333' }}>
+                    {basicIndicators.sma_crossovers.last_crossover_type === 'golden_cross' ? 'Golden Cross' : 'Death Cross'}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>
+                    {new Date(basicIndicators.sma_crossovers.last_crossover_date).toLocaleDateString('de-DE')}
+                    {basicIndicators.sma_crossovers.days_since_crossover !== null && 
+                      ` (vor ${basicIndicators.sma_crossovers.days_since_crossover} Tagen)`
+                    }
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: '13px', color: '#666' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
+                  <span>Preis beim Crossover:</span>
+                  <strong>{formatCurrency(basicIndicators.sma_crossovers.price_at_crossover)}</strong>
+                </div>
+                {basicIndicators.sma_crossovers.price_change_since_crossover !== null && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                    <span>Performance seit Crossover:</span>
+                    <strong style={{ 
+                      color: basicIndicators.sma_crossovers.price_change_since_crossover >= 0 ? '#4caf50' : '#f44336' 
+                    }}>
+                      {basicIndicators.sma_crossovers.price_change_since_crossover >= 0 ? '+' : ''}
+                      {formatNumber(basicIndicators.sma_crossovers.price_change_since_crossover, 2)}%
+                    </strong>
+                  </div>
+                )}
+              </div>
+              <div style={{ 
+                marginTop: '12px', 
+                padding: '8px', 
+                backgroundColor: 'rgba(255,255,255,0.7)', 
+                borderRadius: '4px',
+                fontSize: '12px',
+                color: '#555'
+              }}>
+                💡 <strong>Info:</strong> {basicIndicators.sma_crossovers.last_crossover_type === 'golden_cross' 
+                  ? 'SMA50 hat SMA200 von unten nach oben gekreuzt - typisches bullishes Signal'
+                  : 'SMA50 hat SMA200 von oben nach unten gekreuzt - typisches bearishes Signal'
+                }
+              </div>
+            </div>
+          )}
 
           <div className="indicator-row">
             <div className="indicator-label">

@@ -135,6 +135,129 @@ def calculate_free_cashflow_yield(free_cashflow: Optional[float],
     return None
 
 
+def detect_sma_crossovers(historical_prices: pd.DataFrame, 
+                          sma_short: int = 50, 
+                          sma_long: int = 200,
+                          lookback_days: int = 365) -> Dict[str, Any]:
+    """
+    Detektiert Golden Cross und Death Cross Events in historischen Daten
+    
+    Golden Cross: SMA50 kreuzt SMA200 von unten nach oben (bullish)
+    Death Cross: SMA50 kreuzt SMA200 von oben nach unten (bearish)
+    
+    Args:
+        historical_prices: DataFrame mit 'Close' Spalte
+        sma_short: Periode für kurzen SMA (default: 50)
+        sma_long: Periode für langen SMA (default: 200)
+        lookback_days: Wie weit zurückschauen (default: 365 Tage)
+    
+    Returns:
+        Dict mit:
+        - last_crossover_type: 'golden_cross', 'death_cross', oder None
+        - last_crossover_date: ISO-Format Datum oder None
+        - days_since_crossover: Anzahl Tage seit letztem Crossover
+        - price_at_crossover: Preis beim Crossover
+        - current_price: Aktueller Preis
+        - price_change_since_crossover: Prozentuale Änderung seit Crossover
+        - all_crossovers: Liste aller Crossovers im Zeitraum
+    """
+    result = {
+        'last_crossover_type': None,
+        'last_crossover_date': None,
+        'days_since_crossover': None,
+        'price_at_crossover': None,
+        'current_price': None,
+        'price_change_since_crossover': None,
+        'all_crossovers': []
+    }
+    
+    if historical_prices is None or historical_prices.empty or 'Close' not in historical_prices.columns:
+        return result
+    
+    try:
+        # Kopie erstellen um Original nicht zu verändern
+        df = historical_prices.copy()
+        
+        # SMAs berechnen
+        df[f'SMA{sma_short}'] = df['Close'].rolling(window=sma_short).mean()
+        df[f'SMA{sma_long}'] = df['Close'].rolling(window=sma_long).mean()
+        
+        # NaN-Werte entfernen (erste 200 Tage haben keine vollständigen SMAs)
+        df = df.dropna(subset=[f'SMA{sma_short}', f'SMA{sma_long}'])
+        
+        if len(df) < 2:
+            return result
+        
+        # Nur die letzten lookback_days betrachten
+        if len(df) > lookback_days:
+            df = df.tail(lookback_days)
+        
+        # Crossover-Detection: Vergleiche vorherigen Tag mit aktuellem Tag
+        df['SMA_diff'] = df[f'SMA{sma_short}'] - df[f'SMA{sma_long}']
+        df['SMA_diff_prev'] = df['SMA_diff'].shift(1)
+        
+        # Golden Cross: SMA_diff wechselt von negativ zu positiv
+        df['golden_cross'] = (df['SMA_diff_prev'] < 0) & (df['SMA_diff'] > 0)
+        
+        # Death Cross: SMA_diff wechselt von positiv zu negativ
+        df['death_cross'] = (df['SMA_diff_prev'] > 0) & (df['SMA_diff'] < 0)
+        
+        # Alle Crossovers sammeln
+        crossovers = []
+        
+        for idx, row in df.iterrows():
+            if row['golden_cross']:
+                crossovers.append({
+                    'type': 'golden_cross',
+                    'date': idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx),
+                    'price': float(row['Close']),
+                    'sma_short': float(row[f'SMA{sma_short}']),
+                    'sma_long': float(row[f'SMA{sma_long}'])
+                })
+            elif row['death_cross']:
+                crossovers.append({
+                    'type': 'death_cross',
+                    'date': idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx),
+                    'price': float(row['Close']),
+                    'sma_short': float(row[f'SMA{sma_short}']),
+                    'sma_long': float(row[f'SMA{sma_long}'])
+                })
+        
+        result['all_crossovers'] = crossovers
+        
+        # Letzter Crossover (falls vorhanden)
+        if crossovers:
+            last_crossover = crossovers[-1]
+            result['last_crossover_type'] = last_crossover['type']
+            result['last_crossover_date'] = last_crossover['date']
+            result['price_at_crossover'] = last_crossover['price']
+            
+            # Aktueller Preis
+            current_price = float(df['Close'].iloc[-1])
+            result['current_price'] = current_price
+            
+            # Tage seit Crossover
+            try:
+                crossover_date = pd.to_datetime(last_crossover['date'])
+                last_date = df.index[-1]
+                days_diff = (last_date - crossover_date).days
+                result['days_since_crossover'] = days_diff
+            except Exception as e:
+                logger.warning(f"Fehler bei Berechnung days_since_crossover: {e}")
+            
+            # Performance seit Crossover
+            if result['price_at_crossover'] and result['price_at_crossover'] > 0:
+                price_change = ((current_price - result['price_at_crossover']) / result['price_at_crossover']) * 100
+                result['price_change_since_crossover'] = price_change
+        
+        logger.info(f"SMA Crossover Detection: Gefunden {len(crossovers)} Crossovers, letzter: {result['last_crossover_type']}")
+        
+    except Exception as e:
+        logger.error(f"Fehler bei SMA Crossover Detection: {str(e)}")
+    
+    return result
+
+
 # ============================================================================
 # PHASE 2: BEWERTUNGS-SCORES
 # ============================================================================
@@ -1049,6 +1172,16 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
         stock_data.get('free_cashflow'),
         stock_data.get('market_cap')
     )
+    
+    # SMA Crossover Detection (Golden Cross / Death Cross)
+    if historical_prices is not None and not historical_prices.empty:
+        crossover_data = detect_sma_crossovers(
+            historical_prices,
+            sma_short=50,
+            sma_long=200,
+            lookback_days=365
+        )
+        result['basic_indicators']['sma_crossovers'] = crossover_data
     
     # ========== PHASE 2 ==========
     

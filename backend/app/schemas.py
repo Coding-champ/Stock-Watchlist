@@ -522,11 +522,30 @@ class VolumeMetrics(BaseModel):
     volume_category: Optional[Literal['very_low', 'low', 'normal', 'high', 'very_high']] = None
 
 
+class CrossoverEvent(BaseModel):
+    type: Literal['golden_cross', 'death_cross']
+    date: str
+    price: float
+    sma_short: float
+    sma_long: float
+
+
+class SMACrossovers(BaseModel):
+    last_crossover_type: Optional[Literal['golden_cross', 'death_cross']] = None
+    last_crossover_date: Optional[str] = None
+    days_since_crossover: Optional[int] = None
+    price_at_crossover: Optional[float] = None
+    current_price: Optional[float] = None
+    price_change_since_crossover: Optional[float] = None
+    all_crossovers: list[CrossoverEvent] = []
+
+
 class Phase1BasicIndicators(BaseModel):
     week_52_metrics: Week52Metrics
     sma_metrics: SMAMetrics
     volume_metrics: VolumeMetrics
     fcf_yield: Optional[float] = None
+    sma_crossovers: Optional[SMACrossovers] = None
 
 
 # Phase 2: Valuation Scores
