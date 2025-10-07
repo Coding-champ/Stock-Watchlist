@@ -63,6 +63,7 @@ function StockChart({ stock, isEmbedded = false }) {
   const [showMACD, setShowMACD] = useState(false);
   const [showBollinger, setShowBollinger] = useState(false);
   const [showATR, setShowATR] = useState(false);
+  const [showVWAP, setShowVWAP] = useState(false);
 
   // Fetch chart data
   const fetchChartData = useCallback(async () => {
@@ -94,7 +95,7 @@ function StockChart({ stock, isEmbedded = false }) {
       // Fetch indicators if needed
       let indicatorsJson = null;
       // Always fetch all indicators to avoid re-loading when toggling visibility
-      const indicatorsList = ['sma_50', 'sma_200', 'rsi', 'macd', 'bollinger', 'atr'];
+      const indicatorsList = ['sma_50', 'sma_200', 'rsi', 'macd', 'bollinger', 'atr', 'vwap'];
       
       const indicatorsResponse = await fetch(
         `${API_BASE}/stock-data/${stock.id}/technical-indicators?period=${period}&${indicatorsList.map(i => `indicators=${i}`).join('&')}`
@@ -126,7 +127,8 @@ function StockChart({ stock, isEmbedded = false }) {
         bollingerUpper: indicatorsJson?.indicators?.bollinger?.upper?.[index],
         bollingerMiddle: indicatorsJson?.indicators?.bollinger?.middle?.[index],
         bollingerLower: indicatorsJson?.indicators?.bollinger?.lower?.[index],
-        atr: indicatorsJson?.indicators?.atr?.[index]
+        atr: indicatorsJson?.indicators?.atr?.[index],
+        vwap: indicatorsJson?.indicators?.vwap?.[index]
       }));
       
       // Calculate 10-day Volume Moving Average
@@ -281,6 +283,13 @@ function StockChart({ stock, isEmbedded = false }) {
             <span className="tooltip-label" style={{ color: '#f39c12' }}>ATR:</span>
             {' '}
             <span className="tooltip-value">${data.atr?.toFixed(2)}</span>
+          </p>
+        )}
+        {showVWAP && data.vwap && (
+          <p>
+            <span className="tooltip-label" style={{ color: '#17a2b8' }}>VWAP (20):</span>
+            {' '}
+            <span className="tooltip-value">${data.vwap?.toFixed(2)}</span>
           </p>
         )}
       </div>
@@ -542,6 +551,14 @@ function StockChart({ stock, isEmbedded = false }) {
               />
               <span>ATR</span>
             </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={showVWAP}
+                onChange={(e) => setShowVWAP(e.target.checked)}
+              />
+              <span>VWAP</span>
+            </label>
           </div>
         </div>
 
@@ -678,6 +695,19 @@ function StockChart({ stock, isEmbedded = false }) {
                   />
                 </>
               )}
+              
+              {/* VWAP Line */}
+              {showVWAP && (
+                <Line
+                  type="monotone"
+                  dataKey="vwap"
+                  stroke="#17a2b8"
+                  strokeWidth={2.5}
+                  dot={false}
+                  name="VWAP (20)"
+                  strokeDasharray="5 5"
+                />
+              )}
             </ComposedChart>
           ) : (
             <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -783,6 +813,19 @@ function StockChart({ stock, isEmbedded = false }) {
                     name="Bollinger Middle"
                   />
                 </>
+              )}
+              
+              {/* VWAP Line */}
+              {showVWAP && (
+                <Line
+                  type="monotone"
+                  dataKey="vwap"
+                  stroke="#17a2b8"
+                  strokeWidth={2.5}
+                  dot={false}
+                  name="VWAP (20)"
+                  strokeDasharray="5 5"
+                />
               )}
             </ComposedChart>
           )}

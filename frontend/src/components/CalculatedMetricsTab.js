@@ -13,12 +13,14 @@ function CalculatedMetricsTab({ stockId }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [vwapData, setVwapData] = useState(null);
 
   const loadMetrics = useCallback(async () => {
     setLoading(true);
     setError(null);
     
     try {
+      // Load calculated metrics
       const response = await fetch(`${API_BASE}/stock-data/${stockId}/calculated-metrics`);
       
       if (!response.ok) {
@@ -27,6 +29,42 @@ function CalculatedMetricsTab({ stockId }) {
       
       const data = await response.json();
       setMetrics(data);
+      
+      // Load VWAP from technical indicators
+      const vwapResponse = await fetch(`${API_BASE}/stock-data/${stockId}/technical-indicators?period=1y&indicators=vwap`);
+      if (vwapResponse.ok) {
+        const vwapJson = await vwapResponse.json();
+        console.log('VWAP Response:', vwapJson);
+        if (vwapJson.indicators && vwapJson.indicators.vwap) {
+          const vwapArray = vwapJson.indicators.vwap;
+          console.log('VWAP Array:', vwapArray);
+          console.log('VWAP Array length:', vwapArray.length);
+          const currentVwap = vwapArray[vwapArray.length - 1]; // Latest VWAP value
+          console.log('Current VWAP:', currentVwap);
+          
+          // Get current price from close prices (last value)
+          let currentPrice = null;
+          if (vwapJson.close && vwapJson.close.length > 0) {
+            currentPrice = vwapJson.close[vwapJson.close.length - 1];
+          }
+          console.log('Current Price from VWAP response:', currentPrice);
+          
+          setVwapData({ 
+            current: currentVwap,
+            currentPrice: currentPrice
+          });
+        } else {
+          console.log('No VWAP data in response');
+        }
+      } else {
+        console.log('VWAP response not OK:', vwapResponse.status);
+      }
+      
+      console.log('Metrics data:', data);
+      console.log('Metrics.metrics:', data?.metrics);
+      console.log('Current price from metrics:', data?.stock_data?.current_price);
+      console.log('Current price from metrics.metrics:', data?.metrics?.stock_data?.current_price);
+      
       setLastUpdated(new Date());
     } catch (err) {
       console.error('Error loading calculated metrics:', err);
@@ -475,6 +513,104 @@ function CalculatedMetricsTab({ stockId }) {
                 </div>
               </div>
             </div>
+
+            {/* VWAP (Volume Weighted Average Price) */}
+            {console.log('VWAP Box Check:', { vwapData, condition: vwapData && vwapData.current && vwapData.currentPrice })}
+            {vwapData && vwapData.current && vwapData.currentPrice && (
+              <div className="metric-box">
+                <div className="metric-box-title">💧 VWAP - Volume Weighted Average Price</div>
+                <div className="metric-box-content">
+                  <div className="metric-item">
+                    <span className="metric-item-label">
+                      <MetricTooltip
+                        title="VWAP (20)"
+                        description="Volume Weighted Average Price - durchschnittlicher Preis gewichtet nach Volumen über 20 Tage. Wichtiger Benchmark für institutionelle Trader."
+                      >
+                        <span>VWAP (20)</span>
+                      </MetricTooltip>
+                    </span>
+                    <span className="metric-item-value">
+                      {formatCurrency(vwapData.current)}
+                    </span>
+                  </div>
+                  
+                  <div className="metric-item">
+                    <span className="metric-item-label">
+                      Current Price
+                    </span>
+                    <span className="metric-item-value">
+                      {formatCurrency(vwapData.currentPrice)}
+                    </span>
+                  </div>
+
+                  {(() => {
+                    const currentPrice = vwapData.currentPrice;
+                    const vwap = vwapData.current;
+                    const diffPercent = ((currentPrice - vwap) / vwap) * 100;
+                    const isAboveVwap = currentPrice > vwap;
+                    
+                    return (
+                      <>
+                        <div className="metric-item">
+                          <span className="metric-item-label">
+                            Distance to VWAP
+                          </span>
+                          <span className="metric-item-value" style={{ 
+                            color: isAboveVwap ? '#27ae60' : '#e74c3c',
+                            fontWeight: 'bold'
+                          }}>
+                            {isAboveVwap ? '+' : ''}{formatNumber(diffPercent, 2)}%
+                            {isAboveVwap ? ' ↑' : ' ↓'}
+                          </span>
+                        </div>
+                        
+                        <div style={{ 
+                          marginTop: '15px', 
+                          padding: '12px', 
+                          backgroundColor: isAboveVwap ? '#e8f5e9' : '#ffebee', 
+                          borderRadius: '6px',
+                          borderLeft: `4px solid ${isAboveVwap ? '#27ae60' : '#e74c3c'}`
+                        }}>
+                          <div style={{ fontSize: '13px', color: '#333', marginBottom: '8px' }}>
+                            <strong>
+                              {isAboveVwap ? '📈 Bullish Signal' : '📉 Bearish Signal'}
+                            </strong>
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.5' }}>
+                            {isAboveVwap ? (
+                              <>
+                                ✅ Preis über VWAP → Käufer dominieren<br/>
+                                ✅ Institutioneller Support vorhanden<br/>
+                                ✅ VWAP kann als dynamischer Support dienen
+                              </>
+                            ) : (
+                              <>
+                                ⚠️ Preis unter VWAP → Verkäufer dominieren<br/>
+                                ⚠️ Institutioneller Druck vorhanden<br/>
+                                ⚠️ VWAP kann als Widerstand wirken
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div style={{ 
+                          marginTop: '10px', 
+                          padding: '8px', 
+                          backgroundColor: '#f8f9fa', 
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          color: '#666'
+                        }}>
+                          💡 <strong>Trading Tip:</strong> {isAboveVwap 
+                            ? 'Long-Positionen bevorzugen. Bei Rücksetzer auf VWAP als Entry nutzen.'
+                            : 'Vorsicht bei Long-Positionen. Warten bis Preis über VWAP steigt.'}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
 
             {/* ATR & Stop-Loss Levels */}
             {phase3.atr_current && (

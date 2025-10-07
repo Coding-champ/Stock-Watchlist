@@ -784,6 +784,7 @@ def calculate_technical_indicators(
                    - 'macd': Moving Average Convergence Divergence
                    - 'bollinger': Bollinger Bands (20-day)
                    - 'atr' or 'atr_14': Average True Range (14-day)
+                   - 'vwap' or 'vwap_20': Volume Weighted Average Price (Rolling 20-day)
                    - 'volatility': Historical Volatility (30-day)
                    
     Returns:
@@ -869,6 +870,21 @@ def calculate_technical_indicators(
                 if atr_values is not None:
                     result['indicators']['atr'] = _clean_for_json(atr_values)
         
+        # VWAP (Volume Weighted Average Price) - Rolling
+        if 'vwap' in indicators or 'vwap_20' in indicators:
+            # Check if required columns exist
+            if all(col in hist.columns for col in ['High', 'Low', 'Close', 'Volume']):
+                vwap_period = 20  # Rolling 20-period VWAP
+                vwap_values = _calculate_vwap_rolling(
+                    hist['High'], 
+                    hist['Low'], 
+                    hist['Close'], 
+                    hist['Volume'], 
+                    period=vwap_period
+                )
+                if vwap_values is not None:
+                    result['indicators']['vwap'] = _clean_for_json(vwap_values)
+        
         return result
         
     except Exception as e:
@@ -900,6 +916,54 @@ def _calculate_atr_series(high_prices: pd.Series,
         return atr
     except Exception as e:
         logger.error(f"Error calculating ATR series: {e}", exc_info=True)
+        return None
+
+
+def _calculate_vwap_rolling(high_prices: pd.Series,
+                            low_prices: pd.Series,
+                            close_prices: pd.Series,
+                            volume: pd.Series,
+                            period: int = 20) -> Optional[pd.Series]:
+    """
+    Calculate Rolling VWAP (Volume Weighted Average Price)
+    
+    VWAP Formula:
+    VWAP = Σ(Typical Price × Volume) / Σ(Volume)
+    
+    Where Typical Price = (High + Low + Close) / 3
+    
+    Args:
+        high_prices: Series of high prices
+        low_prices: Series of low prices
+        close_prices: Series of close prices
+        volume: Series of volume data
+        period: Rolling window period (default: 20)
+        
+    Returns:
+        Series with rolling VWAP values
+    """
+    try:
+        # Check if we have enough data
+        if len(close_prices) < period:
+            logger.warning(f"Not enough data for VWAP calculation. Need {period}, have {len(close_prices)}")
+            return None
+        
+        # Calculate Typical Price (HLC/3)
+        typical_price = (high_prices + low_prices + close_prices) / 3
+        
+        # Calculate Price × Volume
+        pv = typical_price * volume
+        
+        # Rolling sum of (Price × Volume) and Volume
+        rolling_pv = pv.rolling(window=period).sum()
+        rolling_volume = volume.rolling(window=period).sum()
+        
+        # VWAP = Σ(Price × Volume) / Σ(Volume)
+        vwap = rolling_pv / rolling_volume
+        
+        return vwap
+    except Exception as e:
+        logger.error(f"Error calculating VWAP series: {e}", exc_info=True)
         return None
 
 
