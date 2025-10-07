@@ -34,36 +34,22 @@ function CalculatedMetricsTab({ stockId }) {
       const vwapResponse = await fetch(`${API_BASE}/stock-data/${stockId}/technical-indicators?period=1y&indicators=vwap`);
       if (vwapResponse.ok) {
         const vwapJson = await vwapResponse.json();
-        console.log('VWAP Response:', vwapJson);
         if (vwapJson.indicators && vwapJson.indicators.vwap) {
           const vwapArray = vwapJson.indicators.vwap;
-          console.log('VWAP Array:', vwapArray);
-          console.log('VWAP Array length:', vwapArray.length);
           const currentVwap = vwapArray[vwapArray.length - 1]; // Latest VWAP value
-          console.log('Current VWAP:', currentVwap);
           
           // Get current price from close prices (last value)
           let currentPrice = null;
           if (vwapJson.close && vwapJson.close.length > 0) {
             currentPrice = vwapJson.close[vwapJson.close.length - 1];
           }
-          console.log('Current Price from VWAP response:', currentPrice);
           
           setVwapData({ 
             current: currentVwap,
             currentPrice: currentPrice
           });
-        } else {
-          console.log('No VWAP data in response');
         }
-      } else {
-        console.log('VWAP response not OK:', vwapResponse.status);
       }
-      
-      console.log('Metrics data:', data);
-      console.log('Metrics.metrics:', data?.metrics);
-      console.log('Current price from metrics:', data?.stock_data?.current_price);
-      console.log('Current price from metrics.metrics:', data?.metrics?.stock_data?.current_price);
       
       setLastUpdated(new Date());
     } catch (err) {
@@ -575,7 +561,6 @@ function CalculatedMetricsTab({ stockId }) {
             </div>
 
             {/* VWAP (Volume Weighted Average Price) */}
-            {console.log('VWAP Box Check:', { vwapData, condition: vwapData && vwapData.current && vwapData.currentPrice })}
             {vwapData && vwapData.current && vwapData.currentPrice && (
               <div className="metric-box">
                 <div className="metric-box-title">💧 VWAP - Volume Weighted Average Price</div>

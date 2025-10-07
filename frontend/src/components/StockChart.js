@@ -390,8 +390,6 @@ function StockChart({ stock, isEmbedded = false }) {
       const positionPercent = (dataIndex / chartData.length) * 100;
       const isRightSide = positionPercent > 50;
       
-      console.log(`Crossover at ${crossoverDate}: index=${dataIndex}, total=${chartData.length}, position=${positionPercent.toFixed(1)}%, rightSide=${isRightSide}`);
-      
       const isGolden = crossover.type === 'golden_cross';
       const color = isGolden ? '#4caf50' : '#f44336';
       const price = crossover.price ? `$${crossover.price.toFixed(2)}` : '';
