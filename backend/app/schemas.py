@@ -540,12 +540,36 @@ class SMACrossovers(BaseModel):
     all_crossovers: list[CrossoverEvent] = []
 
 
+class FibonacciLevels(BaseModel):
+    swing_high: float
+    swing_low: float
+    range: float
+    retracement: Dict[str, float]  # "0.0", "23.6", "38.2", "50.0", "61.8", "78.6", "100.0"
+    extension: Dict[str, float]    # "0.0", "100.0", "127.2", "161.8", "200.0", "261.8"
+
+
+class SupportResistanceLevel(BaseModel):
+    price: float
+    type: Literal['support', 'resistance']
+    strength: int  # Wie oft getestet
+    relevance: float  # Nähe zum aktuellen Preis
+    score: float  # Gesamtscore
+
+
+class SupportResistance(BaseModel):
+    support: list[SupportResistanceLevel] = []
+    resistance: list[SupportResistanceLevel] = []
+    current_price: float
+
+
 class Phase1BasicIndicators(BaseModel):
     week_52_metrics: Week52Metrics
     sma_metrics: SMAMetrics
     volume_metrics: VolumeMetrics
     fcf_yield: Optional[float] = None
     sma_crossovers: Optional[SMACrossovers] = None
+    fibonacci_levels: Optional[FibonacciLevels] = None
+    support_resistance: Optional[SupportResistance] = None
 
 
 # Phase 2: Valuation Scores

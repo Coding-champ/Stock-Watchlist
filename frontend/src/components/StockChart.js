@@ -66,6 +66,24 @@ function StockChart({ stock, isEmbedded = false }) {
   const [showATR, setShowATR] = useState(false);
   const [showVWAP, setShowVWAP] = useState(false);
   const [showCrossovers, setShowCrossovers] = useState(true);
+  
+  // Fibonacci toggles
+  const [showFibonacci, setShowFibonacci] = useState(false);
+  const [fibonacciType, setFibonacciType] = useState('retracement'); // 'retracement' or 'extension'
+  const [selectedFibLevels, setSelectedFibLevels] = useState({
+    '23.6': false,
+    '38.2': false,
+    '50.0': true,
+    '61.8': true,
+    '78.6': false
+  });
+  const [selectedExtensionLevels, setSelectedExtensionLevels] = useState({
+    '127.2': true,
+    '161.8': true,
+    '200.0': false,
+    '261.8': false
+  });
+  const [fibonacciData, setFibonacciData] = useState(null);
 
   // Fetch chart data
   const fetchChartData = useCallback(async () => {
@@ -171,11 +189,20 @@ function StockChart({ stock, isEmbedded = false }) {
           } else {
             setCrossoverData(null);
           }
+          
+          // Fetch Fibonacci data
+          const fibonacciLevels = crossoverJson?.metrics?.basic_indicators?.fibonacci_levels;
+          if (fibonacciLevels) {
+            setFibonacciData(fibonacciLevels);
+          } else {
+            setFibonacciData(null);
+          }
         }
       } catch (crossoverErr) {
         console.error('Error fetching crossover data:', crossoverErr);
         // Don't fail the whole chart if crossover data fails
         setCrossoverData(null);
+        setFibonacciData(null);
       }
       
     } catch (err) {
@@ -377,6 +404,66 @@ function StockChart({ stock, isEmbedded = false }) {
         />
       );
     });
+  };
+
+  // Render Fibonacci Levels
+  const renderFibonacciLevels = () => {
+    if (!showFibonacci || !fibonacciData) return null;
+    
+    const levels = fibonacciType === 'retracement' ? fibonacciData.retracement : fibonacciData.extension;
+    if (!levels) return null;
+    
+    // Farben für Fibonacci Levels (Blautöne)
+    const fibColors = {
+      '0.0': '#1e88e5',
+      '23.6': '#42a5f5',
+      '38.2': '#64b5f6',
+      '50.0': '#90caf9',
+      '61.8': '#64b5f6',
+      '78.6': '#42a5f5',
+      '100.0': '#1e88e5',
+      '127.2': '#1565c0',
+      '161.8': '#0d47a1',
+      '200.0': '#0d47a1',
+      '261.8': '#01579b'
+    };
+    
+    return Object.entries(levels).map(([level, price]) => {
+      // Check if this level should be displayed
+      if (fibonacciType === 'retracement') {
+        // Skip 0% and 100% for retracement, always show swing high/low
+        if (level !== '0.0' && level !== '100.0' && !selectedFibLevels[level]) {
+          return null;
+        }
+      } else {
+        // Extension: Skip 0% and 100%, check selectedExtensionLevels
+        if (level !== '0.0' && level !== '100.0' && !selectedExtensionLevels[level]) {
+          return null;
+        }
+      }
+      
+      const color = fibColors[level] || '#2196f3';
+      const labelText = fibonacciType === 'retracement' 
+        ? `Fib ${level}% - $${price.toFixed(2)}`
+        : `Fib Ext ${level}% - $${price.toFixed(2)}`;
+      
+      return (
+        <ReferenceLine
+          key={`fib-${fibonacciType}-${level}`}
+          y={price}
+          stroke={color}
+          strokeWidth={1.5}
+          strokeDasharray="5 5"
+          label={{
+            value: labelText,
+            position: 'right',
+            fill: color,
+            fontSize: 9,
+            fontWeight: 'bold'
+          }}
+        />
+      );
+    }).filter(Boolean);
   };
 
   // Candlestick custom shape for Bar component
@@ -635,6 +722,137 @@ function StockChart({ stock, isEmbedded = false }) {
               />
               <span>🌟 Golden/Death Cross</span>
             </label>
+            
+            {/* Fibonacci Controls */}
+            <div className="fibonacci-controls" style={{ 
+              marginTop: '10px', 
+              paddingTop: '10px', 
+              borderTop: '1px solid #ddd',
+              backgroundColor: '#f8f9fa',
+              padding: '10px',
+              borderRadius: '6px'
+            }}>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={showFibonacci}
+                  onChange={(e) => setShowFibonacci(e.target.checked)}
+                />
+                <span style={{ fontWeight: 'bold' }}>📐 Fibonacci Levels</span>
+              </label>
+              
+              {showFibonacci && fibonacciData && (
+                <div style={{ marginLeft: '10px', marginTop: '10px' }}>
+                  {/* Type Selection */}
+                  <div style={{ 
+                    marginBottom: '10px',
+                    display: 'flex',
+                    gap: '5px'
+                  }}>
+                    <button
+                      onClick={() => setFibonacciType('retracement')}
+                      style={{
+                        padding: '5px 12px',
+                        fontSize: '12px',
+                        border: '1px solid #007bff',
+                        borderRadius: '4px',
+                        backgroundColor: fibonacciType === 'retracement' ? '#007bff' : 'white',
+                        color: fibonacciType === 'retracement' ? 'white' : '#007bff',
+                        cursor: 'pointer',
+                        fontWeight: fibonacciType === 'retracement' ? 'bold' : 'normal',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      📉 Retracement
+                    </button>
+                    <button
+                      onClick={() => setFibonacciType('extension')}
+                      style={{
+                        padding: '5px 12px',
+                        fontSize: '12px',
+                        border: '1px solid #28a745',
+                        borderRadius: '4px',
+                        backgroundColor: fibonacciType === 'extension' ? '#28a745' : 'white',
+                        color: fibonacciType === 'extension' ? 'white' : '#28a745',
+                        cursor: 'pointer',
+                        fontWeight: fibonacciType === 'extension' ? 'bold' : 'normal',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      📈 Extension
+                    </button>
+                  </div>
+                  
+                  {/* Level Selection */}
+                  <div style={{ 
+                    fontSize: '11px',
+                    backgroundColor: 'white',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid #dee2e6'
+                  }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '5px', color: '#495057' }}>
+                      {fibonacciType === 'retracement' ? 'Retracement Levels:' : 'Extension Levels:'}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {fibonacciType === 'retracement' ? (
+                        Object.keys(selectedFibLevels).map(level => (
+                          <label key={level} style={{ 
+                            display: 'flex', 
+                            alignItems: 'center',
+                            padding: '3px 8px',
+                            backgroundColor: selectedFibLevels[level] ? '#e3f2fd' : '#f8f9fa',
+                            border: '1px solid ' + (selectedFibLevels[level] ? '#2196f3' : '#dee2e6'),
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedFibLevels[level]}
+                              onChange={(e) => setSelectedFibLevels({
+                                ...selectedFibLevels,
+                                [level]: e.target.checked
+                              })}
+                              style={{ marginRight: '4px' }}
+                            />
+                            <span style={{ fontWeight: selectedFibLevels[level] ? 'bold' : 'normal' }}>
+                              {level}%
+                            </span>
+                          </label>
+                        ))
+                      ) : (
+                        Object.keys(selectedExtensionLevels).map(level => (
+                          <label key={level} style={{ 
+                            display: 'flex', 
+                            alignItems: 'center',
+                            padding: '3px 8px',
+                            backgroundColor: selectedExtensionLevels[level] ? '#e8f5e9' : '#f8f9fa',
+                            border: '1px solid ' + (selectedExtensionLevels[level] ? '#4caf50' : '#dee2e6'),
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedExtensionLevels[level]}
+                              onChange={(e) => setSelectedExtensionLevels({
+                                ...selectedExtensionLevels,
+                                [level]: e.target.checked
+                              })}
+                              style={{ marginRight: '4px' }}
+                            />
+                            <span style={{ fontWeight: selectedExtensionLevels[level] ? 'bold' : 'normal' }}>
+                              {level}%
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -785,6 +1003,9 @@ function StockChart({ stock, isEmbedded = false }) {
                 />
               )}
               
+              {/* Fibonacci Levels */}
+              {renderFibonacciLevels()}
+              
               {/* Golden Cross / Death Cross Markers */}
               {renderCrossoverMarkers()}
             </ComposedChart>
@@ -906,6 +1127,9 @@ function StockChart({ stock, isEmbedded = false }) {
                   strokeDasharray="5 5"
                 />
               )}
+              
+              {/* Fibonacci Levels */}
+              {renderFibonacciLevels()}
               
               {/* Golden Cross / Death Cross Markers */}
               {renderCrossoverMarkers()}

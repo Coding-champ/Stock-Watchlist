@@ -4,7 +4,7 @@ Service for calculating derived metrics from stock data
 
 import pandas as pd
 import numpy as np
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, List
 import logging
 from datetime import datetime, timedelta
 
@@ -256,6 +256,171 @@ def detect_sma_crossovers(historical_prices: pd.DataFrame,
         logger.error(f"Fehler bei SMA Crossover Detection: {str(e)}")
     
     return result
+
+
+def calculate_fibonacci_levels(historical_prices: List[float], 
+                               period_days: Optional[int] = None) -> Optional[Dict]:
+    """
+    Berechnet Fibonacci Retracement und Extension Levels
+    
+    Args:
+        historical_prices: Liste historischer Preise
+        period_days: Anzahl der Tage für Swing High/Low (None = alle verfügbaren)
+    
+    Returns:
+        Dict mit Fibonacci Levels oder None
+    """
+    if not historical_prices or len(historical_prices) < 10:
+        return None
+    
+    try:
+        # Zeitraum bestimmen
+        if period_days and len(historical_prices) > period_days:
+            data = historical_prices[-period_days:]
+        else:
+            data = historical_prices
+        
+        # Swing High und Low finden
+        swing_high = max(data)
+        swing_low = min(data)
+        range_value = swing_high - swing_low
+        
+        if range_value == 0:
+            return None
+        
+        # Fibonacci Retracement Levels (von Hoch nach Tief)
+        retracement_levels = {
+            "0.0": swing_low,
+            "23.6": swing_high - (range_value * 0.236),
+            "38.2": swing_high - (range_value * 0.382),
+            "50.0": swing_high - (range_value * 0.5),
+            "61.8": swing_high - (range_value * 0.618),
+            "78.6": swing_high - (range_value * 0.786),
+            "100.0": swing_high
+        }
+        
+        # Fibonacci Extension Levels (für Ziele nach oben)
+        extension_levels = {
+            "0.0": swing_low,
+            "100.0": swing_high,
+            "127.2": swing_low + (range_value * 1.272),
+            "161.8": swing_low + (range_value * 1.618),
+            "200.0": swing_low + (range_value * 2.0),
+            "261.8": swing_low + (range_value * 2.618)
+        }
+        
+        return {
+            "swing_high": swing_high,
+            "swing_low": swing_low,
+            "range": range_value,
+            "retracement": retracement_levels,
+            "extension": extension_levels
+        }
+        
+    except Exception as e:
+        logger.error(f"Fehler bei Fibonacci Berechnung: {str(e)}")
+        return None
+
+
+def find_support_resistance(historical_prices: List[float], 
+                            window: int = 5, 
+                            tolerance: float = 0.02,
+                            max_levels: int = 3) -> Optional[Dict]:
+    """
+    Findet Support und Resistance Levels basierend auf lokalen Hochs/Tiefs
+    
+    Args:
+        historical_prices: Liste historischer Preise
+        window: Fenster für lokale Hoch/Tief Erkennung (Standard: 5)
+        tolerance: Prozent-Toleranz für Clustering (Standard: 0.02 = 2%)
+        max_levels: Max. Anzahl der stärksten Levels (Standard: 3)
+    
+    Returns:
+        Dict mit Support/Resistance Levels oder None
+    """
+    if not historical_prices or len(historical_prices) < (window * 2 + 1):
+        return None
+    
+    try:
+        levels = []
+        current_price = historical_prices[-1]
+        
+        # Finde lokale Hochs und Tiefs
+        for i in range(window, len(historical_prices) - window):
+            price = historical_prices[i]
+            
+            # Lokales Hoch (Resistance)?
+            is_local_high = all(price >= historical_prices[i-j] for j in range(1, window+1)) and \
+                           all(price >= historical_prices[i+j] for j in range(1, window+1))
+            
+            # Lokales Tief (Support)?
+            is_local_low = all(price <= historical_prices[i-j] for j in range(1, window+1)) and \
+                          all(price <= historical_prices[i+j] for j in range(1, window+1))
+            
+            if is_local_high:
+                levels.append({"price": price, "type": "resistance", "index": i})
+            elif is_local_low:
+                levels.append({"price": price, "type": "support", "index": i})
+        
+        if not levels:
+            return None
+        
+        # Clustering: Ähnliche Levels zusammenfassen
+        clustered_levels = []
+        levels_sorted = sorted(levels, key=lambda x: x['price'])
+        
+        i = 0
+        while i < len(levels_sorted):
+            cluster = [levels_sorted[i]]
+            j = i + 1
+            
+            # Sammle alle Levels innerhalb der Toleranz
+            while j < len(levels_sorted):
+                if abs(levels_sorted[j]['price'] - cluster[0]['price']) / cluster[0]['price'] <= tolerance:
+                    cluster.append(levels_sorted[j])
+                    j += 1
+                else:
+                    break
+            
+            # Berechne Durchschnitt und Stärke des Clusters
+            avg_price = sum(l['price'] for l in cluster) / len(cluster)
+            strength = len(cluster)  # Wie oft wurde dieses Level getestet
+            level_type = max(set(l['type'] for l in cluster), key=lambda x: sum(1 for l in cluster if l['type'] == x))
+            
+            # Berechne Relevanz (Nähe zum aktuellen Preis)
+            distance_percent = abs(avg_price - current_price) / current_price
+            relevance_score = 1.0 / (1.0 + distance_percent * 10)  # Je näher, desto relevanter
+            
+            # Gesamtscore: 60% Stärke, 40% Relevanz
+            total_score = (strength * 0.6) + (relevance_score * strength * 0.4)
+            
+            clustered_levels.append({
+                "price": avg_price,
+                "type": level_type,
+                "strength": strength,
+                "relevance": relevance_score,
+                "score": total_score
+            })
+            
+            i = j
+        
+        # Sortiere nach Score und nimm die Top N
+        clustered_levels.sort(key=lambda x: x['score'], reverse=True)
+        top_levels = clustered_levels[:max_levels]
+        
+        # Trenne in Support und Resistance
+        support_levels = [l for l in top_levels if l['type'] == 'support']
+        resistance_levels = [l for l in top_levels if l['type'] == 'resistance']
+        
+        return {
+            "support": support_levels,
+            "resistance": resistance_levels,
+            "current_price": current_price
+        }
+        
+    except Exception as e:
+        logger.error(f"Fehler bei Support/Resistance Berechnung: {str(e)}")
+        return None
 
 
 # ============================================================================
@@ -1182,6 +1347,23 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
             lookback_days=365
         )
         result['basic_indicators']['sma_crossovers'] = crossover_data
+        
+        # Fibonacci Levels (dynamisch abhängig vom Zeitraum)
+        close_prices = historical_prices['Close'].tolist() if 'Close' in historical_prices.columns else None
+        if close_prices:
+            # Zeitraum basierend auf Datenumfang bestimmen
+            period_days = len(close_prices) if len(close_prices) < 365 else None
+            fibonacci_data = calculate_fibonacci_levels(close_prices, period_days)
+            result['basic_indicators']['fibonacci_levels'] = fibonacci_data
+            
+            # Support & Resistance Levels
+            support_resistance_data = find_support_resistance(
+                close_prices,
+                window=5,
+                tolerance=0.02,
+                max_levels=3
+            )
+            result['basic_indicators']['support_resistance'] = support_resistance_data
     
     # ========== PHASE 2 ==========
     
