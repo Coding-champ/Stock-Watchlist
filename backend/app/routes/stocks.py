@@ -1264,6 +1264,106 @@ def refresh_stock_fundamentals(
     }
 
 
+@router.post("/{stock_id}/update-market-data", response_model=Dict[str, Any])
+def update_market_data(
+    stock_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Update market data (current price, PE ratio, etc.) for a stock
+    Fetches latest data from yfinance and updates the database
+    """
+    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    
+    try:
+        # Get current stock data from yfinance
+        current_data = get_current_stock_data(stock.ticker_symbol)
+        
+        if not current_data:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not fetch market data for {stock.ticker_symbol}"
+            )
+        
+        # Update historical price service with latest price
+        historical_service = HistoricalPriceService(db)
+        
+        # Try to refresh recent price data (correct method name)
+        try:
+            historical_service.load_and_save_historical_prices(
+                stock_id=stock_id,
+                ticker_symbol=stock.ticker_symbol,
+                period="5d"  # Just get last 5 days to update
+            )
+        except Exception as e:
+            logger.warning(f"Could not refresh historical data for {stock.ticker_symbol}: {e}")
+        
+        # Get the latest price data from the database
+        latest_price = historical_service.get_latest_price(stock_id)
+        
+        # Calculate change if we have previous data
+        change = None
+        change_percent = None
+        if latest_price and latest_price.close:
+            # Try to get previous day's close
+            prev_price = db.query(StockPriceDataModel).filter(
+                StockPriceDataModel.stock_id == stock_id,
+                StockPriceDataModel.date < latest_price.date
+            ).order_by(desc(StockPriceDataModel.date)).first()
+            
+            if prev_price and prev_price.close:
+                change = latest_price.close - prev_price.close
+                change_percent = (change / prev_price.close) * 100
+        
+        # Use current_data for change if not calculated from historical
+        if change is None and current_data.get('change') is not None:
+            change = current_data.get('change')
+            change_percent = current_data.get('change_percent')
+        
+        # Get PE ratio from cache or current data
+        pe_ratio = current_data.get('pe_ratio')
+        if not pe_ratio:
+            try:
+                cache_entry = db.query(ExtendedStockDataCacheModel).filter(
+                    ExtendedStockDataCacheModel.stock_id == stock_id
+                ).first()
+                if cache_entry and cache_entry.extended_data:
+                    pe_ratio = cache_entry.extended_data.get('financial_ratios', {}).get('pe_ratio')
+            except Exception:
+                pass
+        
+        # Build response
+        current_price = latest_price.close if latest_price else current_data.get('current_price')
+        volume = latest_price.volume if latest_price else current_data.get('volume')
+        price_date = latest_price.date if latest_price else datetime.now().date()
+        
+        return {
+            "success": True,
+            "stock_id": stock_id,
+            "ticker_symbol": stock.ticker_symbol,
+            "data": {
+                "current_price": current_price,
+                "pe_ratio": pe_ratio,
+                "change": change,
+                "change_percent": change_percent,
+                "volume": volume,
+                "date": price_date.isoformat() if isinstance(price_date, date) else str(price_date)
+            },
+            "message": "Market data updated successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating market data for {stock.ticker_symbol}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update market data: {str(e)}"
+        )
+
+
 @router.get("/{stock_id}/data-quality", response_model=Dict[str, Any])
 def get_stock_data_quality(
     stock_id: int,

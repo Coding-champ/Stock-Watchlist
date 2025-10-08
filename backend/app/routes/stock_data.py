@@ -14,6 +14,8 @@ from backend.app.services.cache_service import get_cached_chart_data, cache_char
 from backend.app.services.technical_indicators_service import (
     analyze_technical_indicators_with_divergence
 )
+from backend.app.services.historical_price_service import HistoricalPriceService
+from backend.app.services.fundamental_data_service import FundamentalDataService
 import pandas as pd
 import logging
 
@@ -355,4 +357,244 @@ def get_divergence_analysis(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to analyze divergences: {str(e)}"
+        )
+
+
+# ============================================================================
+# HISTORICAL PRICE DATA ENDPOINTS
+# ============================================================================
+
+@router.get("/{stock_id}/price-history")
+def get_price_history(
+    stock_id: int,
+    start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD)"),
+    limit: int = Query(100, description="Max number of records to return"),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get historical price data from the database
+    
+    Returns stored OHLCV data for a stock
+    """
+    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    
+    try:
+        historical_service = HistoricalPriceService(db)
+        
+        # Get data as DataFrame
+        df = historical_service.get_historical_data(
+            stock_id=stock_id,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        if df is None or df.empty:
+            return {
+                "stock_id": stock_id,
+                "ticker_symbol": stock.ticker_symbol,
+                "count": 0,
+                "date_range": {"start": None, "end": None},
+                "data": []
+            }
+        
+        # Limit results
+        if len(df) > limit:
+            df = df.tail(limit)
+        
+        # Convert to list of dicts
+        data = []
+        for idx, row in df.iterrows():
+            data.append({
+                "date": idx.strftime("%Y-%m-%d") if isinstance(idx, pd.Timestamp) else str(idx),
+                "open": float(row['open']) if pd.notna(row['open']) else None,
+                "high": float(row['high']) if pd.notna(row['high']) else None,
+                "low": float(row['low']) if pd.notna(row['low']) else None,
+                "close": float(row['close']) if pd.notna(row['close']) else None,
+                "volume": int(row['volume']) if pd.notna(row['volume']) else None,
+                "dividends": float(row['dividends']) if 'dividends' in row and pd.notna(row['dividends']) else None,
+                "stock_splits": float(row['stock_splits']) if 'stock_splits' in row and pd.notna(row['stock_splits']) else None
+            })
+        
+        return {
+            "stock_id": stock_id,
+            "ticker_symbol": stock.ticker_symbol,
+            "count": len(data),
+            "date_range": {
+                "start": data[0]["date"] if data else None,
+                "end": data[-1]["date"] if data else None
+            },
+            "data": data
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting price history for {stock.ticker_symbol}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get price history: {str(e)}"
+        )
+
+
+@router.post("/{stock_id}/refresh-history", status_code=202)
+def refresh_price_history(
+    stock_id: int,
+    period: str = Query("max", description="Period to fetch: 1mo, 3mo, 6mo, 1y, 5y, max"),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Refresh historical price data from yfinance
+    
+    Updates the database with latest price data
+    Returns number of records updated
+    """
+    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    
+    try:
+        historical_service = HistoricalPriceService(db)
+        
+        # Load and save historical data
+        result = historical_service.load_and_save_historical_data(
+            stock_id=stock_id,
+            ticker_symbol=stock.ticker_symbol,
+            period=period
+        )
+        
+        return {
+            "stock_id": stock_id,
+            "ticker_symbol": stock.ticker_symbol,
+            "period": period,
+            "records_saved": result.get("records_saved", 0),
+            "date_range": result.get("date_range", {}),
+            "success": result.get("success", False),
+            "message": result.get("message", "Updated successfully")
+        }
+        
+    except Exception as e:
+        logger.error(f"Error refreshing price history for {stock.ticker_symbol}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to refresh price history: {str(e)}"
+        )
+
+
+# ============================================================================
+# FUNDAMENTAL DATA ENDPOINTS
+# ============================================================================
+
+@router.get("/{stock_id}/fundamentals")
+def get_fundamentals(
+    stock_id: int,
+    latest_only: bool = Query(False, description="Return only latest quarter"),
+    limit: int = Query(8, description="Max number of quarters to return"),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get fundamental data (quarterly financials) from the database
+    
+    Returns income statement, balance sheet, and cash flow data
+    """
+    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    
+    try:
+        fundamental_service = FundamentalDataService(db)
+        
+        # Get quarterly data
+        quarters = fundamental_service.get_quarterly_data(
+            stock_id=stock_id,
+            limit=limit if not latest_only else 1
+        )
+        
+        if not quarters:
+            return {
+                "stock_id": stock_id,
+                "ticker_symbol": stock.ticker_symbol,
+                "count": 0,
+                "quarters": []
+            }
+        
+        # Convert to dict format
+        quarters_data = []
+        for quarter in quarters:
+            quarters_data.append({
+                "period": quarter.period,
+                "period_end_date": quarter.period_end_date.strftime("%Y-%m-%d") if quarter.period_end_date else None,
+                "revenue": quarter.revenue,
+                "earnings": quarter.earnings,
+                "eps_basic": quarter.eps_basic,
+                "eps_diluted": quarter.eps_diluted,
+                "operating_income": quarter.operating_income,
+                "gross_profit": quarter.gross_profit,
+                "ebitda": quarter.ebitda,
+                "total_assets": quarter.total_assets,
+                "total_liabilities": quarter.total_liabilities,
+                "shareholders_equity": quarter.shareholders_equity,
+                "operating_cashflow": quarter.operating_cashflow,
+                "free_cashflow": quarter.free_cashflow,
+                "profit_margin": quarter.profit_margin,
+                "operating_margin": quarter.operating_margin,
+                "return_on_equity": quarter.return_on_equity,
+                "return_on_assets": quarter.return_on_assets,
+                "debt_to_equity": quarter.debt_to_equity,
+                "current_ratio": quarter.current_ratio,
+                "quick_ratio": quarter.quick_ratio
+            })
+        
+        return {
+            "stock_id": stock_id,
+            "ticker_symbol": stock.ticker_symbol,
+            "count": len(quarters_data),
+            "quarters": quarters_data
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting fundamentals for {stock.ticker_symbol}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get fundamentals: {str(e)}"
+        )
+
+
+@router.post("/{stock_id}/refresh-fundamentals", status_code=202)
+def refresh_fundamentals(
+    stock_id: int,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Refresh fundamental data from yfinance
+    
+    Updates the database with latest quarterly financial data
+    Returns number of quarters updated
+    """
+    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    
+    try:
+        fundamental_service = FundamentalDataService(db)
+        
+        # Load and save fundamental data
+        result = fundamental_service.load_and_save_fundamental_data(
+            stock_id=stock_id,
+            ticker_symbol=stock.ticker_symbol
+        )
+        
+        return {
+            "stock_id": stock_id,
+            "ticker_symbol": stock.ticker_symbol,
+            "quarters_saved": result.get("quarters_saved", 0),
+            "success": result.get("success", False),
+            "message": result.get("message", "Updated successfully")
+        }
+        
+    except Exception as e:
+        logger.error(f"Error refreshing fundamentals for {stock.ticker_symbol}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to refresh fundamentals: {str(e)}"
         )
