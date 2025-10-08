@@ -8,6 +8,16 @@ from typing import Optional, Dict, Any, Tuple, List
 import logging
 from datetime import datetime, timedelta
 
+# Import technical indicators from dedicated service
+from backend.app.services.technical_indicators_service import (
+    calculate_rsi,
+    calculate_macd,
+    calculate_rsi_series,
+    detect_rsi_divergence,
+    detect_macd_divergence,
+    analyze_technical_indicators_with_divergence
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -680,59 +690,7 @@ def calculate_dividend_safety_score(dividend_yield: Optional[float],
 # ============================================================================
 # PHASE 3: ERWEITERTE ANALYSE
 # ============================================================================
-
-def calculate_macd(close_prices: pd.Series, 
-                  fast_period: int = 12,
-                  slow_period: int = 26,
-                  signal_period: int = 9) -> Dict[str, Optional[float]]:
-    """
-    Berechnet MACD (Moving Average Convergence Divergence)
-    
-    Returns:
-        Dict mit macd_line, signal_line, histogram, trend
-    """
-    result = {
-        'macd_line': None,
-        'signal_line': None,
-        'histogram': None,
-        'trend': None  # 'bullish', 'bearish', 'neutral'
-    }
-    
-    if close_prices is None or len(close_prices) < slow_period + signal_period:
-        return result
-    
-    try:
-        # EMA berechnen
-        ema_fast = close_prices.ewm(span=fast_period, adjust=False).mean()
-        ema_slow = close_prices.ewm(span=slow_period, adjust=False).mean()
-        
-        # MACD Line
-        macd_line = ema_fast - ema_slow
-        
-        # Signal Line
-        signal_line = macd_line.ewm(span=signal_period, adjust=False).mean()
-        
-        # Histogram
-        histogram = macd_line - signal_line
-        
-        # Aktuelle Werte
-        result['macd_line'] = float(macd_line.iloc[-1])
-        result['signal_line'] = float(signal_line.iloc[-1])
-        result['histogram'] = float(histogram.iloc[-1])
-        
-        # Trend bestimmen
-        if result['histogram'] > 0 and result['macd_line'] > result['signal_line']:
-            result['trend'] = 'bullish'
-        elif result['histogram'] < 0 and result['macd_line'] < result['signal_line']:
-            result['trend'] = 'bearish'
-        else:
-            result['trend'] = 'neutral'
-        
-    except Exception as e:
-        logger.error(f"Error calculating MACD: {e}")
-    
-    return result
-
+# Note: RSI and MACD have been moved to technical_indicators_service.py
 
 def calculate_stochastic_oscillator(high_prices: pd.Series,
                                    low_prices: pd.Series,

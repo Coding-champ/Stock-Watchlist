@@ -40,11 +40,16 @@ const getAlertTypes = (stock) => [
   { value: 'price', label: 'Preis', unit: getCurrencyForStock(stock), needsTimeframe: false },
   { value: 'pe_ratio', label: 'KGV (P/E Ratio)', unit: '', needsTimeframe: false },
   { value: 'rsi', label: 'RSI', unit: '', needsTimeframe: false },
+  { value: 'rsi_falls_below', label: 'RSI fällt unter Wert', unit: '', needsTimeframe: false, specialDescription: 'Alarm wenn RSI unter Schwellenwert fällt' },
   { value: 'volatility', label: 'Volatilität', unit: '%', needsTimeframe: false },
   { value: 'price_change_percent', label: 'Prozentuale Preisänderung', unit: '%', needsTimeframe: true },
   { value: 'ma_cross', label: 'Moving Average Cross (50/200)', unit: '', needsTimeframe: false, specialConditions: true },
   { value: 'volume_spike', label: 'Volumen-Spike', unit: 'x', needsTimeframe: false },
   { value: 'earnings', label: 'Earnings-Termin', unit: 'Tage', needsTimeframe: true, earningsAlert: true },
+  { value: 'rsi_bullish_divergence', label: '📈 RSI Bullish Divergence', unit: '', needsTimeframe: false, noDivergenceThreshold: true, specialDescription: 'Erkennt bullish RSI-Divergenzen automatisch' },
+  { value: 'rsi_bearish_divergence', label: '📉 RSI Bearish Divergence', unit: '', needsTimeframe: false, noDivergenceThreshold: true, specialDescription: 'Erkennt bearish RSI-Divergenzen automatisch' },
+  { value: 'macd_bullish_divergence', label: '📈 MACD Bullish Divergence', unit: '', needsTimeframe: false, noDivergenceThreshold: true, specialDescription: 'Erkennt bullish MACD-Divergenzen automatisch' },
+  { value: 'macd_bearish_divergence', label: '📉 MACD Bearish Divergence', unit: '', needsTimeframe: false, noDivergenceThreshold: true, specialDescription: 'Erkennt bearish MACD-Divergenzen automatisch' },
   { value: 'composite', label: 'Composite (UND-Verknüpfung)', unit: '', needsTimeframe: false, isComposite: true }
 ];
 
@@ -64,6 +69,16 @@ const MA_CROSS_CONDITIONS = [
 // Bedingung für Earnings
 const EARNINGS_CONDITIONS = [
   { value: 'before', label: 'vor Earnings-Termin' }
+];
+
+// Bedingungen für RSI fällt unter
+const RSI_FALLS_BELOW_CONDITIONS = [
+  { value: 'falls_below', label: 'fällt unter' }
+];
+
+// Keine Bedingungen für Divergenz-Alerts (automatisch erkannt)
+const DIVERGENCE_CONDITIONS = [
+  { value: 'detected', label: 'erkannt' }
 ];
 
 // Timeframe-Optionen für prozentuale Änderungen
@@ -114,11 +129,15 @@ function AlertModal({ stock, existingAlert = null, onClose, onAlertSaved }) {
   const hasSpecialConditions = currentAlertType?.specialConditions || false;
   const isEarningsAlert = currentAlertType?.earningsAlert || false;
   const isComposite = currentAlertType?.isComposite || false;
+  const isDivergenceAlert = currentAlertType?.noDivergenceThreshold || false;
+  const isRsiFallsBelowAlert = formData.alert_type === 'rsi_falls_below';
   
   // Bestimme verfügbare Bedingungen
   let availableConditions = CONDITIONS;
   if (hasSpecialConditions) availableConditions = MA_CROSS_CONDITIONS;
   if (isEarningsAlert) availableConditions = EARNINGS_CONDITIONS;
+  if (isDivergenceAlert) availableConditions = DIVERGENCE_CONDITIONS;
+  if (isRsiFallsBelowAlert) availableConditions = RSI_FALLS_BELOW_CONDITIONS;
   
   // Bestimme Timeframe-Optionen
   const timeframeOptions = isEarningsAlert ? EARNINGS_TIMEFRAME_OPTIONS : TIMEFRAME_OPTIONS;
@@ -128,16 +147,20 @@ function AlertModal({ stock, existingAlert = null, onClose, onAlertSaved }) {
     const newAlertType = ALERT_TYPES.find(at => at.value === newType);
     const needsSpecialConditions = newAlertType?.specialConditions || false;
     const needsEarningsCondition = newAlertType?.earningsAlert || false;
+    const isDivergence = newAlertType?.noDivergenceThreshold || false;
+    const isRsiFalls = newType === 'rsi_falls_below';
     
     let defaultCondition = 'above';
     if (needsSpecialConditions) defaultCondition = 'cross_above';
     if (needsEarningsCondition) defaultCondition = 'before';
+    if (isDivergence) defaultCondition = 'detected';
+    if (isRsiFalls) defaultCondition = 'falls_below';
     
     setFormData({
       ...formData,
       alert_type: newType,
       condition: defaultCondition,
-      threshold_value: needsSpecialConditions ? 0 : formData.threshold_value,
+      threshold_value: (needsSpecialConditions || isDivergence) ? 0 : (isRsiFalls ? 70 : formData.threshold_value),
       timeframe_days: needsEarningsCondition ? 7 : formData.timeframe_days
     });
   };
@@ -147,7 +170,7 @@ function AlertModal({ stock, existingAlert = null, onClose, onAlertSaved }) {
     setError(null);
     
     // Validierung - Schwellenwert nur für bestimmte Alarm-Typen
-    if (!hasSpecialConditions && !isEarningsAlert && !isComposite) {
+    if (!hasSpecialConditions && !isEarningsAlert && !isComposite && !isDivergenceAlert) {
       if (!formData.threshold_value || isNaN(formData.threshold_value)) {
         setError('Bitte geben Sie einen gültigen Schwellenwert ein.');
         return;
@@ -161,7 +184,7 @@ function AlertModal({ stock, existingAlert = null, onClose, onAlertSaved }) {
         stock_id: stock.id,
         alert_type: formData.alert_type,
         condition: formData.condition,
-        threshold_value: (hasSpecialConditions || isEarningsAlert || isComposite) ? 0 : parseFloat(formData.threshold_value),
+        threshold_value: (hasSpecialConditions || isEarningsAlert || isComposite || isDivergenceAlert) ? 0 : parseFloat(formData.threshold_value),
         timeframe_days: (needsTimeframe || isEarningsAlert) ? parseInt(formData.timeframe_days) : null,
         composite_conditions: isComposite ? formData.composite_conditions : null,
         is_active: formData.is_active,
@@ -245,6 +268,20 @@ function AlertModal({ stock, existingAlert = null, onClose, onAlertSaved }) {
             </select>
           </div>
 
+          {/* Spezielle Beschreibung für Divergenz-Alerts */}
+          {isDivergenceAlert && currentAlertType?.specialDescription && (
+            <div className="info-message" style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#e3f2fd', borderLeft: '4px solid #2196F3', borderRadius: '4px' }}>
+              ℹ️ {currentAlertType.specialDescription}
+            </div>
+          )}
+
+          {/* Spezielle Beschreibung für RSI fällt unter */}
+          {isRsiFallsBelowAlert && (
+            <div className="info-message" style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#fff3e0', borderLeft: '4px solid #ff9800', borderRadius: '4px' }}>
+              ℹ️ Dieser Alarm wird ausgelöst, wenn der RSI von einem höheren Wert unter den Schwellenwert fällt (z.B. von über 70 auf unter 70).
+            </div>
+          )}
+
           {/* Bedingung & Schwellenwert */}
           <div className="form-row">
             <div className="form-group">
@@ -263,8 +300,8 @@ function AlertModal({ stock, existingAlert = null, onClose, onAlertSaved }) {
               </select>
             </div>
 
-            {/* Nur Schwellenwert anzeigen wenn nicht MA Cross, Earnings oder Composite */}
-            {!hasSpecialConditions && !isEarningsAlert && !isComposite && (
+            {/* Nur Schwellenwert anzeigen wenn nicht MA Cross, Earnings, Composite oder Divergence */}
+            {!hasSpecialConditions && !isEarningsAlert && !isComposite && !isDivergenceAlert && (
               <div className="form-group">
                 <label>Schwellenwert *</label>
                 <div style={{ position: 'relative' }}>

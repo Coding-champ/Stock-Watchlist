@@ -46,6 +46,7 @@ function StockChart({ stock, isEmbedded = false }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [crossoverData, setCrossoverData] = useState(null);
+  const [divergenceData, setDivergenceData] = useState(null);
   
   // Chart settings
   const [period, setPeriod] = useState('1y');
@@ -66,6 +67,7 @@ function StockChart({ stock, isEmbedded = false }) {
   const [showATR, setShowATR] = useState(false);
   const [showVWAP, setShowVWAP] = useState(false);
   const [showCrossovers, setShowCrossovers] = useState(true);
+  const [showDivergences, setShowDivergences] = useState(true);
   
   // Fibonacci toggles
   const [showFibonacci, setShowFibonacci] = useState(false);
@@ -216,6 +218,23 @@ function StockChart({ stock, isEmbedded = false }) {
         setCrossoverData(null);
         setFibonacciData(null);
         setSupportResistanceData(null);
+      }
+      
+      // Fetch divergence data
+      try {
+        const divergenceResponse = await fetch(`${API_BASE}/stock-data/${stock.id}/divergence-analysis`);
+        if (divergenceResponse.ok) {
+          const divergenceJson = await divergenceResponse.json();
+          if (divergenceJson?.rsi_divergence || divergenceJson?.macd_divergence) {
+            setDivergenceData(divergenceJson);
+          } else {
+            setDivergenceData(null);
+          }
+        }
+      } catch (divergenceErr) {
+        console.error('Error fetching divergence data:', divergenceErr);
+        // Don't fail the whole chart if divergence data fails
+        setDivergenceData(null);
       }
       
     } catch (err) {
@@ -369,6 +388,149 @@ function StockChart({ stock, isEmbedded = false }) {
     }
     
     return <circle cx={cx} cy={cy} r={0} fill={fill} />;
+  };
+
+  // Render Divergence markers (RSI and MACD)
+  const renderDivergenceMarkers = () => {
+    if (!showDivergences || !divergenceData || !chartData) return null;
+    
+    const markers = [];
+    
+    // RSI Divergences
+    if (divergenceData.rsi_divergence) {
+      const rsiDiv = divergenceData.rsi_divergence;
+      
+      // Bullish divergence
+      if (rsiDiv.bullish_divergence && rsiDiv.divergence_points?.bullish) {
+        rsiDiv.divergence_points.bullish.forEach((point, index) => {
+          const pointDate = new Date(point.date).toLocaleDateString('de-DE', { 
+            month: 'short', 
+            day: 'numeric',
+            ...(period === 'max' || period === '1y' ? { year: '2-digit' } : {})
+          });
+          
+          const dataIndex = chartData.findIndex(d => d.date === pointDate);
+          if (dataIndex === -1) return;
+          
+          markers.push(
+            <ReferenceLine
+              key={`rsi-bullish-${index}`}
+              x={pointDate}
+              stroke="#27ae60"
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              label={{
+                value: `🔺 RSI Bull (${Math.round(rsiDiv.confidence * 100)}%)`,
+                position: 'top',
+                fill: '#27ae60',
+                fontSize: 10,
+                fontWeight: 'bold'
+              }}
+            />
+          );
+        });
+      }
+      
+      // Bearish divergence
+      if (rsiDiv.bearish_divergence && rsiDiv.divergence_points?.bearish) {
+        rsiDiv.divergence_points.bearish.forEach((point, index) => {
+          const pointDate = new Date(point.date).toLocaleDateString('de-DE', { 
+            month: 'short', 
+            day: 'numeric',
+            ...(period === 'max' || period === '1y' ? { year: '2-digit' } : {})
+          });
+          
+          const dataIndex = chartData.findIndex(d => d.date === pointDate);
+          if (dataIndex === -1) return;
+          
+          markers.push(
+            <ReferenceLine
+              key={`rsi-bearish-${index}`}
+              x={pointDate}
+              stroke="#e74c3c"
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              label={{
+                value: `🔻 RSI Bear (${Math.round(rsiDiv.confidence * 100)}%)`,
+                position: 'top',
+                fill: '#e74c3c',
+                fontSize: 10,
+                fontWeight: 'bold'
+              }}
+            />
+          );
+        });
+      }
+    }
+    
+    // MACD Divergences
+    if (divergenceData.macd_divergence) {
+      const macdDiv = divergenceData.macd_divergence;
+      
+      // Bullish divergence
+      if (macdDiv.bullish_divergence && macdDiv.divergence_points?.bullish) {
+        macdDiv.divergence_points.bullish.forEach((point, index) => {
+          const pointDate = new Date(point.date).toLocaleDateString('de-DE', { 
+            month: 'short', 
+            day: 'numeric',
+            ...(period === 'max' || period === '1y' ? { year: '2-digit' } : {})
+          });
+          
+          const dataIndex = chartData.findIndex(d => d.date === pointDate);
+          if (dataIndex === -1) return;
+          
+          markers.push(
+            <ReferenceLine
+              key={`macd-bullish-${index}`}
+              x={pointDate}
+              stroke="#3498db"
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              label={{
+                value: `🔺 MACD Bull (${Math.round(macdDiv.confidence * 100)}%)`,
+                position: 'bottom',
+                fill: '#3498db',
+                fontSize: 10,
+                fontWeight: 'bold'
+              }}
+            />
+          );
+        });
+      }
+      
+      // Bearish divergence
+      if (macdDiv.bearish_divergence && macdDiv.divergence_points?.bearish) {
+        macdDiv.divergence_points.bearish.forEach((point, index) => {
+          const pointDate = new Date(point.date).toLocaleDateString('de-DE', { 
+            month: 'short', 
+            day: 'numeric',
+            ...(period === 'max' || period === '1y' ? { year: '2-digit' } : {})
+          });
+          
+          const dataIndex = chartData.findIndex(d => d.date === pointDate);
+          if (dataIndex === -1) return;
+          
+          markers.push(
+            <ReferenceLine
+              key={`macd-bearish-${index}`}
+              x={pointDate}
+              stroke="#e67e22"
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              label={{
+                value: `🔻 MACD Bear (${Math.round(macdDiv.confidence * 100)}%)`,
+                position: 'bottom',
+                fill: '#e67e22',
+                fontSize: 10,
+                fontWeight: 'bold'
+              }}
+            />
+          );
+        });
+      }
+    }
+    
+    return markers;
   };
 
   // Render Golden Cross / Death Cross markers
@@ -769,6 +931,14 @@ function StockChart({ stock, isEmbedded = false }) {
               />
               <span>🌟 Golden/Death Cross</span>
             </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={showDivergences}
+                onChange={(e) => setShowDivergences(e.target.checked)}
+              />
+              <span>🔺 RSI/MACD Divergenzen</span>
+            </label>
             
             {/* Fibonacci Controls */}
             <div className="fibonacci-controls" style={{ 
@@ -1094,6 +1264,9 @@ function StockChart({ stock, isEmbedded = false }) {
               
               {/* Golden Cross / Death Cross Markers */}
               {renderCrossoverMarkers()}
+              
+              {/* Divergence Markers */}
+              {renderDivergenceMarkers()}
             </ComposedChart>
           ) : (
             <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -1222,6 +1395,9 @@ function StockChart({ stock, isEmbedded = false }) {
               
               {/* Golden Cross / Death Cross Markers */}
               {renderCrossoverMarkers()}
+              
+              {/* Divergence Markers */}
+              {renderDivergenceMarkers()}
             </ComposedChart>
           )}
         </ResponsiveContainer>

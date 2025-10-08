@@ -11,6 +11,10 @@ from backend.app.models import (
 from backend.app.database import get_db
 from backend.app.services.yfinance_service import get_chart_data, calculate_technical_indicators
 from backend.app.services.cache_service import get_cached_chart_data, cache_chart_data
+from backend.app.services.technical_indicators_service import (
+    analyze_technical_indicators_with_divergence
+)
+import pandas as pd
 import logging
 
 router = APIRouter(prefix="/stock-data", tags=["stock-data"])
@@ -285,4 +289,70 @@ def get_calculated_metrics(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to calculate metrics: {str(e)}"
+        )
+
+
+@router.get("/{stock_id}/divergence-analysis")
+def get_divergence_analysis(
+    stock_id: int,
+    lookback_days: int = Query(60, description="Days to look back for divergence detection"),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Analyze technical indicators with divergence detection for RSI and MACD.
+    
+    This endpoint detects:
+    - Bullish/Bearish RSI Divergences
+    - Bullish/Bearish MACD Divergences
+    - Overall trading signals
+    
+    Returns detailed divergence points for chart visualization.
+    """
+    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    
+    try:
+        # Get chart data for the lookback period + buffer
+        period_days = lookback_days + 30  # Add buffer for calculations
+        period = f"{period_days}d" if period_days < 365 else "1y"
+        
+        chart_data = get_chart_data(stock.ticker_symbol, period=period, interval="1d")
+        
+        if not chart_data or not chart_data.get('close'):
+            raise HTTPException(
+                status_code=404,
+                detail=f"No chart data available for {stock.ticker_symbol}"
+            )
+        
+        # Convert to pandas Series
+        close_prices = pd.Series(chart_data['close'])
+        high_prices = pd.Series(chart_data.get('high', [])) if chart_data.get('high') else None
+        low_prices = pd.Series(chart_data.get('low', [])) if chart_data.get('low') else None
+        
+        # Perform comprehensive analysis with divergence detection
+        analysis = analyze_technical_indicators_with_divergence(
+            close_prices=close_prices,
+            high_prices=high_prices,
+            low_prices=low_prices,
+            lookback_days=lookback_days
+        )
+        
+        return {
+            "stock_id": stock_id,
+            "ticker_symbol": stock.ticker_symbol,
+            "lookback_days": lookback_days,
+            "analyzed_at": datetime.utcnow().isoformat(),
+            "analysis": analysis,
+            "dates": chart_data.get('dates', []),
+            "close_prices": chart_data.get('close', [])
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error analyzing divergences for {stock.ticker_symbol}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to analyze divergences: {str(e)}"
         )

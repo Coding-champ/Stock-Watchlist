@@ -8,6 +8,11 @@ import numpy as np
 from typing import Optional, Dict, Any, List
 import logging
 
+# Import technical indicators from dedicated service
+from backend.app.services.technical_indicators_service import (
+    calculate_rsi,
+    calculate_rsi_series
+)
 
 logger = logging.getLogger(__name__)
 
@@ -175,29 +180,15 @@ def get_current_stock_data(ticker_symbol: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+# Note: _calculate_rsi has been moved to technical_indicators_service.py
+# Keeping a wrapper for backward compatibility
 def _calculate_rsi(close_prices: pd.Series, period: int = 14) -> Optional[float]:
-    """Calculate RSI using Wilder's smoothing."""
-    if close_prices is None or close_prices.empty or len(close_prices) < period + 1:
+    """Calculate RSI using Wilder's smoothing. Wrapper for technical_indicators_service."""
+    try:
+        result = calculate_rsi(close_prices, period)
+        return result.get('value')
+    except Exception:
         return None
-
-    delta = close_prices.diff()
-    gains = delta.clip(lower=0)
-    losses = -delta.clip(upper=0)
-
-    average_gain = gains.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
-    average_loss = losses.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
-
-    if average_loss.iloc[-1] == 0:
-        return 100.0
-
-    relative_strength = average_gain / average_loss
-    rsi_series = 100 - (100 / (1 + relative_strength))
-    rsi_value = rsi_series.iloc[-1]
-
-    if pd.isna(rsi_value):
-        return None
-
-    return float(rsi_value)
 
 
 def _calculate_annualized_volatility(close_prices: pd.Series, window: int = 30, trading_days: int = 252) -> Optional[float]:
@@ -967,16 +958,11 @@ def _calculate_vwap_rolling(high_prices: pd.Series,
         return None
 
 
+# Note: _calculate_rsi_series has been moved to technical_indicators_service.py
+# Keeping a wrapper for backward compatibility
 def _calculate_rsi_series(prices: pd.Series, period: int = 14) -> Optional[pd.Series]:
-    """Calculate RSI as a series (for technical analysis)"""
+    """Calculate RSI as a series. Wrapper for technical_indicators_service."""
     try:
-        delta = prices.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-        
-        rs = gain / loss
-        rsi = 100 - (100 / (1 + rs))
-        
-        return rsi
+        return calculate_rsi_series(prices, period)
     except Exception:
         return None

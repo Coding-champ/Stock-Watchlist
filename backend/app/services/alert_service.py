@@ -5,8 +5,17 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 import yfinance as yf
+import pandas as pd
 from backend.app.models import Alert as AlertModel, Stock, StockPriceData, StockFundamentalData
 import logging
+
+# Import technical indicators
+from backend.app.services.technical_indicators_service import (
+    calculate_rsi,
+    calculate_macd,
+    detect_rsi_divergence,
+    detect_macd_divergence
+)
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +94,16 @@ class AlertService:
             return self._check_pe_ratio_alert(alert)
         elif alert_type == 'rsi':
             return self._check_rsi_alert(alert)
+        elif alert_type == 'rsi_falls_below':
+            return self._check_rsi_falls_below_alert(alert)
+        elif alert_type == 'rsi_bullish_divergence':
+            return self._check_rsi_bullish_divergence_alert(alert)
+        elif alert_type == 'rsi_bearish_divergence':
+            return self._check_rsi_bearish_divergence_alert(alert)
+        elif alert_type == 'macd_bullish_divergence':
+            return self._check_macd_bullish_divergence_alert(alert)
+        elif alert_type == 'macd_bearish_divergence':
+            return self._check_macd_bearish_divergence_alert(alert)
         elif alert_type == 'volatility':
             return self._check_volatility_alert(alert)
         elif alert_type == 'price_change_percent':
@@ -129,6 +148,111 @@ class AlertService:
             logger.error(f"Error checking PE ratio alert: {str(e)}")
             return False
 
+    def _check_rsi_bullish_divergence_alert(self, alert: AlertModel) -> bool:
+        """Check for RSI bullish divergence"""
+        try:
+            # Get historical data for divergence detection (60 days)
+            ticker = yf.Ticker(alert.stock.ticker_symbol)
+            hist = ticker.history(period="3mo")
+            
+            if len(hist) < 60:
+                return False
+            
+            close_prices = hist['Close']
+            
+            # Calculate RSI
+            rsi_data = calculate_rsi(close_prices)
+            if not rsi_data.get('series'):
+                return False
+            
+            rsi_series = pd.Series(rsi_data['series'], index=close_prices.index)
+            
+            # Detect divergence
+            divergence = detect_rsi_divergence(close_prices, rsi_series, lookback_days=60, num_peaks=3)
+            
+            return divergence.get('bullish_divergence', False)
+        except Exception as e:
+            logger.error(f"Error checking RSI bullish divergence alert: {str(e)}")
+            return False
+
+    def _check_rsi_bearish_divergence_alert(self, alert: AlertModel) -> bool:
+        """Check for RSI bearish divergence"""
+        try:
+            ticker = yf.Ticker(alert.stock.ticker_symbol)
+            hist = ticker.history(period="3mo")
+            
+            if len(hist) < 60:
+                return False
+            
+            close_prices = hist['Close']
+            
+            # Calculate RSI
+            rsi_data = calculate_rsi(close_prices)
+            if not rsi_data.get('series'):
+                return False
+            
+            rsi_series = pd.Series(rsi_data['series'], index=close_prices.index)
+            
+            # Detect divergence
+            divergence = detect_rsi_divergence(close_prices, rsi_series, lookback_days=60, num_peaks=3)
+            
+            return divergence.get('bearish_divergence', False)
+        except Exception as e:
+            logger.error(f"Error checking RSI bearish divergence alert: {str(e)}")
+            return False
+
+    def _check_macd_bullish_divergence_alert(self, alert: AlertModel) -> bool:
+        """Check for MACD bullish divergence"""
+        try:
+            ticker = yf.Ticker(alert.stock.ticker_symbol)
+            hist = ticker.history(period="3mo")
+            
+            if len(hist) < 60:
+                return False
+            
+            close_prices = hist['Close']
+            
+            # Calculate MACD
+            macd_data = calculate_macd(close_prices)
+            if not macd_data.get('series') or not macd_data['series'].get('histogram'):
+                return False
+            
+            macd_histogram = pd.Series(macd_data['series']['histogram'], index=close_prices.index)
+            
+            # Detect divergence
+            divergence = detect_macd_divergence(close_prices, macd_histogram, lookback_days=60, num_peaks=3)
+            
+            return divergence.get('bullish_divergence', False)
+        except Exception as e:
+            logger.error(f"Error checking MACD bullish divergence alert: {str(e)}")
+            return False
+
+    def _check_macd_bearish_divergence_alert(self, alert: AlertModel) -> bool:
+        """Check for MACD bearish divergence"""
+        try:
+            ticker = yf.Ticker(alert.stock.ticker_symbol)
+            hist = ticker.history(period="3mo")
+            
+            if len(hist) < 60:
+                return False
+            
+            close_prices = hist['Close']
+            
+            # Calculate MACD
+            macd_data = calculate_macd(close_prices)
+            if not macd_data.get('series') or not macd_data['series'].get('histogram'):
+                return False
+            
+            macd_histogram = pd.Series(macd_data['series']['histogram'], index=close_prices.index)
+            
+            # Detect divergence
+            divergence = detect_macd_divergence(close_prices, macd_histogram, lookback_days=60, num_peaks=3)
+            
+            return divergence.get('bearish_divergence', False)
+        except Exception as e:
+            logger.error(f"Error checking MACD bearish divergence alert: {str(e)}")
+            return False
+
     def _check_rsi_alert(self, alert: AlertModel) -> bool:
         """Check RSI alert condition"""
         try:
@@ -148,6 +272,48 @@ class AlertService:
             return self._evaluate_condition(rsi, alert.condition, alert.threshold_value)
         except Exception as e:
             logger.error(f"Error checking RSI alert: {str(e)}")
+            return False
+
+    def _check_rsi_falls_below_alert(self, alert: AlertModel) -> bool:
+        """
+        Check if RSI falls below threshold (transition from above to below)
+        This is different from the normal RSI alert which checks the current value
+        """
+        try:
+            # Get historical data for RSI calculation
+            ticker = yf.Ticker(alert.stock.ticker_symbol)
+            hist = ticker.history(period="1mo")
+            
+            if len(hist) < 15:  # Need at least 15 days (14 for RSI + 1 previous)
+                return False
+            
+            # Calculate RSI for last 2 periods
+            close_prices = hist['Close']
+            
+            # Calculate RSI series
+            delta = close_prices.diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            
+            rs = gain / loss
+            rsi_series = 100 - (100 / (1 + rs))
+            
+            # Get current and previous RSI
+            current_rsi = rsi_series.iloc[-1]
+            previous_rsi = rsi_series.iloc[-2]
+            
+            if pd.isna(current_rsi) or pd.isna(previous_rsi):
+                return False
+            
+            # Check if RSI fell below threshold (was above, now below)
+            threshold = alert.threshold_value
+            if previous_rsi >= threshold and current_rsi < threshold:
+                logger.info(f"RSI fell below {threshold}: Previous={previous_rsi:.2f}, Current={current_rsi:.2f}")
+                return True
+            
+            return False
+        except Exception as e:
+            logger.error(f"Error checking RSI falls below alert: {str(e)}")
             return False
 
     def _check_volatility_alert(self, alert: AlertModel) -> bool:
@@ -253,20 +419,11 @@ class AlertService:
             logger.error(f"Error checking volume spike alert: {str(e)}")
             return False
 
-    def _calculate_rsi(self, prices, period: int = 14) -> Optional[float]:
-        """Calculate RSI (Relative Strength Index)"""
+    def _calculate_rsi(self, prices: pd.Series, period: int = 14) -> Optional[float]:
+        """Calculate RSI (Relative Strength Index) - wrapper for technical_indicators_service"""
         try:
-            deltas = prices.diff()
-            gain = deltas.where(deltas > 0, 0)
-            loss = -deltas.where(deltas < 0, 0)
-            
-            avg_gain = gain.rolling(window=period).mean()
-            avg_loss = loss.rolling(window=period).mean()
-            
-            rs = avg_gain / avg_loss
-            rsi = 100 - (100 / (1 + rs))
-            
-            return rsi.iloc[-1]
+            result = calculate_rsi(prices, period)
+            return result.get('value')
         except Exception as e:
             logger.error(f"Error calculating RSI: {str(e)}")
             return None
