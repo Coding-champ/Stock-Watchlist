@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 from backend.app.routes import watchlists, stocks, alerts, stock_data
 from dotenv import load_dotenv
 import os
@@ -30,6 +32,22 @@ app = FastAPI(
     description="API for managing stock watchlists with alerts and detailed stock data",
     version="1.0.0"
 )
+
+
+# Custom middleware to add cache control headers for API endpoints
+class NoCacheMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        # Add no-cache headers for API endpoints (not static files)
+        if request.url.path.startswith(("/stocks", "/watchlists", "/alerts", "/stock-data")):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+
+# Add middlewares
+app.add_middleware(NoCacheMiddleware)
 
 # Configure CORS
 app.add_middleware(
@@ -74,7 +92,7 @@ async def shutdown_event():
 
 # Mount React build directory
 frontend_build_path = "frontend/build"
-if os.path.exists(frontend_build_path):
+if os.path.exists(frontend_build_path) and os.path.exists(frontend_build_path + "/static"):
     app.mount("/static", StaticFiles(directory=frontend_build_path + "/static"), name="static")
 
 

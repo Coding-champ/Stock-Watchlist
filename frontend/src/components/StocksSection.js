@@ -55,7 +55,9 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
   const loadStocks = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/stocks/?watchlist_id=${watchlist.id}`);
+      const response = await fetch(`${API_BASE}/stocks/?watchlist_id=${watchlist.id}`, {
+        cache: 'no-store' // Prevent browser caching to always get fresh data
+      });
       const data = await response.json();
       setStocks(data);
     } catch (error) {
@@ -295,6 +297,11 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
         const price = typeof result?.data?.current_price === 'number' ? result.data.current_price.toFixed(2) : 'N/A';
         const pe = typeof result?.data?.pe_ratio === 'number' ? result.data.pe_ratio.toFixed(2) : 'N/A';
         showToast(`Marktdaten aktualisiert · Kurs $${price} · KGV ${pe}`, 'success');
+        
+        // Small delay to ensure DB commit has completed
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Reload stocks to reflect updated data
         loadStocks();
       } else {
         let errorMessage = 'Fehler beim Aktualisieren der Marktdaten';
@@ -312,6 +319,56 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
       console.error('Error updating market data:', error);
       showToast('Fehler beim Aktualisieren der Marktdaten', 'error');
     }
+  };
+
+  const handleUpdateAllMarketData = async () => {
+    if (stocks.length === 0) {
+      showToast('Keine Aktien zum Aktualisieren vorhanden', 'info');
+      return;
+    }
+
+    setLoading(true);
+    showToast(`Aktualisiere ${stocks.length} Aktien...`, 'info');
+
+    let successCount = 0;
+    let failCount = 0;
+
+    // Update all stocks sequentially to avoid overwhelming the API
+    for (const stock of stocks) {
+      try {
+        const response = await fetch(`${API_BASE}/stocks/${stock.id}/update-market-data`, {
+          method: 'POST'
+        });
+
+        if (response.ok) {
+          successCount++;
+        } else {
+          failCount++;
+          console.warn(`Failed to update ${stock.ticker_symbol}`);
+        }
+
+        // Small delay between requests to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } catch (error) {
+        failCount++;
+        console.error(`Error updating ${stock.ticker_symbol}:`, error);
+      }
+    }
+
+    // Reload all stocks after updates
+    await new Promise(resolve => setTimeout(resolve, 100));
+    await loadStocks();
+
+    // Show summary toast
+    if (failCount === 0) {
+      showToast(`✓ Alle ${successCount} Aktien erfolgreich aktualisiert`, 'success');
+    } else if (successCount === 0) {
+      showToast(`✗ Fehler beim Aktualisieren aller ${stocks.length} Aktien`, 'error');
+    } else {
+      showToast(`${successCount} erfolgreich, ${failCount} fehlgeschlagen`, 'warning');
+    }
+
+    setLoading(false);
   };
 
   const handleShowChart = (stock) => {
@@ -365,8 +422,9 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
           <button
             type="button"
             className="btn btn--ghost"
-            onClick={loadStocks}
+            onClick={handleUpdateAllMarketData}
             disabled={loading}
+            title="Aktualisiert alle Marktdaten in dieser Watchlist"
           >
             <span className="btn__icon" aria-hidden="true">⟳</span>
             <span>Daten aktualisieren</span>

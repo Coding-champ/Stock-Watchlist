@@ -1290,15 +1290,25 @@ def update_market_data(
         # Update historical price service with latest price
         historical_service = HistoricalPriceService(db)
         
-        # Try to refresh recent price data (correct method name)
+        # Try to refresh recent price data - use 1mo to ensure we get the latest data
         try:
-            historical_service.load_and_save_historical_prices(
+            result = historical_service.load_and_save_historical_prices(
                 stock_id=stock_id,
-                ticker_symbol=stock.ticker_symbol,
-                period="5d"  # Just get last 5 days to update
+                period="1mo",  # Get last month to ensure latest data
+                interval="1d"
             )
+            if result.get("success"):
+                logger.info(f"Successfully refreshed historical data for {stock.ticker_symbol}: {result.get('count')} records")
+            else:
+                logger.warning(f"Historical data refresh returned: {result}")
         except Exception as e:
             logger.warning(f"Could not refresh historical data for {stock.ticker_symbol}: {e}")
+        
+        # Ensure all changes are committed before reading
+        db.commit()
+        
+        # Refresh the session to get the latest data
+        db.expire_all()
         
         # Get the latest price data from the database
         latest_price = historical_service.get_latest_price(stock_id)
@@ -1322,17 +1332,20 @@ def update_market_data(
             change = current_data.get('change')
             change_percent = current_data.get('change_percent')
         
-        # Get PE ratio from cache or current data
+        # Update extended data cache with fresh data
         pe_ratio = current_data.get('pe_ratio')
-        if not pe_ratio:
-            try:
-                cache_entry = db.query(ExtendedStockDataCacheModel).filter(
-                    ExtendedStockDataCacheModel.stock_id == stock_id
-                ).first()
-                if cache_entry and cache_entry.extended_data:
-                    pe_ratio = cache_entry.extended_data.get('financial_ratios', {}).get('pe_ratio')
-            except Exception:
-                pass
+        try:
+            cache_service = StockDataCacheService(db)
+            # Force refresh extended data to get latest PE ratio and fundamentals
+            extended_data = get_extended_stock_data(stock.ticker_symbol)
+            if extended_data:
+                cache_service.set_extended_data(stock_id, extended_data)
+                # Get PE ratio from fresh data
+                if extended_data.get('financial_ratios'):
+                    pe_ratio = extended_data['financial_ratios'].get('pe_ratio') or pe_ratio
+            db.commit()
+        except Exception as e:
+            logger.warning(f"Could not update extended data cache for {stock.ticker_symbol}: {e}")
         
         # Build response
         current_price = latest_price.close if latest_price else current_data.get('current_price')
