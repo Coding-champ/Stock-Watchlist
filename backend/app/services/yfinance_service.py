@@ -17,6 +17,35 @@ from backend.app.services.technical_indicators_service import (
 logger = logging.getLogger(__name__)
 
 
+def _get_extended_period(period: str) -> str:
+    """
+    Get an extended period to load more historical data for indicator calculations.
+    This ensures indicators like Bollinger Bands have enough historical data to be
+    calculated from the beginning of the chart.
+    
+    Args:
+        period: The requested display period
+        
+    Returns:
+        Extended period string for data loading
+    """
+    period_extensions = {
+        '1d': '5d',      # Load 5 days for 1 day display (enough for short-term indicators)
+        '5d': '1mo',     # Load 1 month for 5 days display
+        '1mo': '3mo',    # Load 3 months for 1 month display
+        '3mo': '6mo',    # Load 6 months for 3 months display
+        '6mo': '1y',     # Load 1 year for 6 months display
+        '1y': '2y',      # Load 2 years for 1 year display
+        '2y': '5y',      # Load 5 years for 2 years display
+        '5y': '10y',     # Load 10 years for 5 years display
+        '10y': 'max',    # Load max for 10 years display
+        'ytd': '2y',     # Load 2 years for YTD display
+        'max': 'max',    # Already max
+    }
+    
+    return period_extensions.get(period, 'max')
+
+
 def _is_probable_isin(identifier: str) -> bool:
     """Rough validation to check if a string looks like an ISIN."""
     if len(identifier) != 12:
@@ -786,95 +815,172 @@ def calculate_technical_indicators(
     
     try:
         ticker = yf.Ticker(ticker_symbol)
+        
+        # Load MORE data than requested to have enough historical data for indicators
+        # This ensures Bollinger Bands and other indicators are calculated from the start
+        extended_period = _get_extended_period(period)
+        hist_extended = ticker.history(period=extended_period)
+        
+        if hist_extended is None or hist_extended.empty:
+            return None
+        
+        # Now load the actual requested period to know which dates to return
         hist = ticker.history(period=period)
         
         if hist is None or hist.empty:
             return None
         
-        close_prices = hist['Close']
+        # Use extended data for calculations
+        close_prices_extended = hist_extended['Close']
+        
+        # But only return dates for the requested period
         dates = [date.isoformat() for date in hist.index]
+        
+        # Filter the extended data to match the requested period dates
+        # This ensures we have indicator values for all displayed dates
+        display_dates = hist.index
         
         result = {
             'dates': dates,
-            'close': _clean_for_json(close_prices),
+            'close': _clean_for_json(hist['Close']),
             'indicators': {}
         }
         
         # Simple Moving Averages
         if 'sma_20' in indicators:
-            result['indicators']['sma_20'] = _clean_for_json(close_prices.rolling(window=20).mean())
+            sma_20 = close_prices_extended.rolling(window=20).mean()
+            result['indicators']['sma_20'] = _clean_for_json(sma_20.reindex(display_dates).tolist())
         if 'sma_50' in indicators:
-            result['indicators']['sma_50'] = _clean_for_json(close_prices.rolling(window=50).mean())
+            sma_50 = close_prices_extended.rolling(window=50).mean()
+            result['indicators']['sma_50'] = _clean_for_json(sma_50.reindex(display_dates).tolist())
         if 'sma_200' in indicators:
-            result['indicators']['sma_200'] = _clean_for_json(close_prices.rolling(window=200).mean())
+            sma_200 = close_prices_extended.rolling(window=200).mean()
+            result['indicators']['sma_200'] = _clean_for_json(sma_200.reindex(display_dates).tolist())
         
         # Exponential Moving Averages
         if 'ema_12' in indicators:
-            result['indicators']['ema_12'] = _clean_for_json(close_prices.ewm(span=12, adjust=False).mean())
+            ema_12 = close_prices_extended.ewm(span=12, adjust=False).mean()
+            result['indicators']['ema_12'] = _clean_for_json(ema_12.reindex(display_dates).tolist())
         if 'ema_26' in indicators:
-            result['indicators']['ema_26'] = _clean_for_json(close_prices.ewm(span=26, adjust=False).mean())
+            ema_26 = close_prices_extended.ewm(span=26, adjust=False).mean()
+            result['indicators']['ema_26'] = _clean_for_json(ema_26.reindex(display_dates).tolist())
         
         # RSI
         if 'rsi' in indicators:
-            rsi_values = _calculate_rsi_series(close_prices, period=14)
+            rsi_values = _calculate_rsi_series(close_prices_extended, period=14)
             if rsi_values is not None:
-                result['indicators']['rsi'] = _clean_for_json(rsi_values)
+                result['indicators']['rsi'] = _clean_for_json(rsi_values.reindex(display_dates).tolist())
         
         # MACD
         if 'macd' in indicators:
-            ema_12 = close_prices.ewm(span=12, adjust=False).mean()
-            ema_26 = close_prices.ewm(span=26, adjust=False).mean()
+            ema_12 = close_prices_extended.ewm(span=12, adjust=False).mean()
+            ema_26 = close_prices_extended.ewm(span=26, adjust=False).mean()
             macd_line = ema_12 - ema_26
             signal_line = macd_line.ewm(span=9, adjust=False).mean()
             histogram = macd_line - signal_line
             
             result['indicators']['macd'] = {
-                'macd': _clean_for_json(macd_line),
-                'signal': _clean_for_json(signal_line),
-                'histogram': _clean_for_json(histogram)
+                'macd': _clean_for_json(macd_line.reindex(display_dates).tolist()),
+                'signal': _clean_for_json(signal_line.reindex(display_dates).tolist()),
+                'histogram': _clean_for_json(histogram.reindex(display_dates).tolist())
             }
         
         # Bollinger Bands
         if 'bollinger' in indicators:
-            sma_20 = close_prices.rolling(window=20).mean()
-            std_20 = close_prices.rolling(window=20).std()
-            upper_band = sma_20 + (std_20 * 2)
-            lower_band = sma_20 - (std_20 * 2)
+            from backend.app.services.technical_indicators_service import calculate_bollinger_bands, get_bollinger_signal
+            
+            # Adjust Bollinger Bands period based on data interval/period
+            # Rule: Use ~1.5-2.5% of available data points, with reasonable min/max bounds
+            data_points = len(close_prices_extended)
+            
+            if data_points < 20:
+                bb_period = max(5, data_points // 2)  # At least 5, or half the data
+            elif period == '1d':
+                bb_period = 10  # Very short for single day
+            elif period == '5d':
+                bb_period = 10  # Short for 5 days
+            elif period in ['1mo', '3mo']:
+                bb_period = 20  # Standard for 1-3 months
+            elif period == '6mo':
+                bb_period = 30  # Longer for 6 months
+            elif period == '1y':
+                bb_period = 20  # Standard 20-day for 1 year (daily data)
+            elif period in ['2y', '5y', '10y', 'max']:
+                # For multi-year charts, use weekly equivalent (5 trading days = 1 week)
+                # 20-week Bollinger = ~100 days, but adjust to available data
+                bb_period = min(100, max(50, data_points // 15))  # 50-100 days for long term
+            else:
+                bb_period = 20  # Default fallback
+            
+            # Calculate Bollinger Bands on EXTENDED data
+            bollinger_data = calculate_bollinger_bands(close_prices_extended, period=bb_period, num_std=2.0)
+            
+            # Since calculate_bollinger_bands returns lists, we need to filter them
+            # Find the indices that match display_dates in hist_extended
+            extended_dates = hist_extended.index
+            display_indices = [extended_dates.get_loc(date) for date in display_dates if date in extended_dates]
+            
+            # Extract only the values for display_dates
+            bollinger_filtered = {
+                'middle': [bollinger_data['middle'][i] for i in display_indices],
+                'upper': [bollinger_data['upper'][i] for i in display_indices],
+                'lower': [bollinger_data['lower'][i] for i in display_indices],
+                'percent_b': [bollinger_data['percent_b'][i] for i in display_indices],
+                'bandwidth': [bollinger_data['bandwidth'][i] for i in display_indices],
+            }
+            
+            bollinger_signal = get_bollinger_signal({
+                'middle': pd.Series(bollinger_filtered['middle'], index=display_dates),
+                'upper': pd.Series(bollinger_filtered['upper'], index=display_dates),
+                'lower': pd.Series(bollinger_filtered['lower'], index=display_dates),
+                'percent_b': pd.Series(bollinger_filtered['percent_b'], index=display_dates),
+                'bandwidth': pd.Series(bollinger_filtered['bandwidth'], index=display_dates),
+            })
             
             result['indicators']['bollinger'] = {
-                'middle': _clean_for_json(sma_20),
-                'upper': _clean_for_json(upper_band),
-                'lower': _clean_for_json(lower_band)
+                'middle': _clean_for_json(bollinger_filtered['middle']),
+                'upper': _clean_for_json(bollinger_filtered['upper']),
+                'lower': _clean_for_json(bollinger_filtered['lower']),
+                'percent_b': _clean_for_json(bollinger_filtered['percent_b']),
+                'bandwidth': _clean_for_json(bollinger_filtered['bandwidth']),
+                'current_percent_b': _clean_for_json(bollinger_filtered['percent_b'][-1] if len(bollinger_filtered['percent_b']) > 0 else None),
+                'current_bandwidth': _clean_for_json(bollinger_filtered['bandwidth'][-1] if len(bollinger_filtered['bandwidth']) > 0 else None),
+                'squeeze': bool(bollinger_data['squeeze']) if bollinger_data['squeeze'] is not None else False,
+                'band_walking': bollinger_data['band_walking'],
+                'signal': bollinger_signal['signal'],
+                'signal_reason': bollinger_signal['reason'],
+                'signal_details': _clean_for_json(bollinger_signal['details']),
+                'period': bb_period  # Include the period used for transparency
             }
         
         # Historical Volatility
         if 'volatility' in indicators:
-            returns = close_prices.pct_change()
+            returns = close_prices_extended.pct_change()
             volatility = returns.rolling(window=30).std() * (252 ** 0.5) * 100
-            result['indicators']['volatility'] = _clean_for_json(volatility)
+            result['indicators']['volatility'] = _clean_for_json(volatility.reindex(display_dates).tolist())
         
         # ATR (Average True Range)
         if 'atr' in indicators or 'atr_14' in indicators:
             # Check if required columns exist
-            if all(col in hist.columns for col in ['High', 'Low', 'Close']):
-                atr_values = _calculate_atr_series(hist['High'], hist['Low'], hist['Close'], period=14)
+            if all(col in hist_extended.columns for col in ['High', 'Low', 'Close']):
+                atr_values = _calculate_atr_series(hist_extended['High'], hist_extended['Low'], hist_extended['Close'], period=14)
                 if atr_values is not None:
-                    result['indicators']['atr'] = _clean_for_json(atr_values)
+                    result['indicators']['atr'] = _clean_for_json(atr_values.reindex(display_dates).tolist())
         
         # VWAP (Volume Weighted Average Price) - Rolling
         if 'vwap' in indicators or 'vwap_20' in indicators:
             # Check if required columns exist
-            if all(col in hist.columns for col in ['High', 'Low', 'Close', 'Volume']):
+            if all(col in hist_extended.columns for col in ['High', 'Low', 'Close', 'Volume']):
                 vwap_period = 20  # Rolling 20-period VWAP
                 vwap_values = _calculate_vwap_rolling(
-                    hist['High'], 
-                    hist['Low'], 
-                    hist['Close'], 
-                    hist['Volume'], 
+                    hist_extended['High'], 
+                    hist_extended['Low'], 
+                    hist_extended['Close'], 
+                    hist_extended['Volume'], 
                     period=vwap_period
                 )
                 if vwap_values is not None:
-                    result['indicators']['vwap'] = _clean_for_json(vwap_values)
+                    result['indicators']['vwap'] = _clean_for_json(vwap_values.reindex(display_dates).tolist())
         
         return result
         

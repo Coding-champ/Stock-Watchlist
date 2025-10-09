@@ -644,3 +644,181 @@ def _determine_overall_signal(analysis: Dict[str, Any]) -> str:
         return 'sell'
     else:
         return 'neutral'
+
+
+# ============================================================================
+# BOLLINGER BANDS ADVANCED FEATURES
+# ============================================================================
+
+def calculate_bollinger_bands(
+    close_prices: pd.Series, 
+    period: int = 20, 
+    num_std: float = 2.0
+) -> Dict[str, Any]:
+    """
+    Calculate Bollinger Bands with advanced features.
+    
+    Args:
+        close_prices: Series of closing prices
+        period: Moving average period (default: 20)
+        num_std: Number of standard deviations (default: 2.0)
+        
+    Returns:
+        Dict with:
+        - upper, middle, lower: Band values
+        - percent_b: Bollinger %B indicator
+        - bandwidth: Band width as percentage
+        - squeeze: Boolean indicating if bands are squeezed
+        - band_walking: Direction of band walking ('upper', 'lower', None)
+    """
+    result = {
+        'upper': None,
+        'middle': None,
+        'lower': None,
+        'percent_b': None,
+        'bandwidth': None,
+        'squeeze': False,
+        'band_walking': None,
+        'current_percent_b': None,
+        'current_bandwidth': None
+    }
+    
+    if close_prices is None or len(close_prices) < period:
+        return result
+    
+    try:
+        # Calculate Bollinger Bands
+        sma = close_prices.rolling(window=period).mean()
+        std = close_prices.rolling(window=period).std()
+        upper_band = sma + (std * num_std)
+        lower_band = sma - (std * num_std)
+        
+        # Bollinger %B: Position within bands
+        # %B = (Price - Lower Band) / (Upper Band - Lower Band)
+        # Values: >1 = above upper band, <0 = below lower band, 0-1 = within bands
+        percent_b = (close_prices - lower_band) / (upper_band - lower_band)
+        
+        # Bandwidth: Width of bands relative to middle band
+        # BandWidth = (Upper - Lower) / Middle
+        bandwidth = (upper_band - lower_band) / sma * 100
+        
+        # Squeeze Detection: When bandwidth is at historical lows
+        # Compare current bandwidth with lowest bandwidth of last 125 periods (6 months)
+        lookback = min(125, len(bandwidth))
+        if lookback > 0:
+            recent_bandwidth = bandwidth.iloc[-lookback:]
+            min_bandwidth = recent_bandwidth.min()
+            current_bandwidth_val = bandwidth.iloc[-1] if not bandwidth.empty else None
+            
+            # Squeeze if current bandwidth is within 20% of the minimum
+            if current_bandwidth_val and min_bandwidth:
+                squeeze_threshold = min_bandwidth * 1.2
+                result['squeeze'] = current_bandwidth_val <= squeeze_threshold
+                result['current_bandwidth'] = float(current_bandwidth_val)
+        
+        # Band Walking Detection: Price staying near a band
+        # Check if price has been near upper or lower band for last 3+ periods
+        if len(percent_b) >= 3:
+            recent_pb = percent_b.iloc[-3:]
+            
+            # Upper band walking: %B >= 0.9 for at least 3 periods
+            if (recent_pb >= 0.9).sum() >= 3:
+                result['band_walking'] = 'upper'
+            # Lower band walking: %B <= 0.1 for at least 3 periods  
+            elif (recent_pb <= 0.1).sum() >= 3:
+                result['band_walking'] = 'lower'
+        
+        # Current values
+        if not percent_b.empty:
+            result['current_percent_b'] = float(percent_b.iloc[-1])
+        
+        # Convert to lists for JSON serialization
+        result['upper'] = upper_band.tolist()
+        result['middle'] = sma.tolist()
+        result['lower'] = lower_band.tolist()
+        result['percent_b'] = percent_b.tolist()
+        result['bandwidth'] = bandwidth.tolist()
+        
+        # Ensure boolean values are Python bool, not numpy.bool_
+        result['squeeze'] = bool(result['squeeze'])
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error calculating Bollinger Bands: {e}")
+        return result
+
+
+def get_bollinger_signal(bollinger_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Generate trading signals from Bollinger Bands analysis.
+    
+    Args:
+        bollinger_data: Output from calculate_bollinger_bands
+        
+    Returns:
+        Dict with signal, reason, and details
+    """
+    signal_result = {
+        'signal': 'neutral',
+        'reason': '',
+        'details': {}
+    }
+    
+    try:
+        current_pb = bollinger_data.get('current_percent_b')
+        squeeze = bollinger_data.get('squeeze', False)
+        band_walking = bollinger_data.get('band_walking')
+        current_bandwidth = bollinger_data.get('current_bandwidth')
+        
+        if current_pb is None:
+            return signal_result
+        
+        signal_result['details'] = {
+            'percent_b': current_pb,
+            'squeeze': squeeze,
+            'band_walking': band_walking,
+            'bandwidth': current_bandwidth
+        }
+        
+        # Squeeze + breakout setup
+        if squeeze:
+            if current_pb > 1.0:
+                signal_result['signal'] = 'buy'
+                signal_result['reason'] = 'Bollinger Squeeze breakout above upper band'
+            elif current_pb < 0.0:
+                signal_result['signal'] = 'sell'
+                signal_result['reason'] = 'Bollinger Squeeze breakout below lower band'
+            else:
+                signal_result['signal'] = 'watch'
+                signal_result['reason'] = 'Bollinger Squeeze detected - volatility breakout imminent'
+        
+        # Band Walking (strong trend)
+        elif band_walking == 'upper':
+            signal_result['signal'] = 'strong_buy'
+            signal_result['reason'] = 'Strong uptrend - Walking the upper Bollinger Band'
+        elif band_walking == 'lower':
+            signal_result['signal'] = 'strong_sell'
+            signal_result['reason'] = 'Strong downtrend - Walking the lower Bollinger Band'
+        
+        # Overbought/Oversold
+        elif current_pb > 1.0:
+            signal_result['signal'] = 'overbought'
+            signal_result['reason'] = f'Price above upper band (%B: {current_pb:.2f})'
+        elif current_pb < 0.0:
+            signal_result['signal'] = 'oversold'
+            signal_result['reason'] = f'Price below lower band (%B: {current_pb:.2f})'
+        
+        # Mean reversion zones
+        elif current_pb > 0.8:
+            signal_result['signal'] = 'caution_sell'
+            signal_result['reason'] = 'Approaching upper band - potential reversal'
+        elif current_pb < 0.2:
+            signal_result['signal'] = 'caution_buy'
+            signal_result['reason'] = 'Approaching lower band - potential reversal'
+        
+        return signal_result
+        
+    except Exception as e:
+        logger.error(f"Error generating Bollinger signal: {e}")
+        return signal_result

@@ -89,6 +89,9 @@ function StockChart({ stock, isEmbedded = false }) {
   });
   const [fibonacciData, setFibonacciData] = useState(null);
   
+  // Bollinger Bands signal data
+  const [bollingerSignal, setBollingerSignal] = useState(null);
+  
   // Support/Resistance toggles
   const [showSupportResistance, setShowSupportResistance] = useState(false);
   const [supportResistanceData, setSupportResistanceData] = useState(null);
@@ -190,6 +193,8 @@ function StockChart({ stock, isEmbedded = false }) {
         bollingerUpper: indicatorsJson?.indicators?.bollinger?.upper?.[index],
         bollingerMiddle: indicatorsJson?.indicators?.bollinger?.middle?.[index],
         bollingerLower: indicatorsJson?.indicators?.bollinger?.lower?.[index],
+        bollingerPercentB: indicatorsJson?.indicators?.bollinger?.percent_b?.[index],
+        bollingerBandwidth: indicatorsJson?.indicators?.bollinger?.bandwidth?.[index],
         atr: indicatorsJson?.indicators?.atr?.[index],
         vwap: indicatorsJson?.indicators?.vwap?.[index]
       }));
@@ -220,6 +225,19 @@ function StockChart({ stock, isEmbedded = false }) {
       // Store indicators for potential future use
       // eslint-disable-next-line no-unused-vars
       setIndicators(indicatorsJson);
+      
+      // Store Bollinger Bands signal data
+      if (indicatorsJson?.indicators?.bollinger) {
+        setBollingerSignal({
+          squeeze: indicatorsJson.indicators.bollinger.squeeze,
+          band_walking: indicatorsJson.indicators.bollinger.band_walking,
+          current_percent_b: indicatorsJson.indicators.bollinger.current_percent_b,
+          current_bandwidth: indicatorsJson.indicators.bollinger.current_bandwidth,
+          signal: indicatorsJson.indicators.bollinger.signal,
+          signal_reason: indicatorsJson.indicators.bollinger.signal_reason,
+          period: indicatorsJson.indicators.bollinger.period || 20
+        });
+      }
       
       // Fetch crossover data
       try {
@@ -392,6 +410,20 @@ function StockChart({ stock, isEmbedded = false }) {
               {' '}
               <span className="tooltip-value">${data.bollingerLower?.toFixed(2)}</span>
             </p>
+            {data.bollingerPercentB !== undefined && (
+              <p>
+                <span className="tooltip-label" style={{ color: '#3498db' }}>%B:</span>
+                {' '}
+                <span className="tooltip-value">{data.bollingerPercentB?.toFixed(2)}</span>
+              </p>
+            )}
+            {data.bollingerBandwidth !== undefined && (
+              <p>
+                <span className="tooltip-label" style={{ color: '#f39c12' }}>Bandwidth:</span>
+                {' '}
+                <span className="tooltip-value">{data.bollingerBandwidth?.toFixed(2)}%</span>
+              </p>
+            )}
           </>
         )}
         {showATR && data.atr && (
@@ -1175,6 +1207,74 @@ function StockChart({ stock, isEmbedded = false }) {
                 </div>
               )}
             </div>
+
+            {/* Bollinger Bands Signal Info */}
+            {showBollinger && bollingerSignal && (
+              <div style={{ 
+                marginTop: '10px', 
+                paddingTop: '10px', 
+                borderTop: '1px solid #ddd',
+                backgroundColor: bollingerSignal.squeeze ? '#fff3cd' : '#f8f9fa',
+                padding: '10px',
+                borderRadius: '6px',
+                border: bollingerSignal.squeeze ? '2px solid #ffc107' : '1px solid #dee2e6'
+              }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>📊 Bollinger Bands ({bollingerSignal.period || 20})</span>
+                  {bollingerSignal.squeeze && (
+                    <span style={{ 
+                      fontSize: '10px', 
+                      backgroundColor: '#ffc107', 
+                      color: '#000', 
+                      padding: '2px 6px', 
+                      borderRadius: '10px',
+                      fontWeight: 'bold'
+                    }}>
+                      SQUEEZE!
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '11px', color: '#666' }}>
+                  {bollingerSignal.current_percent_b !== null && (
+                    <div style={{ marginBottom: '4px' }}>
+                      <span style={{ fontWeight: 'bold' }}>%B:</span> {bollingerSignal.current_percent_b.toFixed(2)}
+                      {bollingerSignal.current_percent_b > 1 && <span style={{ color: '#e74c3c' }}> (über oberem Band)</span>}
+                      {bollingerSignal.current_percent_b < 0 && <span style={{ color: '#27ae60' }}> (unter unterem Band)</span>}
+                    </div>
+                  )}
+                  {bollingerSignal.current_bandwidth !== null && (
+                    <div style={{ marginBottom: '4px' }}>
+                      <span style={{ fontWeight: 'bold' }}>Bandwidth:</span> {bollingerSignal.current_bandwidth.toFixed(2)}%
+                    </div>
+                  )}
+                  {bollingerSignal.band_walking && (
+                    <div style={{ 
+                      marginTop: '6px', 
+                      padding: '4px 8px', 
+                      backgroundColor: bollingerSignal.band_walking === 'upper' ? '#e8f5e9' : '#ffebee',
+                      borderRadius: '4px',
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                      color: bollingerSignal.band_walking === 'upper' ? '#2e7d32' : '#c62828'
+                    }}>
+                      {bollingerSignal.band_walking === 'upper' ? '📈 Walking Upper Band (Uptrend)' : '📉 Walking Lower Band (Downtrend)'}
+                    </div>
+                  )}
+                  {bollingerSignal.signal_reason && (
+                    <div style={{ 
+                      marginTop: '6px', 
+                      padding: '4px 8px', 
+                      backgroundColor: '#e3f2fd',
+                      borderRadius: '4px',
+                      fontSize: '10px',
+                      fontStyle: 'italic'
+                    }}>
+                      💡 {bollingerSignal.signal_reason}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Volume Profile Controls */}
             <div className="volume-profile-controls" style={{ 
