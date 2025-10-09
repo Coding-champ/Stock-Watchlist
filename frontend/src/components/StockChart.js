@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   LineChart,
   Line,
@@ -15,6 +15,8 @@ import {
   ReferenceLine,
   ReferenceArea
 } from 'recharts';
+import VolumeProfile from './VolumeProfile';
+import VolumeProfileOverlay from './VolumeProfileOverlay';
 import './StockChart.css';
 
 const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:8000';
@@ -90,6 +92,41 @@ function StockChart({ stock, isEmbedded = false }) {
   // Support/Resistance toggles
   const [showSupportResistance, setShowSupportResistance] = useState(false);
   const [supportResistanceData, setSupportResistanceData] = useState(null);
+
+  // Volume Profile toggles
+  const [showVolumeProfile, setShowVolumeProfile] = useState(false);
+  const [showVolumeProfileOverlay, setShowVolumeProfileOverlay] = useState(false);
+  const [volumeProfileLevels, setVolumeProfileLevels] = useState(null);
+
+  // Memoized callback for Volume Profile data loading
+  const handleProfileLoad = useCallback((levels) => {
+    setVolumeProfileLevels(levels);
+  }, []);
+
+  // Helper function to convert period to days
+  const getPeriodDays = (period) => {
+    const periodMap = {
+      '1d': 1,
+      '5d': 5,
+      '1mo': 30,
+      '3mo': 90,
+      '6mo': 180,
+      '1y': 365,
+      '3y': 1095,
+      '5y': 1825,
+      'max': 3650  // ~10 years
+    };
+    
+    if (period === 'custom' && customStartDate && customEndDate) {
+      const start = new Date(customStartDate);
+      const end = new Date(customEndDate);
+      const diffTime = Math.abs(end - start);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays;
+    }
+    
+    return periodMap[period] || 30;
+  };
 
   // Fetch chart data
   const fetchChartData = useCallback(async () => {
@@ -740,6 +777,32 @@ function StockChart({ stock, isEmbedded = false }) {
     );
   };
 
+  // Calculate min/max for Y-axis domain - memoized to prevent re-renders
+  // MUST be called before any early returns (React Hooks rule)
+  const { minPrice, maxPrice } = useMemo(() => {
+    if (!chartData || chartData.length === 0) {
+      return { minPrice: 0, maxPrice: 0 };
+    }
+    
+    const prices = chartData.map(d => d.close).filter(p => p != null && !isNaN(p) && isFinite(p));
+    
+    if (prices.length === 0) {
+      return { minPrice: 0, maxPrice: 0 };
+    }
+    
+    return {
+      minPrice: Math.min(...prices) * 0.98,
+      maxPrice: Math.max(...prices) * 1.02
+    };
+  }, [chartData]);
+  
+  // Memoize priceRange to prevent VolumeProfileOverlay re-renders
+  const priceRange = useMemo(() => ({ 
+    min: minPrice, 
+    max: maxPrice 
+  }), [minPrice, maxPrice]);
+
+  // Early returns AFTER all hooks
   if (loading) {
     return (
       <div className="stock-chart-container">
@@ -774,11 +837,17 @@ function StockChart({ stock, isEmbedded = false }) {
       </div>
     );
   }
-
-  // Calculate min/max for Y-axis domain
-  const prices = chartData.map(d => d.close).filter(p => p != null);
-  const minPrice = Math.min(...prices) * 0.98;
-  const maxPrice = Math.max(...prices) * 1.02;
+  
+  // Early return if no valid prices
+  if (minPrice === 0 && maxPrice === 0) {
+    return (
+      <div className="stock-chart-container">
+        <div className="chart-error">
+          <p>Keine gültigen Preis-Daten verfügbar</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="stock-chart-container">
@@ -1106,6 +1175,49 @@ function StockChart({ stock, isEmbedded = false }) {
                 </div>
               )}
             </div>
+
+            {/* Volume Profile Controls */}
+            <div className="volume-profile-controls" style={{ 
+              marginTop: '10px', 
+              paddingTop: '10px', 
+              borderTop: '1px solid #ddd',
+              backgroundColor: '#f8f9fa',
+              padding: '10px',
+              borderRadius: '6px'
+            }}>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={showVolumeProfile}
+                  onChange={(e) => setShowVolumeProfile(e.target.checked)}
+                />
+                <span style={{ fontWeight: 'bold' }}>📊 Volume Profile (Standalone)</span>
+              </label>
+
+              <label className="checkbox-label" style={{ marginTop: '8px' }}>
+                <input
+                  type="checkbox"
+                  checked={showVolumeProfileOverlay}
+                  onChange={(e) => setShowVolumeProfileOverlay(e.target.checked)}
+                />
+                <span style={{ fontWeight: 'bold' }}>📊 Volume Profile (Overlay)</span>
+              </label>
+              
+              {(showVolumeProfile || showVolumeProfileOverlay) && volumeProfileLevels && (
+                <div style={{ 
+                  marginLeft: '10px', 
+                  marginTop: '8px',
+                  fontSize: '11px',
+                  color: '#666'
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    <span>🟢 POC: ${volumeProfileLevels.poc?.toFixed(2) ?? 'N/A'}</span>
+                    <span>🔵 VAH: ${volumeProfileLevels.vah?.toFixed(2) ?? 'N/A'}</span>
+                    <span>🔴 VAL: ${volumeProfileLevels.val?.toFixed(2) ?? 'N/A'}</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1123,10 +1235,24 @@ function StockChart({ stock, isEmbedded = false }) {
       </div>
 
       {/* Main Price Chart */}
-      <div className="chart-section">
+      <div className="chart-section" style={{ position: 'relative' }}>
         <h3 className="chart-title">
-          {stock.name} ({stock.ticker_symbol}) - {period.toUpperCase()}
+          {stock.name} ({stock.ticker_symbol}) - {period ? period.toUpperCase() : 'N/A'}
         </h3>
+        
+        {/* Volume Profile Overlay */}
+        {showVolumeProfileOverlay && minPrice && maxPrice && !isNaN(minPrice) && !isNaN(maxPrice) && (
+          <VolumeProfileOverlay
+            stockId={stock.id}
+            period={getPeriodDays(period)}
+            numBins={50}
+            chartHeight={400}
+            chartMargin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+            heightAdjustment={90}
+            priceRange={priceRange}
+            onProfileLoad={handleProfileLoad}
+          />
+        )}
         
         <ResponsiveContainer width="100%" height={400}>
           {chartType === CHART_TYPES.LINE ? (
@@ -1146,7 +1272,7 @@ function StockChart({ stock, isEmbedded = false }) {
                 minTickGap={50}
               />
               <YAxis 
-                domain={[0, 'auto']}
+                domain={[minPrice, maxPrice]}
                 tick={{ fontSize: 12 }}
                 tickFormatter={(value) => `$${value.toFixed(2)}`}
               />
@@ -1261,6 +1387,49 @@ function StockChart({ stock, isEmbedded = false }) {
               
               {/* Support/Resistance Levels */}
               {renderSupportResistanceLevels()}
+
+              {/* Volume Profile Levels (POC, VAH, VAL) */}
+              {showVolumeProfileOverlay && volumeProfileLevels && volumeProfileLevels.poc && volumeProfileLevels.vah && volumeProfileLevels.val && (
+                <>
+                  <ReferenceLine 
+                    y={volumeProfileLevels.poc} 
+                    stroke="#22c55e" 
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    label={{ 
+                      value: `POC: $${volumeProfileLevels.poc.toFixed(2)}`, 
+                      position: "left", 
+                      fill: "#22c55e", 
+                      fontSize: 11,
+                      fontWeight: "bold"
+                    }}
+                  />
+                  <ReferenceLine 
+                    y={volumeProfileLevels.vah} 
+                    stroke="#3b82f6" 
+                    strokeWidth={1.5}
+                    strokeDasharray="3 3"
+                    label={{ 
+                      value: `VAH: $${volumeProfileLevels.vah.toFixed(2)}`, 
+                      position: "left", 
+                      fill: "#3b82f6", 
+                      fontSize: 10
+                    }}
+                  />
+                  <ReferenceLine 
+                    y={volumeProfileLevels.val} 
+                    stroke="#ef4444" 
+                    strokeWidth={1.5}
+                    strokeDasharray="3 3"
+                    label={{ 
+                      value: `VAL: $${volumeProfileLevels.val.toFixed(2)}`, 
+                      position: "left", 
+                      fill: "#ef4444", 
+                      fontSize: 10
+                    }}
+                  />
+                </>
+              )}
               
               {/* Golden Cross / Death Cross Markers */}
               {renderCrossoverMarkers()}
@@ -1279,7 +1448,7 @@ function StockChart({ stock, isEmbedded = false }) {
                 minTickGap={50}
               />
               <YAxis 
-                domain={[0, 'auto']}
+                domain={[minPrice, maxPrice]}
                 tick={{ fontSize: 12 }}
                 tickFormatter={(value) => `$${value.toFixed(2)}`}
               />
@@ -1392,6 +1561,49 @@ function StockChart({ stock, isEmbedded = false }) {
               
               {/* Support/Resistance Levels */}
               {renderSupportResistanceLevels()}
+
+              {/* Volume Profile Levels (POC, VAH, VAL) */}
+              {showVolumeProfileOverlay && volumeProfileLevels && volumeProfileLevels.poc && volumeProfileLevels.vah && volumeProfileLevels.val && (
+                <>
+                  <ReferenceLine 
+                    y={volumeProfileLevels.poc} 
+                    stroke="#22c55e" 
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    label={{ 
+                      value: `POC: $${volumeProfileLevels.poc.toFixed(2)}`, 
+                      position: "left", 
+                      fill: "#22c55e", 
+                      fontSize: 11,
+                      fontWeight: "bold"
+                    }}
+                  />
+                  <ReferenceLine 
+                    y={volumeProfileLevels.vah} 
+                    stroke="#3b82f6" 
+                    strokeWidth={1.5}
+                    strokeDasharray="3 3"
+                    label={{ 
+                      value: `VAH: $${volumeProfileLevels.vah.toFixed(2)}`, 
+                      position: "left", 
+                      fill: "#3b82f6", 
+                      fontSize: 10
+                    }}
+                  />
+                  <ReferenceLine 
+                    y={volumeProfileLevels.val} 
+                    stroke="#ef4444" 
+                    strokeWidth={1.5}
+                    strokeDasharray="3 3"
+                    label={{ 
+                      value: `VAL: $${volumeProfileLevels.val.toFixed(2)}`, 
+                      position: "left", 
+                      fill: "#ef4444", 
+                      fontSize: 10
+                    }}
+                  />
+                </>
+              )}
               
               {/* Golden Cross / Death Cross Markers */}
               {renderCrossoverMarkers()}
@@ -1656,6 +1868,20 @@ function StockChart({ stock, isEmbedded = false }) {
               📊 <strong>Position Size:</strong> Bei hohem ATR kleinere Positionen wählen
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Volume Profile Standalone */}
+      {showVolumeProfile && (
+        <div className="chart-section">
+          <h4 className="chart-subtitle">📊 Volume Profile Analysis</h4>
+          <VolumeProfile
+            stockId={stock.id}
+            period={getPeriodDays(period)}
+            numBins={50}
+            height={400}
+            onLoad={handleProfileLoad}
+          />
         </div>
       )}
 

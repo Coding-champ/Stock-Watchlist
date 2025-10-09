@@ -1,0 +1,162 @@
+/* Volume Profile Overlay Styles */
+
+.volume-profile-overlay {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 100px;
+  pointer-events: none;
+  z-index: 5;
+  box-sizing: border-box;
+}
+
+.vp-bars-container {
+  position: absolute;
+  width: 100%;
+  /* height is set inline via style prop */
+}
+
+/* Volume Bars */
+.vp-bar {
+  position: absolute;
+  right: 0;
+  background-color: rgba(148, 163, 184, 0.3);
+  border-left: 1px solid rgba(148, 163, 184, 0.5);
+  transition: all 0.3s ease;
+}
+
+.vp-bar:hover {
+  background-color: rgba(148, 163, 184, 0.5);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+/* POC Bar - Point of Control (green) */
+.vp-bar.poc {
+  background-color: rgba(34, 197, 94, 0.5);
+  border-left: 2px solid #22c55e;
+}
+
+.vp-bar.poc:hover {
+  background-color: rgba(34, 197, 94, 0.7);
+}
+
+/* HVN Bar - High Volume Node (blue) */
+.vp-bar.hvn {
+  background-color: rgba(59, 130, 246, 0.4);
+  border-left: 1px solid #3b82f6;
+}
+
+.vp-bar.hvn:hover {
+  background-color: rgba(59, 130, 246, 0.6);
+}
+
+/* Value Area Bar (light blue) */
+.vp-bar.value-area {
+  background-color: rgba(96, 165, 250, 0.3);
+  border-left: 1px solid rgba(96, 165, 250, 0.6);
+}
+
+.vp-bar.value-area:hover {
+  background-color: rgba(96, 165, 250, 0.5);
+}
+
+/* Level Labels */
+.vp-level-labels {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  /* height and top are set inline via style prop */
+  pointer-events: none;
+}
+
+.vp-label {
+  position: absolute;
+  right: 105px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.vp-label::after {
+  content: '';
+  position: absolute;
+  right: -105px;
+  width: 105px;
+  height: 1px;
+  border-bottom: 2px dashed;
+}
+
+.label-text {
+  background-color: rgba(15, 23, 42, 0.95);
+  color: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* POC Label (green) */
+.vp-label.poc .label-text {
+  background-color: rgba(34, 197, 94, 0.95);
+  color: #fff;
+}
+
+.vp-label.poc::after {
+  border-color: #22c55e;
+}
+
+/* VAH Label (blue) */
+.vp-label.vah .label-text {
+  background-color: rgba(59, 130, 246, 0.95);
+  color: #fff;
+}
+
+.vp-label.vah::after {
+  border-color: #3b82f6;
+}
+
+/* VAL Label (red) */
+.vp-label.val .label-text {
+  background-color: rgba(239, 68, 68, 0.95);
+  color: #fff;
+}
+
+.vp-label.val::after {
+  border-color: #ef4444;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .volume-profile-overlay {
+    width: 60px;
+  }
+
+  .vp-label {
+    right: 65px;
+  }
+
+  .vp-label::after {
+    right: -65px;
+    width: 65px;
+  }
+
+  .label-text {
+    font-size: 9px;
+    padding: 1px 4px;
+  }
+}
+
+/* Small screens - hide labels, keep bars */
+@media (max-width: 480px) {
+  .vp-level-labels {
+    display: none;
+  }
+
+  .volume-profile-overlay {
+    width: 40px;
+  }
+}

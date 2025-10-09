@@ -16,11 +16,30 @@ from backend.app.services.technical_indicators_service import (
 )
 from backend.app.services.historical_price_service import HistoricalPriceService
 from backend.app.services.fundamental_data_service import FundamentalDataService
+from backend.app.services.volume_profile_service import VolumeProfileService
 import pandas as pd
 import logging
+import math
 
 router = APIRouter(prefix="/stock-data", tags=["stock-data"])
 logger = logging.getLogger(__name__)
+
+
+def clean_json_floats(obj):
+    """
+    Recursively clean NaN and Infinity values from nested dictionaries/lists
+    for JSON serialization.
+    """
+    if isinstance(obj, dict):
+        return {k: clean_json_floats(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_json_floats(item) for item in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    else:
+        return obj
 
 
 @router.get("/{stock_id}", response_model=List[schemas.StockData])
@@ -340,15 +359,18 @@ def get_divergence_analysis(
             lookback_days=lookback_days
         )
         
-        return {
+        # Clean NaN/Infinity values before returning
+        result = {
             "stock_id": stock_id,
             "ticker_symbol": stock.ticker_symbol,
             "lookback_days": lookback_days,
             "analyzed_at": datetime.utcnow().isoformat(),
-            "analysis": analysis,
+            "analysis": clean_json_floats(analysis),
             "dates": chart_data.get('dates', []),
-            "close_prices": chart_data.get('close', [])
+            "close_prices": clean_json_floats(chart_data.get('close', []))
         }
+        
+        return result
         
     except HTTPException:
         raise
@@ -597,4 +619,129 @@ def refresh_fundamentals(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to refresh fundamentals: {str(e)}"
+        )
+
+
+# ============================================================================
+# VOLUME PROFILE ENDPOINTS
+# ============================================================================
+
+@router.get("/{stock_id}/volume-profile")
+def get_volume_profile(
+    stock_id: int,
+    period_days: int = Query(30, description="Number of days to analyze", ge=1, le=3650),  # Allow up to 10 years
+    num_bins: int = Query(50, description="Number of price levels", ge=10, le=200),
+    start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD)"),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get Volume Profile analysis for a stock
+    
+    Volume Profile shows volume distribution across price levels:
+    - Point of Control (POC): Price with highest volume
+    - Value Area (VA): Price range with 70% of volume
+    - High/Low Volume Nodes: Support/Resistance levels
+    
+    Parameters:
+    - period_days: Days to analyze (used if start_date not provided)
+    - num_bins: Number of price levels (more = finer detail)
+    - start_date: Optional start date
+    - end_date: Optional end date
+    
+    Returns:
+    {
+        "stock_id": 1,
+        "ticker_symbol": "AAPL",
+        "price_levels": [180.0, 180.3, ...],  # Price bins
+        "volumes": [1000000, 1500000, ...],   # Volume per bin
+        "poc": 182.50,                        # Point of Control
+        "poc_volume": 2500000,                # Volume at POC
+        "value_area": {
+            "high": 185.00,                   # Value Area High
+            "low": 180.00,                    # Value Area Low
+            "volume_percent": 70.0
+        },
+        "hvn_levels": [182.50, 184.00],      # High Volume Nodes
+        "lvn_levels": [181.00, 186.00],      # Low Volume Nodes
+        "total_volume": 50000000,
+        "period": {...},
+        "price_range": {...}
+    }
+    """
+    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    
+    try:
+        volume_profile_service = VolumeProfileService(db)
+        
+        result = volume_profile_service.calculate_volume_profile(
+            stock_id=stock_id,
+            period_days=period_days,
+            num_bins=num_bins,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        if "error" in result:
+            raise HTTPException(
+                status_code=404,
+                detail=result["error"]
+            )
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error calculating volume profile for {stock.ticker_symbol}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to calculate volume profile: {str(e)}"
+        )
+
+
+@router.get("/{stock_id}/volume-profile/summary")
+def get_volume_profile_summary(
+    stock_id: int,
+    period_days: int = Query(30, description="Number of days to analyze", ge=1, le=3650),  # Allow up to 10 years
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get simplified Volume Profile summary
+    
+    Returns just the key levels:
+    - POC (Point of Control)
+    - Value Area High/Low
+    
+    This is faster than full volume profile and useful for quick checks.
+    """
+    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    
+    try:
+        volume_profile_service = VolumeProfileService(db)
+        
+        result = volume_profile_service.get_volume_profile_summary(
+            stock_id=stock_id,
+            period_days=period_days
+        )
+        
+        if "error" in result:
+            raise HTTPException(
+                status_code=404,
+                detail=result["error"]
+            )
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error calculating volume profile summary for {stock.ticker_symbol}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to calculate volume profile summary: {str(e)}"
         )
