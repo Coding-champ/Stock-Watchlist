@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any, Literal
+from typing import Optional, List, Dict, Any, Literal, Union
 from datetime import datetime, date
 
 
@@ -452,7 +452,7 @@ class AlertBase(BaseModel):
     condition: str  # 'above', 'below', 'equals', 'cross_above', 'cross_below', 'before'
     threshold_value: Optional[float] = None
     timeframe_days: Optional[int] = None  # For percentage changes, earnings days before
-    composite_conditions: Optional[List[Dict[str, Any]]] = None  # For composite alerts
+    composite_conditions: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None  # For composite alerts or options
     is_active: bool = True
     expiry_date: Optional[datetime] = None
     notes: Optional[str] = None
@@ -466,7 +466,7 @@ class AlertCreate(BaseModel):
     threshold_value: Optional[float] = None
     threshold: Optional[float] = None  # Alternative field name
     timeframe_days: Optional[int] = None
-    composite_conditions: Optional[List[Dict[str, Any]]] = None
+    composite_conditions: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None
     is_active: bool = True
     expiry_date: Optional[datetime] = None
     notes: Optional[str] = None
@@ -477,7 +477,7 @@ class AlertUpdate(BaseModel):
     condition: Optional[str] = None
     threshold_value: Optional[float] = None
     timeframe_days: Optional[int] = None
-    composite_conditions: Optional[List[Dict[str, Any]]] = None
+    composite_conditions: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None
     is_active: Optional[bool] = None
     expiry_date: Optional[datetime] = None
     notes: Optional[str] = None

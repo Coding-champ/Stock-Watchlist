@@ -605,7 +605,7 @@ function StockTable({
                   data={weekPerformance}
                 />
                 <PerformanceMetric
-                  label="in Watchlist"
+                  label="Watchlist"
                   data={watchlistPerformance}
                   hint={watchlistDuration}
                 />

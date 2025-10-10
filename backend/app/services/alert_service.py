@@ -112,6 +112,10 @@ class AlertService:
             return self._check_ma_cross_alert(alert)
         elif alert_type == 'volume_spike':
             return self._check_volume_spike_alert(alert)
+        elif alert_type == 'percent_from_sma':
+            return self._check_percent_from_sma_alert(alert)
+        elif alert_type == 'trailing_stop':
+            return self._check_trailing_stop_alert(alert)
         elif alert_type == 'earnings':
             return self._check_earnings_alert(alert)
         elif alert_type == 'composite':
@@ -399,24 +403,121 @@ class AlertService:
         """Check volume spike alert"""
         try:
             ticker = yf.Ticker(alert.stock.ticker_symbol)
-            hist = ticker.history(period="3mo")
-            
-            if len(hist) < 20:
+            # allow longer period for flexible baseline windows
+            hist = ticker.history(period="6mo")
+
+            # Options via composite_conditions (can be dict or list with one dict)
+            options = self._get_options(alert)
+            baseline_days = int(options.get('baseline_days', 20)) if options else 20
+            use_zscore = bool(options.get('use_zscore', False)) if options else False
+            exclude_today = bool(options.get('exclude_today', True)) if options else True
+
+            if len(hist) < max(baseline_days + 1, 5):
                 return False
-            
-            # Get current volume and average volume
-            current_volume = hist['Volume'].iloc[-1]
-            avg_volume = hist['Volume'].iloc[-20:-1].mean()  # Exclude today
-            
-            if avg_volume == 0:
+
+            vol_series = hist['Volume']
+            current_volume = vol_series.iloc[-1]
+            # Define baseline window excluding today by default
+            if exclude_today:
+                baseline = vol_series.iloc[-baseline_days-1:-1]
+            else:
+                baseline = vol_series.iloc[-baseline_days:]
+
+            if baseline.empty or baseline.mean() == 0:
                 return False
-            
-            # Calculate volume spike ratio
-            volume_ratio = current_volume / avg_volume
-            
-            return self._evaluate_condition(volume_ratio, alert.condition, alert.threshold_value)
+
+            if use_zscore:
+                mean = baseline.mean()
+                std = baseline.std(ddof=0)
+                if std == 0:
+                    return False
+                value = (current_volume - mean) / std
+            else:
+                value = current_volume / baseline.mean()
+
+            return self._evaluate_condition(value, alert.condition, alert.threshold_value)
         except Exception as e:
             logger.error(f"Error checking volume spike alert: {str(e)}")
+            return False
+
+    def _check_percent_from_sma_alert(self, alert: AlertModel) -> bool:
+        """Check percent distance from SMA (e.g., within/beyond X% of SMA)."""
+        try:
+            ticker = yf.Ticker(alert.stock.ticker_symbol)
+            options = self._get_options(alert)
+            sma_period = int(options.get('sma_period', 50)) if options else 50
+
+            # Ensure sufficient history: period + buffer
+            needed_days = max(sma_period + 5, 30)
+            # Use a period string that covers at least needed_days
+            period_str = "1y" if needed_days > 180 else ("6mo" if needed_days > 60 else "3mo")
+            hist = ticker.history(period=period_str)
+
+            if len(hist) < sma_period:
+                return False
+
+            close = hist['Close']
+            sma = close.rolling(window=sma_period).mean()
+            current_price = close.iloc[-1]
+            current_sma = sma.iloc[-1]
+
+            if pd.isna(current_sma) or current_sma == 0:
+                return False
+
+            percent_diff = (current_price - current_sma) / current_sma * 100.0
+            return self._evaluate_condition(percent_diff, alert.condition, alert.threshold_value)
+        except Exception as e:
+            logger.error(f"Error checking percent-from-SMA alert: {str(e)}")
+            return False
+
+    def _check_trailing_stop_alert(self, alert: AlertModel) -> bool:
+        """
+        Check trailing stop based on highest close since a start date.
+        Semantics:
+          - threshold_value: trailing percent (e.g., 10 for 10%)
+          - timeframe_days (optional): if provided, trail from max within last N days;
+            otherwise, trail from alert.created_at.
+        Trigger when current close <= highest_close * (1 - trailing_percent/100).
+        """
+        try:
+            trail_percent = alert.threshold_value
+            if trail_percent is None or trail_percent <= 0:
+                return False
+
+            ticker = yf.Ticker(alert.stock.ticker_symbol)
+
+            # Determine start date range
+            days = alert.timeframe_days
+            if days and days > 0:
+                # use a period string to cover the days
+                period_str = "max" if days > 3650 else ("5y" if days > 365*3 else ("2y" if days > 365 else f"{days+5}d"))
+                hist = ticker.history(period=period_str)
+                if len(hist) < 2:
+                    return False
+                # restrict to last N days
+                hist = hist.iloc[-(days+1):]
+            else:
+                # Since alert creation, fetch enough history
+                # Fallback to 5y to be safe, then filter by date
+                hist = ticker.history(period="5y")
+                if len(hist) < 2:
+                    return False
+                if alert.created_at:
+                    hist = hist[hist.index >= alert.created_at]
+
+            if hist.empty:
+                return False
+
+            close = hist['Close']
+            current_price = close.iloc[-1]
+            highest_close = close.max()
+            if pd.isna(highest_close) or highest_close == 0:
+                return False
+
+            stop_price = highest_close * (1.0 - (trail_percent / 100.0))
+            return current_price <= stop_price
+        except Exception as e:
+            logger.error(f"Error checking trailing stop alert: {str(e)}")
             return False
 
     def _calculate_rsi(self, prices: pd.Series, period: int = 14) -> Optional[float]:
@@ -439,6 +540,17 @@ class AlertService:
             return abs(value - threshold) < 0.01
         else:
             return False
+
+    def _get_options(self, alert: AlertModel) -> Optional[Dict[str, Any]]:
+        """Extract options from composite_conditions which may be a dict or [dict]."""
+        opts = alert.composite_conditions
+        if isinstance(opts, dict):
+            return opts
+        if isinstance(opts, list) and opts:
+            head = opts[0]
+            if isinstance(head, dict):
+                return head
+        return None
 
     def check_single_alert(self, alert_id: int) -> Dict[str, Any]:
         """
@@ -506,17 +618,23 @@ class AlertService:
                 return False
             
             # All conditions must be met (AND logic)
-            for condition in alert.composite_conditions:
+            # Normalize to list of dicts
+            conditions_list = alert.composite_conditions
+            if isinstance(conditions_list, dict):
+                conditions_list = [conditions_list]
+
+            for condition in conditions_list:
                 alert_type = condition.get('type')
                 cond = condition.get('condition')
                 value = condition.get('value')
-                
-                # Create temporary alert-like object
+
+                # Create temporary alert-like object; also pass options via composite_conditions
                 temp_alert = type('obj', (object,), {
                     'stock': alert.stock,
                     'condition': cond,
                     'threshold_value': value,
-                    'timeframe_days': condition.get('timeframe_days')
+                    'timeframe_days': condition.get('timeframe_days'),
+                    'composite_conditions': condition.get('options') or condition  # allow method to read options
                 })()
                 
                 # Check each condition
@@ -535,6 +653,10 @@ class AlertService:
                     result = self._check_ma_cross_alert(temp_alert)
                 elif alert_type == 'volume_spike':
                     result = self._check_volume_spike_alert(temp_alert)
+                elif alert_type == 'percent_from_sma':
+                    result = self._check_percent_from_sma_alert(temp_alert)
+                elif alert_type == 'trailing_stop':
+                    result = self._check_trailing_stop_alert(temp_alert)
                 
                 # If any condition fails, return False (AND logic)
                 if not result:

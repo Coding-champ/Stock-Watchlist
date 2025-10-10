@@ -9,7 +9,7 @@ Professional Stock Analysis & Watchlist Management System
 - **Stock Data Tracking**: Real-time price, P/E ratio (KGV), RSI, and volatility
 - **Filtering & Sorting**: Advanced filtering by name, ISIN, ticker; sort by any column
 - **Detail View**: Click on any stock to see comprehensive information
-- **Price Alerts**: Create customizable price and metric alerts
+- **Price Alerts**: Create customizable alerts (price, P/E, RSI, volatility, MA cross, earnings, composite) plus new types: Trailing Stop, Percent-from-SMA, and enhanced Volume Spike (ratio or z-score)
 
 ### 🚀 Advanced Analytics (NEW!)
 
@@ -250,7 +250,70 @@ The React app will run on http://localhost:3000 and proxy API requests to the ba
 - `PUT /alerts/{id}` - Update alert
 - `DELETE /alerts/{id}` - Delete alert
 
-### 📊 Calculated Metrics API (NEW!)
+#### � Alerts API – New Types and Examples
+
+The alert system now supports additional alert types and flexible options. For new types, options can be supplied via `composite_conditions` which accepts either a single object or a list of objects.
+
+- Percent distance from SMA
+  - Type: `percent_from_sma`
+  - Meaning: Compare current price to SMA(period); compute percent_diff = (price - SMA) / SMA * 100 and evaluate against threshold.
+  - Options: `sma_period` (default 50; e.g., 20, 50, 200)
+  - Example:
+
+```json
+{
+  "stock_symbol": "AAPL",
+  "alert_type": "percent_from_sma",
+  "condition": "above",
+  "threshold": 3,
+  "composite_conditions": { "sma_period": 50 },
+  "is_active": true
+}
+```
+
+- Trailing stop (percent)
+  - Type: `trailing_stop`
+  - Meaning: Trigger when current close ≤ highest close in the chosen window × (1 - trail_percent/100).
+  - Threshold: `threshold` as `trail_percent` (e.g., 10 for 10%).
+  - Window: Use `timeframe_days` to trail from the max within the last N days; otherwise, the trail starts from the alert creation time.
+  - Example:
+
+```json
+{
+  "stock_symbol": "AAPL",
+  "alert_type": "trailing_stop",
+  "condition": "below",
+  "threshold": 10,
+  "timeframe_days": 60,
+  "is_active": true
+}
+```
+
+- Volume spike (ratio or z-score)
+  - Type: `volume_spike`
+  - Meaning: Compare current volume vs. baseline window mean (ratio), or compute z-score if `use_zscore` is true.
+  - Options via `composite_conditions`:
+    - `baseline_days`: number of lookback days (default 20)
+    - `use_zscore`: boolean (default false). If true, threshold applies to z-score instead of ratio.
+    - `exclude_today`: boolean (default true) to exclude the current day from the baseline window.
+  - Example (z-score):
+
+```json
+{
+  "stock_symbol": "AAPL",
+  "alert_type": "volume_spike",
+  "condition": "above",
+  "threshold": 2.0,
+  "composite_conditions": { "baseline_days": 20, "use_zscore": true, "exclude_today": true },
+  "is_active": true
+}
+```
+
+Notes:
+- `composite_conditions` can be either a single object or a list of condition objects. For the new types above, you can pass a single object with the options.
+- For composite alerts (`alert_type: "composite"`), supply a list of condition objects: `[ { "type": "price", "condition": "above", "value": 200 }, ... ]`.
+
+### �📊 Calculated Metrics API (NEW!)
 
 #### Get Calculated Metrics
 ```http
@@ -326,7 +389,13 @@ Alert:
   - alert_type (price, pe_ratio, rsi, volatility)
   - condition (above, below, equals)
   - threshold_value
+  - timeframe_days (nullable)
+  - composite_conditions (JSON; can be dict or list)
   - is_active
+  - last_triggered (nullable)
+  - trigger_count (default 0)
+  - expiry_date (nullable)
+  - notes (nullable)
   - created_at
   - updated_at
 ```
