@@ -26,7 +26,7 @@ body {
   font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background: radial-gradient(115% 115% at 10% 0%, #f5f3ff 0%, #eef2ff 45%, #ffffff 100%);
   color: var(--text-main);
-  padding: 48px 24px 64px;
+  padding: 30px 20px 55px;
   min-height: 100vh;
   line-height: 1.5;
 }
@@ -44,7 +44,7 @@ body {
   max-width: 1440px;
   width: 100%;
   margin: 0 auto;
-  padding: 48px;
+  padding: 40px;
   border-radius: var(--radius-large);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.98) 100%);
   border: 1px solid rgba(148, 163, 184, 0.18);
@@ -93,9 +93,41 @@ h1 {
   color: var(--text-muted);
 }
 
+/* Top Navigation */
+.topnav {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
+  margin: 12px auto 28px;
+  background: var(--brand-surface);
+  padding: 8px;
+  border-radius: 999px;
+  border: 1px solid var(--brand-border);
+  box-shadow: 0 6px 20px rgba(79,70,229,0.12);
+  max-width: 720px;
+}
+
+.topnav__item {
+  appearance: none;
+  background: transparent;
+  color: var(--brand-primary-dark);
+  font-weight: 600;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.topnav__item.is-active {
+  background: var(--brand-surface-muted);
+  color: #2e1065;
+  box-shadow: inset 0 0 0 1px var(--brand-border);
+}
+
 .layout {
   display: grid;
-  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
   gap: 32px;
 }
 
@@ -226,6 +258,83 @@ h1 {
   gap: 24px;
 }
 
+.table {
+  width: 100%;
+  /* Use separate borders so header corner radius renders properly */
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--brand-border);
+}
+
+.table thead th {
+  background: #f1e9ff; /* close to var(--brand-surface-muted) but opaque */
+  color: var(--brand-primary-dark);
+  font-weight: 700;
+  border-bottom: 1px solid var(--brand-border-strong);
+}
+
+.table thead th:first-child {
+  border-top-left-radius: var(--radius-medium);
+}
+
+.table thead th:last-child {
+  border-top-right-radius: var(--radius-medium);
+}
+
+.table th[role="button"] {
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Sticky table header */
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5; /* above scroll-shadow and body rows */
+  background-clip: padding-box;
+}
+
+/* Zebra striping and hover state */
+.table tbody tr:nth-child(odd) td {
+  background: rgba(124, 58, 237, 0.02);
+}
+
+.table tbody tr:hover td {
+  background: rgba(124, 58, 237, 0.06);
+}
+
+/* Horizontal scroll shadow hints */
+.scroll-shadow {
+  position: relative;
+}
+
+.scroll-shadow::before,
+.scroll-shadow::after {
+  content: '';
+  position: sticky;
+  top: 0;
+  width: 16px;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.scroll-shadow.has-left::before {
+  left: 0;
+  background: linear-gradient(to right, rgba(15,23,42,0.08), rgba(15,23,42,0));
+}
+
+.scroll-shadow.has-right::after {
+  right: 0;
+  background: linear-gradient(to left, rgba(15,23,42,0.08), rgba(15,23,42,0));
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -275,7 +384,8 @@ h1 {
   background: rgba(124, 58, 237, 0.12);
   color: var(--brand-primary-dark);
   border: 1px solid var(--brand-border);
-  box-shadow: none;
+  border-bottom: 1px solid var(--brand-border);
+  border-bottom: 1px solid var(--brand-border-strong);
 }
 
 .btn--ghost:hover {
@@ -719,7 +829,7 @@ tr:hover {
 
 .stock-table__header {
   display: grid;
-  grid-template-columns: minmax(240px, 3fr) minmax(160px, 1.6fr) minmax(140px, 1.4fr) minmax(260px, 2fr) minmax(48px, 0.5fr);
+  grid-template-columns: minmax(240px, 3fr) minmax(160px, 1.6fr) minmax(140px, 1.4fr) minmax(260px, 2fr) minmax(44px, auto);
   align-items: center;
   padding: 0 22px;
   font-size: 0.78rem;
@@ -733,6 +843,8 @@ tr:hover {
   display: flex;
   align-items: center;
   gap: 6px;
+  /* Allow header cells to shrink without forcing overflow */
+  min-width: 0;
 }
 
 .stock-table__header-button {
@@ -764,7 +876,7 @@ tr:hover {
 
 .stock-card {
   display: grid;
-  grid-template-columns: minmax(240px, 3fr) minmax(160px, 1.6fr) minmax(140px, 1.4fr) minmax(260px, 2fr) minmax(48px, 0.5fr);
+  grid-template-columns: minmax(240px, 3fr) minmax(160px, 1.6fr) minmax(140px, 1.4fr) minmax(260px, 2fr) minmax(44px, auto);
   gap: 18px;
   align-items: center;
   padding: 20px 24px;
@@ -774,12 +886,68 @@ tr:hover {
   box-shadow: 0 18px 38px rgba(79, 70, 229, 0.12);
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   cursor: pointer;
+  /* Clip tiny overflow to keep rounded corners clean */
+  overflow: hidden;
+  background-clip: padding-box;
+}
+
+/* Prevent intrinsic min-content from forcing overflow in grid columns */
+.stock-card > * { min-width: 0; }
+.stock-card__identity, .stock-card__price, .stock-card__chart, .stock-card__performance, .stock-card__actions { min-width: 0; }
+.stock-card__meta { min-width: 0; }
+.stock-card__title, .stock-card__subtitle { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* Mid-range responsive tightening to avoid slight overflow before full mobile layout kicks in */
+@media (max-width: 1400px) and (min-width: 1201px) {
+  .stock-table__header {
+    grid-template-columns: minmax(220px, 2.6fr) minmax(150px, 1.6fr) minmax(130px, 1.3fr) minmax(240px, 2fr) minmax(44px, auto);
+    padding: 0 18px;
+  }
+  .stock-card {
+    grid-template-columns: minmax(220px, 2.6fr) minmax(150px, 1.6fr) minmax(130px, 1.3fr) minmax(240px, 2fr) minmax(44px, auto);
+    gap: 12px;
+    padding: 18px 18px;
+    grid-template-rows: auto auto;
+    align-items: start;
+  }
+  .sparkline { width: 130px; height: 48px; }
+  .stock-card__title { font-size: 1.02rem; }
+  .stock-card__price-range-label { font-size: 0.66rem; }
+  /* keep 3-up layout in this width; no forced stacking */
+}
+
+@media (max-width: 1280px) and (min-width: 1201px) {
+  .stock-table__header {
+    grid-template-columns: minmax(210px, 2.4fr) minmax(145px, 1.55fr) minmax(120px, 1.25fr) minmax(220px, 1.9fr) minmax(44px, auto);
+  }
+  .stock-card {
+    grid-template-columns: minmax(210px, 2.4fr) minmax(145px, 1.55fr) minmax(120px, 1.25fr) minmax(220px, 1.9fr) minmax(44px, auto);
+    gap: 10px;
+    padding: 16px 16px;
+    grid-template-rows: auto auto;
+    align-items: start;
+  }
+  .sparkline { width: 120px; height: 46px; }
+  .stock-card__performance { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; grid-column: 1 / -2; grid-row: 2; margin-top: 4px; }
+  .stock-card__actions { align-self: start; }
 }
 
 .stock-card:hover {
   transform: translateY(-3px);
   border-color: rgba(91, 33, 182, 0.28);
   box-shadow: 0 24px 48px rgba(91, 33, 182, 0.18);
+}
+
+/* When the action menu is open, keep the row stable and above neighbors */
+.stock-card--menu-open {
+  position: relative;
+  z-index: 30;
+  transform: none !important;
+  box-shadow: 0 24px 48px rgba(91, 33, 182, 0.18);
+}
+
+.stock-card--menu-open .action-menu__list {
+  z-index: 40;
 }
 
 .stock-card__identity {
@@ -1005,6 +1173,7 @@ tr:hover {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   width: 100%;
+  min-width: 0;
 }
 
 .performance-metric {
@@ -1031,6 +1200,9 @@ tr:hover {
   white-space: nowrap;
   line-height: 1.05;
   margin-bottom: 2px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .performance-metric__value {
@@ -1038,12 +1210,18 @@ tr:hover {
   font-weight: 600;
   white-space: nowrap;
   line-height: 1.05;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .performance-metric__delta {
   font-size: 0.76rem;
   white-space: nowrap;
   line-height: 1.05;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .performance-metric__hint {
@@ -1051,6 +1229,9 @@ tr:hover {
   color: #6b7280;
   white-space: nowrap;
   line-height: 1.05;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .performance-metric--positive {
@@ -1090,6 +1271,12 @@ tr:hover {
   justify-content: flex-end;
   align-items: center;
   cursor: default;
+  position: relative;
+  padding-right: 16px;
+}
+
+.stock-card__actions .action-menu__trigger {
+  margin-right: 2px;
 }
 
 .action-menu {
@@ -1231,6 +1418,8 @@ tr:hover {
   position: relative;
   display: inline-flex;
 }
+/* Override: anchor dropdown to the actions container so it stays inside the card */
+.stock-card__actions .action-menu { position: static; }
 
 .action-menu__trigger {
   display: inline-flex;
@@ -1257,7 +1446,7 @@ tr:hover {
 
 .action-menu__list {
   position: absolute;
-  top: 44px;
+  top: calc(100% + 8px);
   right: 0;
   min-width: 200px;
   background: #fff;

@@ -30,15 +30,34 @@
 
 ## 📊 Phase 5 - Erweiterte Technische Indikatoren
 
-### 5.1 Bollinger Bands
+### 5.1 Bollinger Bands ✅
 **Schwierigkeit:** ⭐⭐ Mittel  
 **Nutzen:** ⭐⭐⭐⭐ Hoch  
-**Priorität:** 🟡 Mittel
+**Priorität:** 🟡 Mittel  
+**Status:** ✅ Vollständig implementiert (2025-10-09)
 
-**Features:**
-- Squeeze Detection (niedrige Volatilität)
-- Band Walking Detection (starke Trends)
-- Bollinger %B Indikator
+**Implementierte Features:**
+- ✅ Bollinger Bands Visualisierung (Upper, Middle, Lower)
+- ✅ Bollinger %B Indikator (Position innerhalb der Bänder)
+- ✅ Bandwidth Indikator (Breite der Bänder)
+- ✅ Squeeze Detection (niedrige Volatilität, Breakout-Setup)
+- ✅ Band Walking Detection (starke Trends erkennbar)
+- ✅ Trading Signals (Overbought, Oversold, Trend)
+- ✅ Visual Alerts bei Squeeze (gelbe Markierung)
+- ✅ Tooltip mit %B und Bandwidth Werten
+- ✅ Signal-Info-Box mit Interpretationshilfe
+
+**Technische Details:**
+- Backend: `technical_indicators_service.py` - `calculate_bollinger_bands()`, `get_bollinger_signal()`
+- Frontend: `StockChart.js` - Erweiterte Visualisierung mit Signal-Anzeige
+- Squeeze Detection: Bandwidth Vergleich mit 6-Monats-Minimum
+- Band Walking: 3+ Perioden nahe am Band (>0.9 oder <0.1)
+- Signals: strong_buy, buy, sell, strong_sell, overbought, oversold, watch
+- **Dynamische Periode**: Automatische Anpassung an Zeithorizont
+  - 1d, 5d: 10-Perioden
+  - 1mo, 3mo: 15-Perioden  
+  - 1y, max: 20-Perioden (Standard)
+  - Minimum: 5 Perioden bei wenig Daten
 
 ---
 
@@ -269,7 +288,83 @@ if divergence_type == 'bullish':
 
 ---
 
-## 📈 Phase 8 - Portfolio Management
+### 7.6 Trailing- und Follow-Alerts
+
+**Schwierigkeit:** ⭐⭐⭐ Mittel-Schwer  
+**Nutzen:** ⭐⭐⭐⭐ Hoch  
+**Priorität:** 🔴 Hoch
+
+**Features:**
+
+- Trailing Alerts relativ zum letzten Hoch/Tief (z. B. "Alarm, wenn -3% unter letztem Swing High")
+- Follow-Alerts: Folge Stop-Level X% hinter dem Kurs (dynamisch)
+- Cooldown/De-Dupe: Verhindert mehrfaches Auslösen innerhalb eines Zeitfensters
+
+**Technische Details:**
+
+- Backend: Erweiterung `alert_conditions` um Felder `trailing_percent`, `baseline` (high/low/close), `lookback`, `cooldown_minutes`
+- Evaluation: `alert_service.py` berechnet laufend Referenz (Rolling High/Low) und prüft Schwellwert
+- Frontend: Zusätzlicher Alert-Typ in `alerts`-UI mit Live-Vorschau der aktuellen Schwelle
+
+---
+
+### 7.7 Velocity-/Rate-of-Change-Alerts
+
+**Schwierigkeit:** ⭐⭐ Mittel  
+**Nutzen:** ⭐⭐⭐⭐ Hoch  
+**Priorität:** � Mittel
+
+**Features:**
+
+- Alarm bei Bewegung >X% in Y Minuten (Momentum-/News-Alerts)
+- Wahlweise absolut ($) oder relativ (%)
+- Optionales Volumen-Filter (Vol > 1.5x Avg)
+
+**Technische Details:**
+
+- Backend: ROC-Berechnung über Rolling Returns im `historical_price_service.py`
+- Condition: `delta_pct >= threshold` innerhalb `window_minutes`
+- Frontend: Kompakter Editor mit Previews (letzte 15/30/60 Min)
+
+---
+
+### 7.8 Time-Window & Session-Alerts
+
+**Schwierigkeit:** ⭐⭐ Mittel  
+**Nutzen:** ⭐⭐⭐ Mittel  
+**Priorität:** 🟢 Niedrig
+
+**Features:**
+
+- Alerts nur in bestimmten Zeitfenstern aktiv (z. B. 15:30–22:00 UTC, nur Handelssession)
+- Earnings-Week-Only: Aktiviere Alerts nur ±N Tage um Earnings
+
+**Technische Details:**
+
+- `alert_conditions`: Felder `active_from`, `active_to`, `sessions` (pre/regular/post)
+- Backend: Session-Logik im Scheduler; Earnings-Termine aus Kalender (siehe Phase 16)
+
+---
+
+### 7.9 Alert-Kanäle, Webhooks & Throttling
+
+**Schwierigkeit:** ⭐⭐⭐ Mittel-Schwer  
+**Nutzen:** ⭐⭐⭐⭐ Hoch  
+**Priorität:** 🟡 Mittel
+
+**Features:**
+
+- Kanäle: E-Mail, Telegram/Discord, Web Push
+- Webhooks (Zapier/Make): POST mit Payload bei Trigger
+- Throttling & De-Dupe pro Alert/Stock/User
+
+**Technische Details:**
+
+- Backend: Channel-Adapter in `alert_service.py` (Strategy-Pattern), Queue für Zustellung
+- Tabelle `alert_history` nutzen für De-Dupe/Throttle-Fenster
+- Frontend: Kanal-Settings pro Alert + Testversand
+
+## �📈 Phase 8 - Portfolio Management
 
 ### 8.1 Virtuelle Portfolios
 **Schwierigkeit:** ⭐⭐⭐⭐ Schwer  
@@ -532,6 +627,24 @@ if divergence_type == 'bullish':
 
 ---
 
+### 12.4 Seasonality & Relative Strength (RRG-Light)
+
+**Schwierigkeit:** ⭐⭐⭐ Mittel  
+**Nutzen:** ⭐⭐⭐⭐ Hoch  
+**Priorität:** 🟡 Mittel
+
+**Features:**
+
+- Seasonality: Durchschnittliche Monats-/Wochen-Performance je Ticker
+- Relative Strength vs. Benchmark/Sektor (Ratio + Smoothed Change)
+- Mini-RRG-Ansicht: Quadranten (Leading, Weakening, Lagging, Improving)
+
+**Technische Details:**
+
+- Backend: Aggregation historischer Returns (pandas resample/groupby)
+- Endpoints: `GET /stock-data/{stock_id}/seasonality`, `GET /relative-strength?base=XLK`
+- Frontend: Heatmap (Monate x Jahre) + kleines RS-Rotation-Panel
+
 ## 🎨 Phase 13 - UX Verbesserungen
 
 ### 13.1 Custom Layouts
@@ -605,7 +718,63 @@ if divergence_type == 'bullish':
 
 ---
 
-## 🔐 Phase 14 - Backend & Infrastruktur
+### 13.4 Notizen & Tags pro Stock
+
+**Schwierigkeit:** ⭐⭐ Mittel  
+**Nutzen:** ⭐⭐⭐⭐ Hoch  
+**Priorität:** 🟡 Mittel
+
+**Features:**
+
+- Kurznotizen, Setups, Checklisten je Ticker
+- Tags (filterbar): z. B. "Earnings-Setup", "Breakout Watch"
+
+**Technische Details:**
+
+- Neue Tabellen: `stock_notes` (id, stock_id, text, created_at, user_id), `stock_tags` (stock_id, tag)
+- Endpoints: `POST/GET/DELETE /stocks/{id}/notes|tags`
+- Frontend: Notizfeld in Detail-Panel, Tag-Chips + Filter
+
+---
+
+### 13.5 Watchlist-Heatmap & Smart-Sort
+
+**Schwierigkeit:** ⭐⭐ Mittel  
+**Nutzen:** ⭐⭐⭐⭐ Hoch  
+**Priorität:** � Mittel
+
+**Features:**
+
+- Heatmap-Ansicht: Tages-/Wochen-/Monats-Performance
+- Multi-Sort & gespeicherte Sortierungen (z. B. RS desc, dann Vol% desc)
+
+**Technische Details:**
+
+- Backend: Aggregierte Returns je Zeitraum; Cache 5–15 Min
+- Frontend: Heatmap-Komponente; Sort-Layouts persistent pro User
+
+---
+
+### 13.6 Custom Columns Builder
+
+**Schwierigkeit:** ⭐⭐⭐ Mittel-Schwer  
+**Nutzen:** ⭐⭐⭐⭐ Hoch  
+**Priorität:** 🟡 Mittel
+
+**Features:**
+
+- Nutzerdefinierte Spalten basierend auf Indikatorwerten/Formeln
+- Validierung & Sandbox (nur Whitelist-Variablen)
+
+**Technische Details:**
+
+- Backend: Formelauswertung mit sicherer Evaluierung (z. B. `asteval`/Whitelist)
+- Speicher: `user_custom_columns` (user_id, name, formula_json)
+- Frontend: Editor mit Autocomplete verfügbarer Felder
+
+---
+
+## �🔐 Phase 14 - Backend & Infrastruktur
 
 ### 14.1 Caching & Performance
 **Schwierigkeit:** ⭐⭐⭐⭐ Schwer  
@@ -699,6 +868,95 @@ if divergence_type == 'bullish':
 
 ---
 
+### 14.4 Feature Flags & Rollouts
+
+**Schwierigkeit:** ⭐⭐ Mittel  
+**Nutzen:** ⭐⭐⭐⭐ Hoch  
+**Priorität:** 🟡 Mittel
+
+**Features:**
+
+- Staged Rollouts, A/B-Tests, Canary Releases für neue Indikatoren/Alerts
+
+**Technische Details:**
+
+- Simple: Feature-Flags in DB + Cache; Advanced: Integration LaunchDarkly/Unleash (optional)
+
+---
+
+### 14.5 Monitoring & Telemetry
+
+**Schwierigkeit:** ⭐⭐ Mittel  
+**Nutzen:** ⭐⭐⭐⭐ Hoch  
+**Priorität:** 🟡 Mittel
+
+**Features:**
+
+- Live-Metriken für Latenz, Fehlerquote, API-Throughput
+- Alerting bei Slowness/Fehler-Spikes
+
+**Technische Details:**
+
+- Prometheus-Exporter, Grafana-Dashboards, Sentry für FE/BE
+
+---
+
+## 🧠 Phase 15 - Smart-Watchlists (regelbasiert)
+
+**Schwierigkeit:** ⭐⭐⭐ Mittel-Schwer  
+**Nutzen:** ⭐⭐⭐⭐⭐ Sehr hoch  
+**Priorität:** 🔴 Hoch
+
+**Features:**
+
+- Automatische Mitgliedschaft basierend auf Regeln (z. B. RSI<30 UND Vol>1.5x)
+- Live-Refresh oder tägliche Aktualisierung
+- "Screen zu Smart-Watchlist umwandeln" (Bridge zu Phase 9)
+
+**Technische Details:**
+
+- Neue Tabelle: `smart_watchlists` (id, user_id, name, filter_json, refresh_policy)
+- Backend: Wiederverwendung `screener_service.py` Query-Builder; Scheduler-Job zur Aktualisierung
+- Endpoints: `GET/POST/PUT /smart-watchlists`, `POST /smart-watchlists/{id}/refresh`
+- Frontend: Rule-Builder UI (Re-Use vom Screener), Toggle "Auto-Update"
+
+---
+
+## 📅 Phase 16 - Earnings/Dividends/Splits Kalender
+
+**Schwierigkeit:** ⭐⭐⭐ Mittel  
+**Nutzen:** ⭐⭐⭐⭐ Hoch  
+**Priorität:** 🟡 Mittel
+
+**Features:**
+
+- Badges in Watchlist: "Earnings in D-5", Dividendendatum, Split-Historie
+- Kalender-/Timeline-Ansicht je Ticker und global
+
+**Technische Details:**
+
+- Datenquellen: yfinance Kalender/Dividenden (sofern verfügbar), sonst optionale APIs
+- Tabelle: `corporate_actions` (stock_id, type, date, meta_json)
+- Caching: 24h TTL; UI-Badges + Filter in Watchlist
+
+---
+
+## ⚙️ Phase 17 - Options-Volatilität (IV/IVR, Light)
+
+**Schwierigkeit:** ⭐⭐⭐ Mittel-Schwer  
+**Nutzen:** ⭐⭐⭐⭐ Hoch  
+**Priorität:** 🟢 Niedrig
+
+**Features:**
+
+- IV/IVR-Anzeige (Kontext für Squeeze/Breakout-Strategien)
+- Kachel "Ungewöhnliches Optionsvolumen" (basic)
+
+**Technische Details:**
+
+- Datenquellen abhängig von Verfügbarkeit (optional, hinter Feature-Flag 14.4)
+- Frontend: Kompakte Tiles und Spalten in Watchlist
+
 ## 🎯 Prioritäts-Matrix
 
 ### 🔴 Hohe Priorität (Next Steps)
@@ -707,6 +965,11 @@ if divergence_type == 'bullish':
    - Sehr beliebt bei professionellen Tradern
    - Mehrfache Bestätigung
    - **Status:** 🎯 Hohe Priorität
+
+2. **Smart-Watchlists** (Phase 15)
+   - Regelbasierte, auto-aktualisierte Watchlists
+   - Brücke zum Screener, hoher Nutzen
+   - **Status:** 🎯 Hoch
 
 4. **Portfolio Management** (Phase 8.1, 8.2, 8.3)
    - Macht App von Watchlist zu Portfolio-Tracker
@@ -719,6 +982,10 @@ if divergence_type == 'bullish':
    - Sehr nützlich für aktive Trader
    - **Status:** 🔜 Q2 2025
 
+6. **Alert-Erweiterungen** (7.6–7.9)
+   - Trailing, ROC, Zeitfenster, Kanäle/Webhooks
+   - **Status:** 🔜 Nach 7.1
+
 ### 🟡 Mittlere Priorität (Backlog)
 - Stock Screener (Phase 9) - Wird wichtiger mit mehr Nutzern
 - News Integration (Phase 11) - Guter Kontext zu Charts
@@ -728,6 +995,10 @@ if divergence_type == 'bullish':
 - Mobile Responsiveness (Phase 13.3) - Kritisch für Skalierung
 - User Authentication (Phase 14.2) - Notwendig für Multi-User
 
+- Notes/Tags, Heatmap, Custom Columns (13.4–13.6)
+- Seasonality & Relative Strength (12.4)
+- Earnings/Dividends Kalender (16)
+
 ### 🟢 Niedrige Priorität (Nice-to-Have)
 - Historical Divergence Tracking (Phase 7.4) - Für Power-User & Analytics
 - Divergence Success Rate Tracking (Phase 7.5) - Langfristige Optimierung
@@ -736,6 +1007,8 @@ if divergence_type == 'bullish':
 - Sentiment Analysis (Phase 11.2) - Nischenfunktion
 - Sector Analysis (Phase 12.3) - Für fortgeschrittene Nutzer
 - Stochastic Oscillator (Phase 5.4) - Weniger genutzt als RSI/MACD
+- Options-Volatilität (17)
+- Kollaboration & Teilen (später, optional)
 
 ---
 
@@ -786,6 +1059,11 @@ if divergence_type == 'bullish':
    - Als Ergänzung zu bestehenden Indikatoren
    - Squeeze & Band Walking Detection
    - **Aufwand:** 3-4 Tage
+
+4. **Phase 15: Smart-Watchlists (regelbasiert)**
+   - Bridge Screener ↔ Watchlist
+   - Auto-Update & UI-Builder
+   - **Aufwand:** 6-8 Tage
 
 **Q2 Deliverables:**
 - Portfolio-Tracker Funktionalität
@@ -847,6 +1125,10 @@ if divergence_type == 'bullish':
    - Background Jobs (optional)
    - Database Optimization
    - **Aufwand:** 8-10 Tage
+
+6. **Alerts 7.6–7.9: Kanäle/Webhooks/ROC/Time-Window**
+   - Channel-Adapter, Throttling, Backfill/Backtest (basic)
+   - **Aufwand:** 6-9 Tage
 
 5. **Polish & Bug Fixes**
    - User Feedback Integration
@@ -966,9 +1248,9 @@ Bei der Auswahl des nächsten Features berücksichtigen:
 
 ---
 
-**Stand:** 09.10.2025 (Aktualisiert - Volume Profile Overlay implementiert)  
-**Version:** 2.1  
-**Letztes Update:** Volume Profile Overlay (Zeile 3-36)  
+**Stand:** 10.10.2025 (Aktualisiert – Alerts & Watchlist UX erweitert)  
+**Version:** 2.2  
+**Letztes Update:** Neue Alert-Typen (7.6–7.9), Smart-Watchlists (15), Notes/Tags & Heatmap (13.4–13.5), Seasonality/RS (12.4)  
 **Nächstes Review:** Nach Q1 2025 (Ende März)
 
 ---
@@ -982,9 +1264,14 @@ Bei der Auswahl des nächsten Features berücksichtigen:
 - 🔧 Kalibrierungs-System für Overlay-Ausrichtung hinzugefügt
 - 📌 Pending: Feintuning der vertikalen Ausrichtung
 
+### 2025-10-10 (v2.2)
+- ➕ Neue Alert-Typen: Trailing, ROC, Zeitfenster, Kanäle/Webhooks (7.6–7.9)
+- ➕ Smart-Watchlists (Phase 15) geplant inkl. Backend/Frontend-Spezifikation
+- ➕ Watchlist-UX: Notizen/Tags, Heatmap, Custom Columns (13.4–13.6)
+- ➕ Seasonality & Relative Strength (12.4); Monitoring & Feature-Flags (14.4–14.5)
+
 ### 2024-10-08 (v2.0)
 - Initial feature planning document created
 - RSI, MACD, Volume Profile features defined
 - Alert system expanded
 - Divergence detection planned
-

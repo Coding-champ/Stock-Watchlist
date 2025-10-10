@@ -428,7 +428,7 @@ function StockTable({
       </div>
     );
   }
-
+  
   return (
     <div className="stock-table">
       <div className="stock-table__toolbar">
@@ -513,7 +513,7 @@ function StockTable({
           return (
             <div
               key={stock.id}
-              className="stock-card"
+              className={`stock-card ${openMenuId === stock.id ? 'stock-card--menu-open' : ''}`}
               onClick={() => {
                 setOpenMenuId(null);
                 onStockClick(stock);
@@ -535,7 +535,7 @@ function StockTable({
                 <div className="stock-card__meta">
                   <div className="stock-card__title">{stock.name}</div>
                   <div className="stock-card__subtitle">
-                    Aktie · Ticker {stock.ticker_symbol} · {stock.isin ? `ISIN ${stock.isin}` : 'Keine ISIN'}
+                    Aktie · Ticker {stock.ticker_symbol}
                   </div>
                   <div className="stock-card__tags">
                     <span>{stock.ticker_symbol}</span>

@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from backend.app.routes import watchlists, stocks, alerts, stock_data
+from backend.app.routes import watchlists, stocks, alerts, stock_data, screener
 from dotenv import load_dotenv
 import os
 import logging
@@ -39,7 +39,7 @@ class NoCacheMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         # Add no-cache headers for API endpoints (not static files)
-        if request.url.path.startswith(("/stocks", "/watchlists", "/alerts", "/stock-data")):
+        if request.url.path.startswith(("/stocks", "/watchlists", "/alerts", "/stock-data", "/screener")):
             response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
@@ -63,6 +63,7 @@ app.include_router(watchlists.router)
 app.include_router(stocks.router)
 app.include_router(stock_data.router)
 app.include_router(alerts.router)
+app.include_router(screener.router)
 
 
 # Startup event - start background scheduler

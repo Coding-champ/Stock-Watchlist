@@ -4,6 +4,7 @@ import WatchlistSection from './components/WatchlistSection';
 import StocksSection from './components/StocksSection';
 import AlertDashboard from './components/AlertDashboard';
 import { useAlerts } from './hooks/useAlerts';
+import ScreenerView from './components/screener/ScreenerView';
 
 const API_BASE = process.env.REACT_APP_API_BASE || '';
 
@@ -13,6 +14,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [showAlertDashboard, setShowAlertDashboard] = useState(false);
+  const [activeView, setActiveView] = useState('watchlist');
   const toastTimeoutRef = useRef(null);
 
   const showToast = useCallback((message, appearance = 'info') => {
@@ -159,43 +161,108 @@ function App() {
           </button>
         </header>
 
+        {/* Top Navigation */}
+        <nav className="topnav" aria-label="Hauptnavigation">
+          <button
+            className={`topnav__item ${activeView === 'overview' ? 'is-active' : ''}`}
+            onClick={() => setActiveView('overview')}
+            type="button"
+          >
+            Übersicht
+          </button>
+          <button
+            className={`topnav__item ${activeView === 'watchlist' ? 'is-active' : ''}`}
+            onClick={() => setActiveView('watchlist')}
+            type="button"
+          >
+            Watchlist
+          </button>
+          <button
+            className={`topnav__item ${activeView === 'screener' ? 'is-active' : ''}`}
+            onClick={() => setActiveView('screener')}
+            type="button"
+          >
+            Screener
+          </button>
+          <button
+            className="topnav__item"
+            onClick={() => setShowAlertDashboard(true)}
+            type="button"
+            aria-haspopup="dialog"
+            aria-controls="alert-dashboard"
+          >
+            Alerts
+          </button>
+        </nav>
+
         {loading && (
           <div className="loading-overlay" role="status" aria-live="polite">
             <div className="spinner"></div>
           </div>
         )}
 
-        <div className="layout">
-          <aside className="layout__sidebar">
-            <WatchlistSection
-              watchlists={watchlists}
-              currentWatchlist={currentWatchlist}
-              onWatchlistSelect={handleWatchlistSelect}
-              onWatchlistsChange={loadWatchlists}
-              onShowToast={showToast}
-            />
-          </aside>
-
-          <main className="layout__content">
-            {currentWatchlist ? (
-              <StocksSection
-                watchlist={currentWatchlist}
+        {activeView === 'screener' && (
+          <div className="layout">
+            <aside className="layout__sidebar">
+              <WatchlistSection
                 watchlists={watchlists}
+                currentWatchlist={currentWatchlist}
+                onWatchlistSelect={handleWatchlistSelect}
+                onWatchlistsChange={loadWatchlists}
                 onShowToast={showToast}
               />
-            ) : (
-              <div className="empty-state empty-state--hero">
-                <h2>Wähle eine Watchlist aus</h2>
-                <p>
-                  Markiere eine Watchlist auf der linken Seite, um Kursverläufe, Kennzahlen und Performance-Insights zu sehen.
-                </p>
-                <p className="empty-state__hint">
-                  Du kannst jederzeit neue Watchlists anlegen oder bestehende anpassen.
-                </p>
+            </aside>
+            <main className="layout__content">
+              <ScreenerView />
+            </main>
+          </div>
+        )}
+
+        {activeView === 'watchlist' && (
+          <div className="layout">
+            <aside className="layout__sidebar">
+              <WatchlistSection
+                watchlists={watchlists}
+                currentWatchlist={currentWatchlist}
+                onWatchlistSelect={handleWatchlistSelect}
+                onWatchlistsChange={loadWatchlists}
+                onShowToast={showToast}
+              />
+            </aside>
+            <main className="layout__content">
+              {currentWatchlist ? (
+                <StocksSection
+                  watchlist={currentWatchlist}
+                  watchlists={watchlists}
+                  onShowToast={showToast}
+                />
+              ) : (
+                <div className="empty-state empty-state--hero">
+                  <h2>Wähle eine Watchlist aus</h2>
+                  <p>
+                    Markiere eine Watchlist auf der linken Seite, um Kursverläufe, Kennzahlen und Performance-Insights zu sehen.
+                  </p>
+                  <p className="empty-state__hint">
+                    Du kannst jederzeit neue Watchlists anlegen oder bestehende anpassen.
+                  </p>
+                </div>
+              )}
+            </main>
+          </div>
+        )}
+
+        {activeView === 'overview' && (
+          <main className="layout__content">
+            <div className="panel">
+              <div className="panel__title-group">
+                <div className="panel__eyebrow">Überblick</div>
+                <div className="panel__title">Marktübersicht</div>
+                <div className="panel__subtitle">Kommende Kacheln: Marktbreite, Top Gainer/Loser, Sektor-Heatmap …</div>
               </div>
-            )}
+              <div style={{marginTop: '16px', color: 'var(--text-muted)'}}>Kommt bald.</div>
+            </div>
           </main>
-        </div>
+        )}
       </div>
       
       {/* Alert Dashboard Modal */}
