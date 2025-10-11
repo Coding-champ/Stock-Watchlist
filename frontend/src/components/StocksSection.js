@@ -9,7 +9,6 @@ const API_BASE = process.env.REACT_APP_API_BASE || '';
 
 function StocksSection({ watchlist, watchlists, onShowToast }) {
   const [stocks, setStocks] = useState([]);
-  const [filteredStocks, setFilteredStocks] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
@@ -52,7 +51,12 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
     }, 4000);
   }, [onShowToast]);
 
+  // Stable loadStocks function - only depends on watchlist.id
   const loadStocks = useCallback(async () => {
+    if (!watchlist) {
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await fetch(`${API_BASE}/stocks/?watchlist_id=${watchlist.id}`, {
@@ -66,11 +70,12 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
     } finally {
       setLoading(false);
     }
-  }, [watchlist.id, showToast]);
+  }, [watchlist?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filterStocks = useCallback(() => {
+  // Use useMemo instead of useEffect to avoid unnecessary re-renders
+  const filteredStocks = useMemo(() => {
     const term = searchTerm.toLowerCase();
-    const filtered = stocks.filter(stock => {
+    return stocks.filter(stock => {
       const matchesSearch = !term
         || (stock.name || '').toLowerCase().includes(term)
         || (stock.isin || '').toLowerCase().includes(term)
@@ -90,18 +95,14 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
 
       return matchesSearch && matchesSector && matchesCountry && matchesObservationReason;
     });
-    setFilteredStocks(filtered);
   }, [stocks, searchTerm, sectorFilter, countryFilter, observationReasonFilter]);
 
+  // Load stocks when watchlist changes
   useEffect(() => {
     if (watchlist) {
       loadStocks();
     }
   }, [watchlist, loadStocks]);
-
-  useEffect(() => {
-    filterStocks();
-  }, [filterStocks]);
 
   useEffect(() => () => {
     if (toastTimeoutRef.current) {

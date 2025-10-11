@@ -36,6 +36,7 @@ function StockTable({
   const [sparklineSeries, setSparklineSeries] = useState({});
   const [extendedDataMap, setExtendedDataMap] = useState({});
   const fetchedExtendedIdsRef = useRef(new Set());
+  const fetchedSparklineIdsRef = useRef(new Set());
   const [alertModalStock, setAlertModalStock] = useState(null);
 
   const notify = (message, appearance = 'info') => {
@@ -242,6 +243,13 @@ function StockTable({
   useEffect(() => {
     if (!stocks || stocks.length === 0) {
       setSparklineSeries({});
+      fetchedSparklineIdsRef.current.clear();
+      return;
+    }
+
+    // Only fetch sparklines for stocks we haven't fetched yet
+    const pendingStocks = stocks.filter((stock) => !fetchedSparklineIdsRef.current.has(stock.id));
+    if (pendingStocks.length === 0) {
       return;
     }
 
@@ -249,7 +257,7 @@ function StockTable({
 
     const loadSparklines = async () => {
       const responses = await Promise.all(
-        stocks.map(async (stock) => {
+        pendingStocks.map(async (stock) => {
           try {
             const url = `${API_BASE}/stock-data/${stock.id}?limit=${SPARKLINE_POINT_LIMIT}`;
             const response = await fetch(url);
@@ -275,12 +283,13 @@ function StockTable({
         return;
       }
 
-      const seriesMap = responses.reduce((acc, item) => {
-        acc[item.id] = { values: item.values, timestamps: item.timestamps };
-        return acc;
-      }, {});
+      const updates = {};
+      responses.forEach(({ id, values, timestamps }) => {
+        fetchedSparklineIdsRef.current.add(id);
+        updates[id] = { values, timestamps };
+      });
 
-      setSparklineSeries(seriesMap);
+      setSparklineSeries((prev) => ({ ...prev, ...updates }));
     };
 
     loadSparklines();

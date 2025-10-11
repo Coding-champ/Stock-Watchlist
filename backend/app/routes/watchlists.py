@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
-from typing import List
+from typing import List, Dict
 from backend.app import schemas
 from backend.app.models import (
     Watchlist as WatchlistModel,
@@ -29,40 +29,62 @@ def get_watchlists(skip: int = 0, limit: int = 100, db: Session = Depends(get_db
 @router.get("/{watchlist_id}", response_model=schemas.WatchlistWithStocks)
 def get_watchlist(watchlist_id: int, db: Session = Depends(get_db)):
     """Get a specific watchlist with all its stocks and latest data"""
-    logger.info(f"🔍 GET /watchlists/{watchlist_id} - Using NEW route with latest_data")
+    logger.info(f"🔍 GET /watchlists/{watchlist_id} - Using optimized route with eager loading")
     
     watchlist = db.query(WatchlistModel).filter(WatchlistModel.id == watchlist_id).first()
     if not watchlist:
         raise HTTPException(status_code=404, detail="Watchlist not found")
     
-    # Get stocks in this watchlist with their latest data
-    stocks_in_watchlist = db.query(StockInWatchlistModel).filter(
-        StockInWatchlistModel.watchlist_id == watchlist_id
-    ).order_by(StockInWatchlistModel.position).all()
+    # OPTIMIZATION: Use eager loading to fetch stocks in one query instead of N+1
+    stocks_in_watchlist = db.query(StockInWatchlistModel)\
+        .options(joinedload(StockInWatchlistModel.stock))\
+        .filter(StockInWatchlistModel.watchlist_id == watchlist_id)\
+        .order_by(StockInWatchlistModel.position)\
+        .all()
     
     logger.info(f"Found {len(stocks_in_watchlist)} stocks in watchlist {watchlist_id}")
+    
+    # Extract stock IDs for batch queries
+    stock_ids = [entry.stock.id for entry in stocks_in_watchlist]
+    
+    # OPTIMIZATION: Batch query for latest prices (1 query instead of N)
+    latest_prices_query = db.query(StockPriceDataModel)\
+        .filter(StockPriceDataModel.stock_id.in_(stock_ids))\
+        .order_by(StockPriceDataModel.stock_id, desc(StockPriceDataModel.date))\
+        .all()
+    
+    # Create a dict mapping stock_id to latest price (keep only the first/latest for each stock)
+    latest_prices_map: Dict[int, StockPriceDataModel] = {}
+    for price in latest_prices_query:
+        if price.stock_id not in latest_prices_map:
+            latest_prices_map[price.stock_id] = price
+    
+    # OPTIMIZATION: Batch query for cache entries (1 query instead of N)
+    cache_entries_query = db.query(ExtendedStockDataCacheModel)\
+        .filter(ExtendedStockDataCacheModel.stock_id.in_(stock_ids))\
+        .all()
+    
+    # Create a dict mapping stock_id to cache entry
+    cache_map: Dict[int, ExtendedStockDataCacheModel] = {
+        entry.stock_id: entry for entry in cache_entries_query
+    }
     
     stocks_with_data = []
     for entry in stocks_in_watchlist:
         stock = entry.stock
         
-        # Get latest price data
-        latest_price = db.query(StockPriceDataModel).filter(
-            StockPriceDataModel.stock_id == stock.id
-        ).order_by(desc(StockPriceDataModel.date)).first()
+        # Get latest price from batch-loaded map
+        latest_price = latest_prices_map.get(stock.id)
         
-        # Get PE ratio from cache if available
+        # Get PE ratio from batch-loaded cache map
         pe_ratio = None
-        try:
-            cache_entry = db.query(ExtendedStockDataCacheModel).filter(
-                ExtendedStockDataCacheModel.stock_id == stock.id
-            ).first()
-            
-            if cache_entry and cache_entry.extended_data:
+        cache_entry = cache_map.get(stock.id)
+        if cache_entry and cache_entry.extended_data:
+            try:
                 financial_ratios = cache_entry.extended_data.get('financial_ratios', {})
                 pe_ratio = financial_ratios.get('pe_ratio')
-        except Exception as e:
-            logger.warning(f"Could not load PE ratio from cache for stock_id={stock.id}: {e}")
+            except Exception as e:
+                logger.warning(f"Could not load PE ratio from cache for stock_id={stock.id}: {e}")
         
         # Create latest_data if price data exists
         latest_data = None

@@ -22,8 +22,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Cache configuration
+# NOTE: Extended data (PE ratio, fundamentals) updated only on add_stock + daily updates
 CACHE_DURATION_HOURS = {
-    'extended_data': 1,           # Extended financial data - 1 hour
+    'extended_data': 12,          # Extended financial data - 12 hours (updated on add/daily)
     'dividends_splits': 24,       # Historical dividends/splits - 24 hours
     'calendar_data': 6,           # Earnings calendar - 6 hours
     'analyst_data': 4,            # Analyst data - 4 hours

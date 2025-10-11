@@ -16,11 +16,11 @@ from backend.app.models import (
 )
 from backend.app.database import get_db, SessionLocal
 from backend.app.services.yfinance_service import (
-    get_stock_info, get_current_stock_data, get_extended_stock_data,
+    get_stock_info, get_current_stock_data, get_fast_market_data, get_extended_stock_data,
     get_stock_dividends_and_splits, get_stock_calendar_and_earnings,
     get_analyst_data, get_institutional_holders,
     get_stock_info_by_identifier, get_ticker_from_isin,
-    get_stock_indicators
+    calculate_technical_indicators
 )
 from backend.app.services.cache_service import StockDataCacheService
 from backend.app.services.stock_service import StockService
@@ -754,6 +754,32 @@ def search_stocks(query: str) -> Dict[str, Any]:
         return {"found": False, "message": f"No stock found for '{query}'"}
 
 
+@router.get("/{stock_id}/fast-data")
+def get_stock_fast_data(
+    stock_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get fast stock data using fast_info (optimized for speed)
+    Returns basic price, volume, and market data without detailed financials
+    """
+    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    
+    # Get fast data directly (no caching needed for basic price data)
+    from backend.app.services.yfinance_service import get_fast_stock_data
+    fast_data = get_fast_stock_data(stock.ticker_symbol)
+    
+    if not fast_data:
+        raise HTTPException(
+            status_code=400, 
+            detail="Could not fetch fast data for this stock"
+        )
+    
+    return fast_data
+
+
 @router.get("/{stock_id}/extended-data", response_model=schemas.ExtendedStockData)
 def get_stock_extended_data(
     stock_id: int, 
@@ -763,6 +789,7 @@ def get_stock_extended_data(
     """
     Get extended stock data including financial ratios, cashflow, dividends, and risk metrics
     Uses intelligent caching to improve performance
+    Optimized: Uses fast_info for basic data, info only for detailed financials
     """
     stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
     if not stock:
@@ -1270,16 +1297,18 @@ def update_market_data(
     db: Session = Depends(get_db)
 ):
     """
-    Update market data (current price, PE ratio, etc.) for a stock
-    Fetches latest data from yfinance and updates the database
+    Update market data (current price, volumes, etc.) for a stock
+    Fetches latest data from yfinance using fast_info (optimized)
+    
+    Note: PE ratio and extended data are updated via cache service
     """
     stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
     if not stock:
         raise HTTPException(status_code=404, detail="Stock not found")
     
     try:
-        # Get current stock data from yfinance
-        current_data = get_current_stock_data(stock.ticker_symbol)
+        # Get current stock data from yfinance using fast_info (0.3s instead of 2-3s)
+        current_data = get_fast_market_data(stock.ticker_symbol)
         
         if not current_data:
             raise HTTPException(
@@ -1332,17 +1361,15 @@ def update_market_data(
             change = current_data.get('change')
             change_percent = current_data.get('change_percent')
         
-        # Update extended data cache with fresh data
-        pe_ratio = current_data.get('pe_ratio')
+        # Get PE ratio from cache (extended data updated via daily job or on add)
+        pe_ratio = None
         try:
             cache_service = StockDataCacheService(db)
-            # Force refresh extended data to get latest PE ratio and fundamentals
-            extended_data = get_extended_stock_data(stock.ticker_symbol)
-            if extended_data:
-                cache_service.set_extended_data(stock_id, extended_data)
-                # Get PE ratio from fresh data
-                if extended_data.get('financial_ratios'):
-                    pe_ratio = extended_data['financial_ratios'].get('pe_ratio') or pe_ratio
+            # Force refresh extended data to get latest PE ratio and fundamentals (uses .info internally)
+            extended_data_result, _ = cache_service.get_cached_extended_data(stock_id, force_refresh=True)
+            if extended_data_result and extended_data_result.get('extended_data'):
+                financial_ratios = extended_data_result['extended_data'].get('financial_ratios', {})
+                pe_ratio = financial_ratios.get('pe_ratio')
             db.commit()
         except Exception as e:
             logger.warning(f"Could not update extended data cache for {stock.ticker_symbol}: {e}")

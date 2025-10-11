@@ -88,6 +88,8 @@ class StockPriceData(Base):
     __table_args__ = (
         UniqueConstraint("stock_id", "date", name="uq_stock_price_date"),
         Index("idx_stock_date", "stock_id", "date"),
+        # Optimized index for "get latest price" queries (ORDER BY date DESC)
+        Index("idx_stock_date_desc", "stock_id", "date", postgresql_ops={"date": "DESC"}),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -157,9 +159,13 @@ class StockFundamentalData(Base):
 class Alert(Base):
     """Alert model for price and metric alerts"""
     __tablename__ = "alerts"
+    __table_args__ = (
+        # Optimized index for checking active alerts per stock
+        Index("idx_stock_active", "stock_id", "is_active"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    stock_id = Column(Integer, ForeignKey("stocks.id"), nullable=False)
+    stock_id = Column(Integer, ForeignKey("stocks.id"), nullable=False, index=True)
     alert_type = Column(String, nullable=False)  # 'price', 'pe_ratio', 'rsi', 'volatility', 'price_change_percent', 'ma_cross', 'volume_spike', 'earnings', 'composite'
     condition = Column(String, nullable=False)  # 'above', 'below', 'equals', 'cross_above', 'cross_below', 'before'
     threshold_value = Column(Float, nullable=False)

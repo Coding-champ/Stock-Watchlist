@@ -298,7 +298,7 @@ function StockChart({ stock, isEmbedded = false }) {
     } finally {
       setLoading(false);
     }
-  }, [stock.id, period]);
+  }, [stock.id, period, customStartDate, customEndDate]); // Include all dependencies
 
   useEffect(() => {
     fetchChartData();
@@ -379,65 +379,65 @@ function StockChart({ stock, isEmbedded = false }) {
             <span className="tooltip-value">{(data.volume / 1000000).toFixed(2)}M</span>
           </p>
         )}
-        {showSMA50 && data.sma50 && (
+        {showSMA50 && data.sma50 && data.sma50 !== null && data.sma50 !== undefined && (
           <p>
             <span className="tooltip-label" style={{ color: '#ff7f0e' }}>SMA 50:</span>
             {' '}
-            <span className="tooltip-value">${data.sma50?.toFixed(2)}</span>
+            <span className="tooltip-value">${data.sma50.toFixed(2)}</span>
           </p>
         )}
-        {showSMA200 && data.sma200 && (
+        {showSMA200 && data.sma200 && data.sma200 !== null && data.sma200 !== undefined && (
           <p>
             <span className="tooltip-label" style={{ color: '#9467bd' }}>SMA 200:</span>
             {' '}
-            <span className="tooltip-value">${data.sma200?.toFixed(2)}</span>
+            <span className="tooltip-value">${data.sma200.toFixed(2)}</span>
           </p>
         )}
-        {showBollinger && data.bollingerUpper && (
+        {showBollinger && data.bollingerUpper && data.bollingerUpper !== null && data.bollingerUpper !== undefined && (
           <>
             <p>
               <span className="tooltip-label" style={{ color: '#e74c3c' }}>BB Upper:</span>
               {' '}
-              <span className="tooltip-value">${data.bollingerUpper?.toFixed(2)}</span>
+              <span className="tooltip-value">${data.bollingerUpper.toFixed(2)}</span>
             </p>
             <p>
               <span className="tooltip-label" style={{ color: '#95a5a6' }}>BB Middle:</span>
               {' '}
-              <span className="tooltip-value">${data.bollingerMiddle?.toFixed(2)}</span>
+              <span className="tooltip-value">${data.bollingerMiddle?.toFixed(2) || 'N/A'}</span>
             </p>
             <p>
               <span className="tooltip-label" style={{ color: '#27ae60' }}>BB Lower:</span>
               {' '}
-              <span className="tooltip-value">${data.bollingerLower?.toFixed(2)}</span>
+              <span className="tooltip-value">${data.bollingerLower?.toFixed(2) || 'N/A'}</span>
             </p>
-            {data.bollingerPercentB !== undefined && (
+            {data.bollingerPercentB !== undefined && data.bollingerPercentB !== null && (
               <p>
                 <span className="tooltip-label" style={{ color: '#3498db' }}>%B:</span>
                 {' '}
-                <span className="tooltip-value">{data.bollingerPercentB?.toFixed(2)}</span>
+                <span className="tooltip-value">{data.bollingerPercentB.toFixed(2)}</span>
               </p>
             )}
-            {data.bollingerBandwidth !== undefined && (
+            {data.bollingerBandwidth !== undefined && data.bollingerBandwidth !== null && (
               <p>
                 <span className="tooltip-label" style={{ color: '#f39c12' }}>Bandwidth:</span>
                 {' '}
-                <span className="tooltip-value">{data.bollingerBandwidth?.toFixed(2)}%</span>
+                <span className="tooltip-value">{data.bollingerBandwidth.toFixed(2)}%</span>
               </p>
             )}
           </>
         )}
-        {showATR && data.atr && (
+        {showATR && data.atr && data.atr !== null && data.atr !== undefined && (
           <p>
             <span className="tooltip-label" style={{ color: '#f39c12' }}>ATR:</span>
             {' '}
-            <span className="tooltip-value">${data.atr?.toFixed(2)}</span>
+            <span className="tooltip-value">${data.atr.toFixed(2)}</span>
           </p>
         )}
-        {showVWAP && data.vwap && (
+        {showVWAP && data.vwap && data.vwap !== null && data.vwap !== undefined && (
           <p>
             <span className="tooltip-label" style={{ color: '#17a2b8' }}>VWAP (20):</span>
             {' '}
-            <span className="tooltip-value">${data.vwap?.toFixed(2)}</span>
+            <span className="tooltip-value">${data.vwap.toFixed(2)}</span>
           </p>
         )}
       </div>
@@ -686,8 +686,8 @@ function StockChart({ stock, isEmbedded = false }) {
       
       const color = fibColors[level] || '#2196f3';
       const labelText = fibonacciType === 'retracement' 
-        ? `Fib ${level}% - $${price.toFixed(2)}`
-        : `Fib Ext ${level}% - $${price.toFixed(2)}`;
+        ? `Fib ${level}% - $${price?.toFixed(2) || 'N/A'}`
+        : `Fib Ext ${level}% - $${price?.toFixed(2) || 'N/A'}`;
       
       return (
         <ReferenceLine
@@ -720,7 +720,7 @@ function StockChart({ stock, isEmbedded = false }) {
     return allLevels.map((level, index) => {
       const color = level.type === 'support' ? '#27ae60' : '#e74c3c';
       const icon = level.type === 'support' ? '🟢' : '🔴';
-      const labelText = `${icon} ${level.type === 'support' ? 'Support' : 'Resistance'} - $${level.price.toFixed(2)} (${level.strength}× getestet)`;
+      const labelText = `${icon} ${level.type === 'support' ? 'Support' : 'Resistance'} - $${level.price?.toFixed(2) || 'N/A'} (${level.strength}× getestet)`;
       
       // Linienstärke basierend auf Stärke (1-3px)
       const strokeWidth = Math.min(level.strength, 3);
@@ -1237,14 +1237,14 @@ function StockChart({ stock, isEmbedded = false }) {
                 <div style={{ fontSize: '11px', color: '#666' }}>
                   {bollingerSignal.current_percent_b !== null && (
                     <div style={{ marginBottom: '4px' }}>
-                      <span style={{ fontWeight: 'bold' }}>%B:</span> {bollingerSignal.current_percent_b.toFixed(2)}
+                      <span style={{ fontWeight: 'bold' }}>%B:</span> {bollingerSignal.current_percent_b?.toFixed(2) || 'N/A'}
                       {bollingerSignal.current_percent_b > 1 && <span style={{ color: '#e74c3c' }}> (über oberem Band)</span>}
                       {bollingerSignal.current_percent_b < 0 && <span style={{ color: '#27ae60' }}> (unter unterem Band)</span>}
                     </div>
                   )}
                   {bollingerSignal.current_bandwidth !== null && (
                     <div style={{ marginBottom: '4px' }}>
-                      <span style={{ fontWeight: 'bold' }}>Bandwidth:</span> {bollingerSignal.current_bandwidth.toFixed(2)}%
+                      <span style={{ fontWeight: 'bold' }}>Bandwidth:</span> {bollingerSignal.current_bandwidth?.toFixed(2) || 'N/A'}%
                     </div>
                   )}
                   {bollingerSignal.band_walking && (
@@ -1311,9 +1311,9 @@ function StockChart({ stock, isEmbedded = false }) {
                   color: '#666'
                 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    <span>🟢 POC: ${volumeProfileLevels.poc?.toFixed(2) ?? 'N/A'}</span>
-                    <span>🔵 VAH: ${volumeProfileLevels.vah?.toFixed(2) ?? 'N/A'}</span>
-                    <span>🔴 VAL: ${volumeProfileLevels.val?.toFixed(2) ?? 'N/A'}</span>
+                    <span>🟢 POC: ${volumeProfileLevels.poc?.toFixed(2) || 'N/A'}</span>
+                    <span>🔵 VAH: ${volumeProfileLevels.vah?.toFixed(2) || 'N/A'}</span>
+                    <span>🔴 VAL: ${volumeProfileLevels.val?.toFixed(2) || 'N/A'}</span>
                   </div>
                 </div>
               )}
@@ -1374,7 +1374,7 @@ function StockChart({ stock, isEmbedded = false }) {
               <YAxis 
                 domain={[minPrice, maxPrice]}
                 tick={{ fontSize: 12 }}
-                tickFormatter={(value) => `$${value.toFixed(2)}`}
+                tickFormatter={(value) => `$${value?.toFixed(2) || 'N/A'}`}
               />
               <Tooltip 
                 content={<CustomTooltip />}
@@ -1392,7 +1392,7 @@ function StockChart({ stock, isEmbedded = false }) {
                   strokeDasharray="5 5" 
                   strokeWidth={1.5}
                   label={{ 
-                    value: `$${chartData[0].close.toFixed(2)}`, 
+                    value: `$${chartData[0]?.close?.toFixed(2) || 'N/A'}`, 
                     position: "right", 
                     fill: "#000000", 
                     fontSize: 10,
@@ -1496,11 +1496,11 @@ function StockChart({ stock, isEmbedded = false }) {
                     stroke="#22c55e" 
                     strokeWidth={2}
                     strokeDasharray="5 5"
-                    label={{ 
-                      value: `POC: $${volumeProfileLevels.poc.toFixed(2)}`, 
-                      position: "left", 
-                      fill: "#22c55e", 
-                      fontSize: 11,
+                  label={{ 
+                    value: `POC: $${volumeProfileLevels.poc?.toFixed(2) || 'N/A'}`, 
+                    position: "left", 
+                    fill: "#22c55e", 
+                    fontSize: 11,
                       fontWeight: "bold"
                     }}
                   />
@@ -1509,11 +1509,11 @@ function StockChart({ stock, isEmbedded = false }) {
                     stroke="#3b82f6" 
                     strokeWidth={1.5}
                     strokeDasharray="3 3"
-                    label={{ 
-                      value: `VAH: $${volumeProfileLevels.vah.toFixed(2)}`, 
-                      position: "left", 
-                      fill: "#3b82f6", 
-                      fontSize: 10
+                  label={{ 
+                    value: `VAH: $${volumeProfileLevels.vah?.toFixed(2) || 'N/A'}`, 
+                    position: "left", 
+                    fill: "#3b82f6", 
+                    fontSize: 10
                     }}
                   />
                   <ReferenceLine 
@@ -1521,11 +1521,11 @@ function StockChart({ stock, isEmbedded = false }) {
                     stroke="#ef4444" 
                     strokeWidth={1.5}
                     strokeDasharray="3 3"
-                    label={{ 
-                      value: `VAL: $${volumeProfileLevels.val.toFixed(2)}`, 
-                      position: "left", 
-                      fill: "#ef4444", 
-                      fontSize: 10
+                  label={{ 
+                    value: `VAL: $${volumeProfileLevels.val?.toFixed(2) || 'N/A'}`, 
+                    position: "left", 
+                    fill: "#ef4444", 
+                    fontSize: 10
                     }}
                   />
                 </>
@@ -1550,7 +1550,7 @@ function StockChart({ stock, isEmbedded = false }) {
               <YAxis 
                 domain={[minPrice, maxPrice]}
                 tick={{ fontSize: 12 }}
-                tickFormatter={(value) => `$${value.toFixed(2)}`}
+                tickFormatter={(value) => `$${value?.toFixed(2) || 'N/A'}`}
               />
               <Tooltip 
                 content={<CustomTooltip />}
@@ -1568,7 +1568,7 @@ function StockChart({ stock, isEmbedded = false }) {
                   strokeDasharray="5 5" 
                   strokeWidth={1.5}
                   label={{ 
-                    value: `Start: $${chartData[0].close.toFixed(2)}`, 
+                    value: `Start: $${chartData[0]?.close?.toFixed(2) || 'N/A'}`, 
                     position: "right", 
                     fill: "#000000", 
                     fontSize: 10,
@@ -1670,11 +1670,11 @@ function StockChart({ stock, isEmbedded = false }) {
                     stroke="#22c55e" 
                     strokeWidth={2}
                     strokeDasharray="5 5"
-                    label={{ 
-                      value: `POC: $${volumeProfileLevels.poc.toFixed(2)}`, 
-                      position: "left", 
-                      fill: "#22c55e", 
-                      fontSize: 11,
+                  label={{ 
+                    value: `POC: $${volumeProfileLevels.poc?.toFixed(2) || 'N/A'}`, 
+                    position: "left", 
+                    fill: "#22c55e", 
+                    fontSize: 11,
                       fontWeight: "bold"
                     }}
                   />
@@ -1683,11 +1683,11 @@ function StockChart({ stock, isEmbedded = false }) {
                     stroke="#3b82f6" 
                     strokeWidth={1.5}
                     strokeDasharray="3 3"
-                    label={{ 
-                      value: `VAH: $${volumeProfileLevels.vah.toFixed(2)}`, 
-                      position: "left", 
-                      fill: "#3b82f6", 
-                      fontSize: 10
+                  label={{ 
+                    value: `VAH: $${volumeProfileLevels.vah?.toFixed(2) || 'N/A'}`, 
+                    position: "left", 
+                    fill: "#3b82f6", 
+                    fontSize: 10
                     }}
                   />
                   <ReferenceLine 
@@ -1695,11 +1695,11 @@ function StockChart({ stock, isEmbedded = false }) {
                     stroke="#ef4444" 
                     strokeWidth={1.5}
                     strokeDasharray="3 3"
-                    label={{ 
-                      value: `VAL: $${volumeProfileLevels.val.toFixed(2)}`, 
-                      position: "left", 
-                      fill: "#ef4444", 
-                      fontSize: 10
+                  label={{ 
+                    value: `VAL: $${volumeProfileLevels.val?.toFixed(2) || 'N/A'}`, 
+                    position: "left", 
+                    fill: "#ef4444", 
+                    fontSize: 10
                     }}
                   />
                 </>
@@ -1731,14 +1731,14 @@ function StockChart({ stock, isEmbedded = false }) {
               />
               <YAxis 
                 tick={{ fontSize: 10 }}
-                tickFormatter={(value) => `${(value / 1000000).toFixed(0)}M`}
+                tickFormatter={(value) => `${(value / 1000000)?.toFixed(0) || '0'}M`}
               />
               <Tooltip 
                 formatter={(value, name) => {
                   if (name === 'Volume MA (10)') {
-                    return [`${(value / 1000000).toFixed(2)}M`, name];
+                    return [`${(value / 1000000)?.toFixed(2) || '0'}M`, name];
                   }
-                  return [`${(value / 1000000).toFixed(2)}M`, 'Volume'];
+                  return [`${(value / 1000000)?.toFixed(2) || '0'}M`, 'Volume'];
                 }}
                 labelStyle={{ color: '#666' }}
                 contentStyle={{ 
@@ -1916,7 +1916,7 @@ function StockChart({ stock, isEmbedded = false }) {
                 />
                 <YAxis 
                   tick={{ fontSize: 10 }}
-                  tickFormatter={(value) => `$${value.toFixed(2)}`}
+                  tickFormatter={(value) => `$${value?.toFixed(2) || 'N/A'}`}
                   domain={atrDomain}
                 />
                 <Tooltip 
