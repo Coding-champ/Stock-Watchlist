@@ -19,6 +19,7 @@ from backend.app.models import (
     Stock as StockModel,
     StockPriceData as StockPriceDataModel
 )
+from backend.app.services.stock_query_service import StockQueryService
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +74,7 @@ class VolumeProfileService:
                 }
             }
         """
-        stock = self.db.query(StockModel).filter(StockModel.id == stock_id).first()
-        if not stock:
-            raise ValueError(f"Stock with id {stock_id} not found")
+        stock = StockQueryService(self.db).get_stock_id_or_404(stock_id)
         
         # Determine date range
         if not end_date:

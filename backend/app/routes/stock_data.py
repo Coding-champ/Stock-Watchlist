@@ -17,6 +17,7 @@ from backend.app.services.historical_price_service import HistoricalPriceService
 from backend.app.services.fundamental_data_service import FundamentalDataService
 from backend.app.services.volume_profile_service import VolumeProfileService
 from backend.app.services.chart_data_service import ChartDataService, ChartDataServiceError
+from backend.app.services.stock_query_service import StockQueryService
 import pandas as pd
 import logging
 import math
@@ -44,16 +45,13 @@ def clean_json_floats(obj):
 
 @router.get("/{stock_id}", response_model=List[schemas.StockData])
 def get_stock_data(
-    stock_id: int, 
+    stock_id: int,
     skip: int = 0, 
     limit: int = 100, 
     db: Session = Depends(get_db)
 ):
     """Get historical price data for a stock from the database"""
-    # Get stock to retrieve ticker
-    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
-    if not stock:
-        raise HTTPException(status_code=404, detail="Stock not found")
+    stock = StockQueryService(db).get_stock_id_or_404(stock_id)
     
     # Get historical data from stock_price_data table
     price_data = db.query(StockPriceDataModel).filter(
@@ -135,9 +133,7 @@ def get_technical_indicators(
     Get technical indicators for a stock
     Available indicators: sma_50, sma_200, rsi, macd, bollinger_bands
     """
-    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
-    if not stock:
-        raise HTTPException(status_code=404, detail="Stock not found")
+    stock = StockQueryService(db).get_stock_id_or_404(stock_id)
     
     if not indicators:
         # Default indicators if none specified
@@ -197,9 +193,7 @@ def get_calculated_metrics(
     from backend.app.services import calculated_metrics_service
     from backend.app.services.yfinance_service import get_extended_stock_data, get_historical_prices
     
-    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
-    if not stock:
-        raise HTTPException(status_code=404, detail="Stock not found")
+    stock = StockQueryService(db).get_stock_id_or_404(stock_id)
     
     try:
         # Get extended data (financial ratios, etc.)
@@ -263,9 +257,7 @@ def get_divergence_analysis(
     
     Returns detailed divergence points for chart visualization.
     """
-    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
-    if not stock:
-        raise HTTPException(status_code=404, detail="Stock not found")
+    stock = StockQueryService(db).get_stock_id_or_404(stock_id)
     
     try:
         # Get chart data for the lookback period + buffer
@@ -333,9 +325,7 @@ def get_price_history(
     
     Returns stored OHLCV data for a stock
     """
-    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
-    if not stock:
-        raise HTTPException(status_code=404, detail="Stock not found")
+    stock = StockQueryService(db).get_stock_id_or_404(stock_id)
     
     try:
         historical_service = HistoricalPriceService(db)
@@ -405,9 +395,7 @@ def refresh_price_history(
     Updates the database with latest price data
     Returns number of records updated
     """
-    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
-    if not stock:
-        raise HTTPException(status_code=404, detail="Stock not found")
+    stock = StockQueryService(db).get_stock_id_or_404(stock_id)
     
     try:
         historical_service = HistoricalPriceService(db)
@@ -453,9 +441,7 @@ def get_fundamentals(
     
     Returns income statement, balance sheet, and cash flow data
     """
-    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
-    if not stock:
-        raise HTTPException(status_code=404, detail="Stock not found")
+    stock = StockQueryService(db).get_stock_id_or_404(stock_id)
     
     try:
         fundamental_service = FundamentalDataService(db)
@@ -527,9 +513,7 @@ def refresh_fundamentals(
     Updates the database with latest quarterly financial data
     Returns number of quarters updated
     """
-    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
-    if not stock:
-        raise HTTPException(status_code=404, detail="Stock not found")
+    stock = StockQueryService(db).get_stock_id_or_404(stock_id)
     
     try:
         fundamental_service = FundamentalDataService(db)

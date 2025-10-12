@@ -12,6 +12,7 @@ from sqlalchemy import and_, desc
 import logging
 
 from backend.app.models import Stock, StockPriceData
+from backend.app.services.stock_query_service import StockQueryService
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +42,7 @@ class HistoricalPriceService:
         """
         try:
             # Get stock from database
-            stock = self.db.query(Stock).filter(Stock.id == stock_id).first()
-            if not stock:
-                return {"success": False, "error": "Stock not found", "count": 0}
+            stock = StockQueryService(self.db).get_stock_id_or_404(stock_id)
             
             logger.info(f"Loading historical data for {stock.ticker_symbol} (period={period})")
             

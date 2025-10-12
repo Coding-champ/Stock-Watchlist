@@ -11,6 +11,7 @@ from backend.app.models import (
     ExtendedStockDataCache as ExtendedStockDataCacheModel
 )
 from backend.app.database import get_db
+from backend.app.services.stock_query_service import StockQueryService
 from datetime import datetime
 import logging
 

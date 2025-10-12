@@ -26,6 +26,7 @@ from backend.app.services.cache_service import StockDataCacheService
 from backend.app.services.stock_service import StockService
 from backend.app.services.historical_price_service import HistoricalPriceService
 from backend.app.services.fundamental_data_service import FundamentalDataService
+from backend.app.services.stock_query_service import StockQueryService
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
 
@@ -212,9 +213,7 @@ def get_stock(
     db: Session = Depends(get_db)
 ):
     """Get a specific stock with its latest data"""
-    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
-    if not stock:
-        raise HTTPException(status_code=404, detail="Stock not found")
+    stock = StockQueryService(db).get_stock_id_or_404(stock_id)
     
     # If watchlist_id provided, get watchlist context
     if watchlist_id:

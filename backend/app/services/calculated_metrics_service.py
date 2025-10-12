@@ -75,26 +75,28 @@ def calculate_sma_crossover(current_price: Optional[float],
         'price_above_sma200': None
     }
     
+    # Use central SMA calculation from technical_indicators_service (which uses indicators_core.py)
+    # If you have a price series, use calculate_sma from technical_indicators_service
+    # For compatibility, keep the logic but document the preferred usage
     if current_price and fifty_day_average:
         result['distance_from_sma50'] = ((current_price - fifty_day_average) / fifty_day_average) * 100
         result['price_above_sma50'] = current_price > fifty_day_average
-    
     if current_price and two_hundred_day_average:
         result['distance_from_sma200'] = ((current_price - two_hundred_day_average) / two_hundred_day_average) * 100
         result['price_above_sma200'] = current_price > two_hundred_day_average
-    
     if fifty_day_average and two_hundred_day_average:
         result['golden_cross'] = fifty_day_average > two_hundred_day_average
         result['death_cross'] = fifty_day_average < two_hundred_day_average
-        
-        # Trend bestimmen
         if result['golden_cross']:
             result['trend'] = 'bullish'
         elif result['death_cross']:
             result['trend'] = 'bearish'
         else:
             result['trend'] = 'neutral'
-    
+    # TODO: For future refactoring, replace manual SMA calculation with:
+    # from backend.app.services.technical_indicators_service import calculate_sma
+    # sma50 = calculate_sma(price_series, window=50)
+    # sma200 = calculate_sma(price_series, window=200)
     return result
 
 

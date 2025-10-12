@@ -38,85 +38,14 @@ def calculate_technical_indicators(
         Dictionary with calculated indicators or None
     """
     try:
-        # If no historical data provided, fetch it
-        if hist is None:
-            import yfinance as yf
-            ticker = yf.Ticker(ticker_symbol)
-            hist = ticker.history(period=period)
-        
-        if hist.empty:
-            return None
-        
-        # Set default indicators if none provided
-        if indicators is None:
-            indicators = ['sma_50', 'sma_200']
-        
-        close_prices = hist['Close']
-        high_prices = hist['High']
-        low_prices = hist['Low']
-        volume = hist['Volume']
-        
-        result = {
-            'dates': [date.isoformat() for date in hist.index],
-            'close': close_prices.tolist(),
-            'indicators': {}
-        }
-        
-        # Calculate each requested indicator
-        for indicator in indicators:
-            try:
-                if indicator == 'sma_20':
-                    result['indicators']['sma_20'] = close_prices.rolling(window=20).mean().tolist()
-                elif indicator == 'sma_50':
-                    result['indicators']['sma_50'] = close_prices.rolling(window=50).mean().tolist()
-                elif indicator == 'sma_200':
-                    result['indicators']['sma_200'] = close_prices.rolling(window=200).mean().tolist()
-                elif indicator == 'ema_12':
-                    result['indicators']['ema_12'] = close_prices.ewm(span=12).mean().tolist()
-                elif indicator == 'ema_26':
-                    result['indicators']['ema_26'] = close_prices.ewm(span=26).mean().tolist()
-                elif indicator == 'rsi':
-                    rsi_data = calculate_rsi_series(close_prices, period=14)
-                    if rsi_data is not None:
-                        result['indicators']['rsi'] = rsi_data.tolist()
-                elif indicator == 'macd':
-                    ema_12 = close_prices.ewm(span=12).mean()
-                    ema_26 = close_prices.ewm(span=26).mean()
-                    macd_line = ema_12 - ema_26
-                    signal_line = macd_line.ewm(span=9).mean()
-                    histogram = macd_line - signal_line
-                    
-                    result['indicators']['macd'] = {
-                        'macd': macd_line.tolist(),
-                        'signal': signal_line.tolist(),
-                        'histogram': histogram.tolist()
-                    }
-                elif indicator == 'bollinger':
-                    sma_20 = close_prices.rolling(window=20).mean()
-                    std_20 = close_prices.rolling(window=20).std()
-                    upper_band = sma_20 + (std_20 * 2)
-                    lower_band = sma_20 - (std_20 * 2)
-                    
-                    result['indicators']['bollinger'] = {
-                        'upper': upper_band.tolist(),
-                        'middle': sma_20.tolist(),
-                        'lower': lower_band.tolist()
-                    }
-                elif indicator == 'atr':
-                    atr_data = _calculate_atr_series(high_prices, low_prices, close_prices)
-                    if atr_data is not None:
-                        result['indicators']['atr'] = atr_data.tolist()
-                elif indicator == 'vwap':
-                    vwap_data = _calculate_vwap_rolling(high_prices, low_prices, close_prices, volume)
-                    if vwap_data is not None:
-                        result['indicators']['vwap'] = vwap_data.tolist()
-                        
-            except Exception as e:
-                logger.warning(f"Error calculating indicator {indicator}: {str(e)}")
-                result['indicators'][indicator] = None
-        
-        return _clean_for_json(result)
-        
+        from backend.app.services.chart_core import get_chart_with_indicators
+        result = get_chart_with_indicators(
+            ticker_symbol=ticker_symbol,
+            period=period,
+            indicators=indicators,
+            include_volume=True
+        )
+        return _clean_for_json(result) if result else None
     except Exception as e:
         logger.error(f"Error calculating technical indicators: {str(e)}")
         return None

@@ -9,6 +9,14 @@ from typing import Optional, Dict, Any, List, Tuple
 import logging
 from scipy.signal import argrelextrema
 
+# Import base indicator functions from indicators_core.py
+from backend.app.services.indicators_core import (
+    calculate_rsi as core_calculate_rsi,
+    calculate_macd as core_calculate_macd,
+    calculate_bollinger_bands as core_calculate_bollinger_bands,
+    calculate_sma as core_calculate_sma
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,29 +45,22 @@ def calculate_rsi(close_prices: pd.Series, period: int = 14) -> Dict[str, Option
         return result
     
     try:
-        delta = close_prices.diff()
-        gains = delta.clip(lower=0)
-        losses = -delta.clip(upper=0)
-        
-        # Wilder's smoothing (EMA with alpha = 1/period)
-        average_gain = gains.ewm(alpha=1/period, adjust=False, min_periods=period).mean()
-        average_loss = losses.ewm(alpha=1/period, adjust=False, min_periods=period).mean()
-        
-        # Calculate RS and RSI
-        rs = average_gain / average_loss
-        rsi_series = 100 - (100 / (1 + rs))
-        
-        # Get current RSI value
-        current_rsi = rsi_series.iloc[-1]
-        
-        if pd.notna(current_rsi):
-            result['value'] = float(current_rsi)
-            result['signal'] = _interpret_rsi(current_rsi)
-            result['series'] = rsi_series.tolist()
-        
+        # Use core_calculate_rsi for base calculation
+        rsi_series = core_calculate_rsi(close_prices, period)
+        if isinstance(rsi_series, pd.Series):
+            current_rsi = rsi_series.iloc[-1]
+            if pd.notna(current_rsi):
+                result['value'] = float(current_rsi)
+                result['signal'] = _interpret_rsi(current_rsi)
+                result['series'] = rsi_series.tolist()
+        elif isinstance(rsi_series, list) and len(rsi_series) > 0:
+            current_rsi = rsi_series[-1]
+            if current_rsi is not None:
+                result['value'] = float(current_rsi)
+                result['signal'] = _interpret_rsi(current_rsi)
+                result['series'] = rsi_series
     except Exception as e:
         logger.error(f"Error calculating RSI: {e}")
-    
     return result
 
 
@@ -89,14 +90,14 @@ def calculate_rsi_series(close_prices: pd.Series, period: int = 14) -> Optional[
         Pandas Series of RSI values
     """
     try:
-        delta = close_prices.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-        
-        rs = gain / loss
-        rsi = 100 - (100 / (1 + rs))
-        
-        return rsi
+        # Use core_calculate_rsi for base calculation
+        rsi_series = core_calculate_rsi(close_prices, period)
+        if isinstance(rsi_series, pd.Series):
+            return rsi_series
+        elif isinstance(rsi_series, list):
+            return pd.Series(rsi_series, index=close_prices.index)
+        else:
+            return None
     except Exception as e:
         logger.error(f"Error calculating RSI series: {e}")
         return None
@@ -134,42 +135,32 @@ def calculate_macd(close_prices: pd.Series,
         return result
     
     try:
-        # Calculate EMAs
-        ema_fast = close_prices.ewm(span=fast_period, adjust=False).mean()
-        ema_slow = close_prices.ewm(span=slow_period, adjust=False).mean()
-        
-        # MACD Line
-        macd_line = ema_fast - ema_slow
-        
-        # Signal Line
-        signal_line = macd_line.ewm(span=signal_period, adjust=False).mean()
-        
-        # Histogram
-        histogram = macd_line - signal_line
-        
-        # Current values
-        result['macd_line'] = float(macd_line.iloc[-1])
-        result['signal_line'] = float(signal_line.iloc[-1])
-        result['histogram'] = float(histogram.iloc[-1])
-        
-        # Determine trend
-        if result['histogram'] > 0 and result['macd_line'] > result['signal_line']:
-            result['trend'] = 'bullish'
-        elif result['histogram'] < 0 and result['macd_line'] < result['signal_line']:
-            result['trend'] = 'bearish'
+        # Use core_calculate_macd for base calculation
+        macd_df = core_calculate_macd(close_prices, fast_period, slow_period, signal_period)
+        if isinstance(macd_df, pd.DataFrame):
+            macd_line = macd_df['macd'] if 'macd' in macd_df else macd_df.iloc[:,0]
+            signal_line = macd_df['signal'] if 'signal' in macd_df else macd_df.iloc[:,1]
+            histogram = macd_df['histogram'] if 'histogram' in macd_df else macd_df.iloc[:,2]
+            result['macd_line'] = float(macd_line.iloc[-1])
+            result['signal_line'] = float(signal_line.iloc[-1])
+            result['histogram'] = float(histogram.iloc[-1])
+            # Determine trend
+            if result['histogram'] > 0 and result['macd_line'] > result['signal_line']:
+                result['trend'] = 'bullish'
+            elif result['histogram'] < 0 and result['macd_line'] < result['signal_line']:
+                result['trend'] = 'bearish'
+            else:
+                result['trend'] = 'neutral'
+            # Store series for charting
+            result['series'] = {
+                'macd': macd_line.tolist(),
+                'signal': signal_line.tolist(),
+                'histogram': histogram.tolist()
+            }
         else:
-            result['trend'] = 'neutral'
-        
-        # Store series for charting
-        result['series'] = {
-            'macd': macd_line.tolist(),
-            'signal': signal_line.tolist(),
-            'histogram': histogram.tolist()
-        }
-        
+            logger.error("core_calculate_macd did not return a DataFrame")
     except Exception as e:
         logger.error(f"Error calculating MACD: {e}")
-    
     return result
 
 
@@ -687,63 +678,48 @@ def calculate_bollinger_bands(
         return result
     
     try:
-        # Calculate Bollinger Bands
-        sma = close_prices.rolling(window=period).mean()
-        std = close_prices.rolling(window=period).std()
-        upper_band = sma + (std * num_std)
-        lower_band = sma - (std * num_std)
-        
-        # Bollinger %B: Position within bands
-        # %B = (Price - Lower Band) / (Upper Band - Lower Band)
-        # Values: >1 = above upper band, <0 = below lower band, 0-1 = within bands
-        percent_b = (close_prices - lower_band) / (upper_band - lower_band)
-        
-        # Bandwidth: Width of bands relative to middle band
-        # BandWidth = (Upper - Lower) / Middle
-        bandwidth = (upper_band - lower_band) / sma * 100
-        
-        # Squeeze Detection: When bandwidth is at historical lows
-        # Compare current bandwidth with lowest bandwidth of last 125 periods (6 months)
-        lookback = min(125, len(bandwidth))
-        if lookback > 0:
-            recent_bandwidth = bandwidth.iloc[-lookback:]
-            min_bandwidth = recent_bandwidth.min()
-            current_bandwidth_val = bandwidth.iloc[-1] if not bandwidth.empty else None
-            
-            # Squeeze if current bandwidth is within 20% of the minimum
-            if current_bandwidth_val and min_bandwidth:
-                squeeze_threshold = min_bandwidth * 1.2
-                result['squeeze'] = current_bandwidth_val <= squeeze_threshold
-                result['current_bandwidth'] = float(current_bandwidth_val)
-        
-        # Band Walking Detection: Price staying near a band
-        # Check if price has been near upper or lower band for last 3+ periods
-        if len(percent_b) >= 3:
-            recent_pb = percent_b.iloc[-3:]
-            
-            # Upper band walking: %B >= 0.9 for at least 3 periods
-            if (recent_pb >= 0.9).sum() >= 3:
-                result['band_walking'] = 'upper'
-            # Lower band walking: %B <= 0.1 for at least 3 periods  
-            elif (recent_pb <= 0.1).sum() >= 3:
-                result['band_walking'] = 'lower'
-        
-        # Current values
-        if not percent_b.empty:
-            result['current_percent_b'] = float(percent_b.iloc[-1])
-        
-        # Convert to lists for JSON serialization
-        result['upper'] = upper_band.tolist()
-        result['middle'] = sma.tolist()
-        result['lower'] = lower_band.tolist()
-        result['percent_b'] = percent_b.tolist()
-        result['bandwidth'] = bandwidth.tolist()
-        
-        # Ensure boolean values are Python bool, not numpy.bool_
-        result['squeeze'] = bool(result['squeeze'])
-        
-        return result
-        
+        # Use core_calculate_bollinger_bands for base calculation
+        bands_df = core_calculate_bollinger_bands(close_prices, period, num_std)
+        if isinstance(bands_df, pd.DataFrame):
+            # Extract bands and percent_b
+            upper_band = bands_df['upper'] if 'upper' in bands_df else bands_df.iloc[:,0]
+            middle_band = bands_df['middle'] if 'middle' in bands_df else bands_df.iloc[:,1]
+            lower_band = bands_df['lower'] if 'lower' in bands_df else bands_df.iloc[:,2]
+            percent_b = bands_df['percent_b'] if 'percent_b' in bands_df else None
+            bandwidth = bands_df['bandwidth'] if 'bandwidth' in bands_df else None
+            # Assign to result
+            result['upper'] = upper_band.tolist()
+            result['middle'] = middle_band.tolist()
+            result['lower'] = lower_band.tolist()
+            result['percent_b'] = percent_b.tolist() if percent_b is not None else []
+            result['bandwidth'] = bandwidth.tolist() if bandwidth is not None else []
+            # Current values
+            if percent_b is not None and not percent_b.empty:
+                result['current_percent_b'] = float(percent_b.iloc[-1])
+            if bandwidth is not None and not bandwidth.empty:
+                result['current_bandwidth'] = float(bandwidth.iloc[-1])
+            # Squeeze Detection
+            lookback = min(125, len(bandwidth)) if bandwidth is not None else 0
+            if lookback > 0:
+                recent_bandwidth = bandwidth.iloc[-lookback:]
+                min_bandwidth = recent_bandwidth.min()
+                current_bandwidth_val = bandwidth.iloc[-1] if not bandwidth.empty else None
+                if current_bandwidth_val and min_bandwidth:
+                    squeeze_threshold = min_bandwidth * 1.2
+                    result['squeeze'] = current_bandwidth_val <= squeeze_threshold
+            # Band Walking Detection
+            if percent_b is not None and len(percent_b) >= 3:
+                recent_pb = percent_b.iloc[-3:]
+                if (recent_pb >= 0.9).sum() >= 3:
+                    result['band_walking'] = 'upper'
+                elif (recent_pb <= 0.1).sum() >= 3:
+                    result['band_walking'] = 'lower'
+            # Ensure boolean values are Python bool, not numpy.bool_
+            result['squeeze'] = bool(result.get('squeeze', False))
+            return result
+        else:
+            logger.error("core_calculate_bollinger_bands did not return a DataFrame")
+            return result
     except Exception as e:
         logger.error(f"Error calculating Bollinger Bands: {e}")
         return result

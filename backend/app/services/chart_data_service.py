@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 
 from backend.app.models import Stock as StockModel
 from backend.app.services.yfinance_service import get_chart_data
-from backend.app.services.cache_service import get_cached_chart_data, cache_chart_data
+from backend.app.services.in_memory_cache import get_cached_chart_data, cache_chart_data
+from backend.app.services.stock_query_service import StockQueryService
 
 
 class ChartDataServiceError(Exception):
@@ -21,10 +22,7 @@ class ChartDataService:
         self._logger = logging.getLogger(__name__)
 
     def _get_stock(self, stock_id: int) -> StockModel:
-        stock = self._db.query(StockModel).filter(StockModel.id == stock_id).first()
-        if not stock:
-            raise ChartDataServiceError(404, "Stock not found")
-        return stock
+        return StockQueryService(self._db).get_stock_id_or_404(stock_id)
 
     def get_chart_data(
         self,
@@ -34,7 +32,9 @@ class ChartDataService:
         include_volume: bool,
         start: Optional[str],
         end: Optional[str],
+        indicators: Optional[list] = None
     ) -> Dict[str, Any]:
+        from backend.app.services.chart_core import get_chart_with_indicators
         stock = self._get_stock(stock_id)
         ticker = stock.ticker_symbol
         use_cache = not start and not end
@@ -49,14 +49,14 @@ class ChartDataService:
                 self._logger.warning(f"Failed to retrieve cached chart data: {exc}")
 
         try:
-            chart_data = get_chart_data(
+            chart_data = get_chart_with_indicators(
                 ticker_symbol=ticker,
                 period=period if use_cache else None,
                 interval=interval,
+                include_volume=include_volume,
                 start=start,
                 end=end,
-                include_dividends=True,
-                include_volume=include_volume,
+                indicators=indicators
             )
         except Exception as exc:
             self._logger.error(f"Error fetching chart data for {ticker}: {exc}")

@@ -13,11 +13,12 @@ from collections import defaultdict
 
 # Import technical indicators
 from backend.app.services.technical_indicators_service import (
-    calculate_rsi,
+    calculate_rsi,  # now uses indicators_core.py
     calculate_rsi_series,
     calculate_macd,
     detect_rsi_divergence,
-    detect_macd_divergence
+    detect_macd_divergence,
+    analyze_technical_indicators_with_divergence
 )
 
 # Import optimized yfinance functions
