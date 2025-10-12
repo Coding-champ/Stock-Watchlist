@@ -10,6 +10,7 @@ import pandas as pd
 from backend.app.models import Alert as AlertModel, Stock, StockPriceData, StockFundamentalData
 import logging
 from collections import defaultdict
+from backend.app.services.alert_core import evaluate_condition
 
 # Import technical indicators
 from backend.app.services.technical_indicators_service import (
@@ -226,20 +227,21 @@ class AlertService:
         """Check RSI alert using cached data"""
         try:
             # For RSI alerts, we still need historical data
-            # This could be further optimized by caching historical data
             ticker = yf.Ticker(alert.stock.ticker_symbol)
             hist = ticker.history(period="1mo")
-            
-            if len(hist) < 14:  # Need at least 14 days for RSI
+            if len(hist) < 14:
                 return False
-            
             close_prices = hist['Close']
             rsi_result = calculate_rsi(close_prices, period=14)
-            
             if rsi_result['value'] is None:
                 return False
-            
-            return self._evaluate_condition(rsi_result['value'], alert.condition, alert.threshold_value)
+            # Use centralized indicator alert logic
+            from backend.app.services.alert_core import check_indicator_alert
+            return check_indicator_alert(
+                indicator_data={'rsi': rsi_result['value']},
+                alert_type='rsi',
+                options={'condition': alert.condition, 'threshold': alert.threshold_value}
+            )
         except Exception as e:
             logger.error(f"Error checking RSI alert: {str(e)}")
             return False
@@ -352,12 +354,16 @@ class AlertService:
             extended_data = cached_data.get('extended_data')
             if not extended_data:
                 return False
-            
             volatility = extended_data['risk_metrics']['volatility_30d']
             if volatility is None:
                 return False
-            
-            return self._evaluate_condition(volatility, alert.condition, alert.threshold_value)
+            # Use centralized indicator alert logic
+            from backend.app.services.alert_core import check_indicator_alert
+            return check_indicator_alert(
+                indicator_data={'volatility': volatility},
+                alert_type='volatility',
+                options={'condition': alert.condition, 'threshold': alert.threshold_value}
+            )
         except Exception as e:
             logger.error(f"Error checking volatility alert: {str(e)}")
             return False
@@ -368,9 +374,23 @@ class AlertService:
         return False
 
     def _check_ma_cross_alert_optimized(self, alert: AlertModel, cached_data: Dict) -> bool:
-        """Check moving average cross alert using cached data"""
-        # Simplified implementation - would need historical data
-        return False
+        try:
+            fast_data = cached_data.get('fast_data')
+            if not fast_data:
+                return False
+            ma_short = fast_data.get('ma_short')
+            ma_long = fast_data.get('ma_long')
+            if ma_short is None or ma_long is None:
+                return False
+            from backend.app.services.alert_core import check_indicator_alert
+            return check_indicator_alert(
+                indicator_data={'ma_short': ma_short, 'ma_long': ma_long},
+                alert_type='ma_cross',
+                options={'condition': alert.condition, 'threshold': alert.threshold_value}
+            )
+        except Exception as e:
+            logger.error(f"Error checking MA cross alert: {str(e)}")
+            return False
 
     def _check_volume_spike_alert_optimized(self, alert: AlertModel, cached_data: Dict) -> bool:
         """Check volume spike alert using cached data"""
@@ -378,38 +398,94 @@ class AlertService:
             fast_data = cached_data.get('fast_data')
             if not fast_data:
                 return False
-            
             current_volume = fast_data['volume_data']['volume']
             avg_volume = fast_data['volume_data']['average_volume']
-            
             if current_volume is None or avg_volume is None:
                 return False
-            
             volume_ratio = current_volume / avg_volume
-            return self._evaluate_condition(volume_ratio, alert.condition, alert.threshold_value)
+            # Use centralized indicator alert logic
+            from backend.app.services.alert_core import check_indicator_alert
+            return check_indicator_alert(
+                indicator_data={'volume_ratio': volume_ratio},
+                alert_type='volume_spike',
+                options={'condition': alert.condition, 'threshold': alert.threshold_value}
+            )
         except Exception as e:
             logger.error(f"Error checking volume spike alert: {str(e)}")
             return False
 
     def _check_percent_from_sma_alert_optimized(self, alert: AlertModel, cached_data: Dict) -> bool:
-        """Check percent from SMA alert using cached data"""
-        # Simplified implementation - would need historical data
-        return False
+        try:
+            fast_data = cached_data.get('fast_data')
+            if not fast_data:
+                return False
+            price = fast_data.get('price')
+            sma = fast_data.get('sma')
+            if price is None or sma is None or sma == 0:
+                return False
+            percent = ((price - sma) / sma) * 100
+            from backend.app.services.alert_core import check_indicator_alert
+            return check_indicator_alert(
+                indicator_data={'percent': percent},
+                alert_type='percent_from_sma',
+                options={'condition': alert.condition, 'threshold': alert.threshold_value}
+            )
+        except Exception as e:
+            logger.error(f"Error checking percent from SMA alert: {str(e)}")
+            return False
 
     def _check_trailing_stop_alert_optimized(self, alert: AlertModel, cached_data: Dict) -> bool:
-        """Check trailing stop alert using cached data"""
-        # Simplified implementation - would need historical data
-        return False
+        try:
+            fast_data = cached_data.get('fast_data')
+            if not fast_data:
+                return False
+            price = fast_data.get('price')
+            trailing_stop = fast_data.get('trailing_stop')
+            if price is None or trailing_stop is None:
+                return False
+            from backend.app.services.alert_core import check_indicator_alert
+            return check_indicator_alert(
+                indicator_data={'price': price, 'trailing_stop': trailing_stop},
+                alert_type='trailing_stop',
+                options={'condition': alert.condition, 'threshold': alert.threshold_value}
+            )
+        except Exception as e:
+            logger.error(f"Error checking trailing stop alert: {str(e)}")
+            return False
 
     def _check_earnings_alert_optimized(self, alert: AlertModel, cached_data: Dict) -> bool:
-        """Check earnings alert using cached data"""
-        # Simplified implementation - would need earnings data
-        return False
+        try:
+            extended_data = cached_data.get('extended_data')
+            if not extended_data:
+                return False
+            earnings = extended_data.get('earnings')
+            if earnings is None:
+                return False
+            from backend.app.services.alert_core import check_indicator_alert
+            return check_indicator_alert(
+                indicator_data={'earnings': earnings},
+                alert_type='earnings',
+                options={'condition': alert.condition, 'threshold': alert.threshold_value}
+            )
+        except Exception as e:
+            logger.error(f"Error checking earnings alert: {str(e)}")
+            return False
 
     def _check_composite_alert_optimized(self, alert: AlertModel, cached_data: Dict) -> bool:
-        """Check composite alert using cached data"""
-        # Simplified implementation - would need multiple data points
-        return False
+        try:
+            # Composite alert: expects options to contain sub-alert results
+            options = self._get_options(alert)
+            if not options:
+                return False
+            from backend.app.services.alert_core import check_indicator_alert
+            return check_indicator_alert(
+                indicator_data=options,
+                alert_type='composite',
+                options={}
+            )
+        except Exception as e:
+            logger.error(f"Error checking composite alert: {str(e)}")
+            return False
 
     def _check_rsi_bearish_divergence_alert(self, alert: AlertModel) -> bool:
         """Check for RSI bearish divergence"""
@@ -442,23 +518,21 @@ class AlertService:
         try:
             ticker = yf.Ticker(alert.stock.ticker_symbol)
             hist = ticker.history(period="3mo")
-            
             if len(hist) < 60:
                 return False
-            
             close_prices = hist['Close']
-            
-            # Calculate MACD
             macd_data = calculate_macd(close_prices)
             if not macd_data.get('series') or not macd_data['series'].get('histogram'):
                 return False
-            
             macd_histogram = pd.Series(macd_data['series']['histogram'], index=close_prices.index)
-            
-            # Detect divergence
             divergence = detect_macd_divergence(close_prices, macd_histogram, lookback_days=60, num_peaks=3)
-            
-            return divergence.get('bullish_divergence', False)
+            # Use centralized indicator alert logic
+            from backend.app.services.alert_core import check_indicator_alert
+            return check_indicator_alert(
+                indicator_data={'divergence': divergence.get('bullish_divergence', False)},
+                alert_type='macd_bullish_divergence',
+                options={}
+            )
         except Exception as e:
             logger.error(f"Error checking MACD bullish divergence alert: {str(e)}")
             return False
@@ -468,23 +542,21 @@ class AlertService:
         try:
             ticker = yf.Ticker(alert.stock.ticker_symbol)
             hist = ticker.history(period="3mo")
-            
             if len(hist) < 60:
                 return False
-            
             close_prices = hist['Close']
-            
-            # Calculate MACD
             macd_data = calculate_macd(close_prices)
             if not macd_data.get('series') or not macd_data['series'].get('histogram'):
                 return False
-            
             macd_histogram = pd.Series(macd_data['series']['histogram'], index=close_prices.index)
-            
-            # Detect divergence
             divergence = detect_macd_divergence(close_prices, macd_histogram, lookback_days=60, num_peaks=3)
-            
-            return divergence.get('bearish_divergence', False)
+            # Use centralized indicator alert logic
+            from backend.app.services.alert_core import check_indicator_alert
+            return check_indicator_alert(
+                indicator_data={'divergence': divergence.get('bearish_divergence', False)},
+                alert_type='macd_bearish_divergence',
+                options={}
+            )
         except Exception as e:
             logger.error(f"Error checking MACD bearish divergence alert: {str(e)}")
             return False
@@ -751,16 +823,8 @@ class AlertService:
             return False
 
     def _evaluate_condition(self, value: float, condition: str, threshold: float) -> bool:
-        """Evaluate if a value meets the alert condition"""
-        if condition == 'above':
-            return value > threshold
-        elif condition == 'below':
-            return value < threshold
-        elif condition == 'equals':
-            # Allow small tolerance for floating point comparison
-            return abs(value - threshold) < 0.01
-        else:
-            return False
+        """Evaluate if a value meets the alert condition (delegated to alert_core)"""
+        return evaluate_condition(value, condition, threshold)
 
     def _get_options(self, alert: AlertModel) -> Optional[Dict[str, Any]]:
         """Extract options from composite_conditions which may be a dict or [dict]."""
