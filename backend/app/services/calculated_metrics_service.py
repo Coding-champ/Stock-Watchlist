@@ -183,6 +183,9 @@ def detect_sma_crossovers(historical_prices: pd.DataFrame,
         'all_crossovers': []
     }
     
+    import logging
+    logging.info(f"[detect_sma_crossovers] historical_prices type: {type(historical_prices)}")
+    assert historical_prices is None or isinstance(historical_prices, pd.DataFrame), f"historical_prices is not a DataFrame: {type(historical_prices)}"
     if historical_prices is None or historical_prices.empty or 'Close' not in historical_prices.columns:
         return result
     
@@ -1284,6 +1287,9 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
         stock_data.get('two_hundred_day_average')
     )
     result['basic_indicators'].update(sma_metrics)
+    # SMA 50 und SMA 200 explizit setzen
+    result['basic_indicators']['sma_50'] = stock_data.get('fifty_day_average')
+    result['basic_indicators']['sma_200'] = stock_data.get('two_hundred_day_average')
     
     # Relative Volume - merge the dict into basic_indicators
     volume_metrics = calculate_relative_volume(
@@ -1299,6 +1305,11 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
     )
     
     # SMA Crossover Detection (Golden Cross / Death Cross)
+    import logging
+    logging.info(f"[calculate_all_metrics] historical_prices type: {type(historical_prices)}")
+    assert historical_prices is None or isinstance(historical_prices, pd.DataFrame), f"historical_prices is not a DataFrame: {type(historical_prices)}"
+    logging.info(f"[calculate_all_metrics] before .empty check 1, type: {type(historical_prices)}")
+    assert historical_prices is None or isinstance(historical_prices, pd.DataFrame), f"historical_prices is not a DataFrame: {type(historical_prices)}"
     if historical_prices is not None and not historical_prices.empty:
         crossover_data = detect_sma_crossovers(
             historical_prices,
@@ -1363,14 +1374,20 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
     
     # ========== PHASE 3 ==========
     
+    logging.info(f"[calculate_all_metrics] before .empty check 2, type: {type(historical_prices)}")
+    assert historical_prices is None or isinstance(historical_prices, pd.DataFrame), f"historical_prices is not a DataFrame: {type(historical_prices)}"
     if historical_prices is not None and not historical_prices.empty:
         # MACD - merge the dict into advanced_analysis
         if 'Close' in historical_prices.columns:
-            macd_metrics = calculate_macd(
-                historical_prices['Close']
-            )
+            macd_metrics = calculate_macd(historical_prices['Close'])
             result['advanced_analysis'].update(macd_metrics)
-        
+            # MACD und Signal explizit setzen
+            result['advanced_analysis']['macd'] = macd_metrics.get('macd_line')
+            result['advanced_analysis']['macd_signal'] = macd_metrics.get('signal_line')
+        # RSI explizit setzen
+        if 'Close' in historical_prices.columns:
+            rsi_series = calculate_rsi_series(historical_prices['Close'], 14)
+            result['advanced_analysis']['rsi'] = rsi_series.iloc[-1] if rsi_series is not None and not rsi_series.empty else None
         # Stochastic Oscillator - merge the dict into advanced_analysis
         if all(col in historical_prices.columns for col in ['High', 'Low', 'Close']):
             stochastic_metrics = calculate_stochastic_oscillator(
@@ -1379,7 +1396,6 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
                 historical_prices['Close']
             )
             result['advanced_analysis'].update(stochastic_metrics)
-        
         # ATR (Average True Range) - merge the dict into advanced_analysis
         if all(col in historical_prices.columns for col in ['High', 'Low', 'Close']):
             atr_metrics = calculate_atr(
@@ -1389,19 +1405,16 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
                 period=14
             )
             result['advanced_analysis'].update(atr_metrics)
-        
         # Volatility Metrics - merge the dict into advanced_analysis
         if 'Close' in historical_prices.columns:
             volatility_metrics = calculate_volatility_metrics(
                 historical_prices['Close']
             )
             result['advanced_analysis'].update(volatility_metrics)
-            
             drawdown_metrics = calculate_maximum_drawdown(
                 historical_prices['Close']
             )
             result['advanced_analysis'].update(drawdown_metrics)
-            
             # Beta-Adjusted Metrics - merge the dict into advanced_analysis
             beta_adjusted = calculate_beta_adjusted_metrics(
                 historical_prices['Close'],
@@ -1410,7 +1423,8 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
                 market_return=0.10    # 10% erwartete Marktrendite (anpassbar)
             )
             result['advanced_analysis'].update(beta_adjusted)
-            
+            # Beta explizit setzen
+            result['advanced_analysis']['beta'] = stock_data.get('beta')
             # Risk-Adjusted Performance Score - merge the dict into advanced_analysis
             risk_adjusted_perf = calculate_risk_adjusted_performance_score(
                 beta_adjusted.get('sharpe_ratio'),

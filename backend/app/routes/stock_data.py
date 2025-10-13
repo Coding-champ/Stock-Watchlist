@@ -185,17 +185,14 @@ def get_calculated_metrics(
 ) -> Dict[str, Any]:
     """
     Get comprehensive calculated metrics for a stock
-    
     This endpoint provides:
-    - Phase 1: Basic technical indicators (RSI, MACD, Moving Averages)
-    - Phase 2: Valuation scores (P/E, P/B, PEG ratios)
-    - Phase 3: Advanced analysis (Beta, Sharpe ratio, etc.)
+    - Basic technical indicators (RSI, MACD, Moving Averages)
+    - Valuation scores (P/E, P/B, PEG ratios)
+    - Advanced analysis (Beta, Sharpe ratio, etc.)
     """
     from backend.app.services import calculated_metrics_service
     from backend.app.services.yfinance_service import get_extended_stock_data, get_historical_prices
-    
     stock = StockQueryService(db).get_stock_id_or_404(stock_id)
-    
     try:
         # Get extended data (financial ratios, etc.)
         extended_data = get_extended_stock_data(stock.ticker_symbol)
@@ -204,7 +201,6 @@ def get_calculated_metrics(
                 status_code=404,
                 detail=f"No financial data found for {stock.ticker_symbol}"
             )
-        
         # Flatten extended_data for metrics calculation
         stock_data = {}
         for key, value in extended_data.items():
@@ -213,16 +209,21 @@ def get_calculated_metrics(
                     stock_data[sub_key] = sub_value
             else:
                 stock_data[key] = value
-        
         # Get historical prices
         historical_prices = get_historical_prices(stock.ticker_symbol, period)
-        
+        import pandas as pd
+        if historical_prices is None:
+            historical_prices = pd.DataFrame()
+        elif isinstance(historical_prices, dict):
+            historical_prices = pd.DataFrame(historical_prices)
+        # Logging Typ und Vorschau von historical_prices
+        logger.info(f"historical_prices type: {type(historical_prices)}")
+        logger.info(f"historical_prices preview: {str(historical_prices)[:500]}")
         # Calculate all metrics
         metrics_dict = calculated_metrics_service.calculate_all_metrics(
             stock_data,
             historical_prices
         )
-        
         result = {
             "stock_id": stock_id,
             "ticker_symbol": stock.ticker_symbol,
@@ -231,11 +232,13 @@ def get_calculated_metrics(
             "metrics": metrics_dict
         }
         return clean_json_floats(result)
-        
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
         logger.error(f"Error calculating metrics for {stock.ticker_symbol}: {e}")
+        logger.error(f"Exception type: {type(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to calculate metrics: {str(e)}"
