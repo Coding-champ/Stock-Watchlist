@@ -94,7 +94,7 @@ def get_stock_chart_data(
     """
     # Get stock to retrieve ticker
     try:
-        return chart_service.get_chart_data(
+        chart_data = chart_service.get_chart_data(
             stock_id=stock_id,
             period=period,
             interval=interval,
@@ -102,6 +102,7 @@ def get_stock_chart_data(
             start=start,
             end=end,
         )
+        return clean_json_floats(chart_data)
     except ChartDataServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
@@ -222,13 +223,14 @@ def get_calculated_metrics(
             historical_prices
         )
         
-        return {
+        result = {
             "stock_id": stock_id,
             "ticker_symbol": stock.ticker_symbol,
             "period": period,
             "calculated_at": datetime.utcnow().isoformat(),
             "metrics": metrics_dict
         }
+        return clean_json_floats(result)
         
     except HTTPException:
         raise
