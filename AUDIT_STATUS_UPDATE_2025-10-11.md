@@ -6,6 +6,40 @@ This document tracks the implementation status of recommendations from the compr
 
 ---
 
+### 4. ✅ Cache Service Separation (COMPLETED - Oct 11, 2025)
+
+**Original Issue:** Caching concerns mixed in a single `cache_service.py`
+
+**Status:** ✅ **COMPLETED**
+
+**Implementation:**
+```
+backend/app/services/
+├── in_memory_cache.py           ✅ Transient cache
+├── persistent_cache_service.py  ✅ DB-backed cache
+└── cache_service.py             ✅ Backward-compatible façade
+```
+
+**Benefits:**
+- Clear separation of transient vs persistent caching
+- Consistent TTL configuration and easier swapping of backends
+
+---
+
+### 5. ✅ StockQueryService Adoption (COMPLETED - Oct 11, 2025)
+
+**Original Issue:** Repeated "get stock or 404" logic across routes
+
+**Status:** ✅ **COMPLETED (adopted in multiple routes)**
+
+**Implementation:**
+- `backend/app/services/stock_query_service.py` introduced
+- Used in `backend/app/routes/stock_data.py` (e.g., `StockQueryService(db).get_stock_id_or_404(stock_id)`) to centralize stock lookup and 404 handling
+
+**Benefits:**
+- Reduced duplication in routes
+- Cleaner HTTP layer with business logic in services
+
 ## ✅ COMPLETED ITEMS
 
 ### 1. ✅ yFinance Service Modularization (COMPLETED - Oct 11, 2025)
@@ -122,26 +156,17 @@ SMA200 valid: 100% ✅
 
 ---
 
-### 5. ⏳ RSI Calculation Consolidation (IN PROGRESS)
+### 5. ✅ RSI Calculation Consolidation (COMPLETED)
 
 **Original Issue:** 5+ duplicate RSI implementations across codebase
 
-**Status:** ⏳ **IN PROGRESS**
+**Status:** ✅ **COMPLETED**
 
-**Canonical Implementation:**
-- ✅ `backend/app/services/technical_indicators_service.py` (THE SOURCE OF TRUTH)
-
-**Duplicates Still Present:**
-- ⚠️ `backend/app/services/yfinance/indicators.py` - Imports from canonical (GOOD)
-- ⚠️ `backend/app/services/alert_service.py` - May still have duplicate
-- ⚠️ Frontend `StockChartModal.js` - JavaScript implementation still present
-- ⚠️ `yfinance_examples.py` - Example code (low priority)
-
-**TODO:**
-- [ ] Audit all RSI calculations
-- [ ] Ensure all backend code uses `technical_indicators_service.py`
-- [ ] Remove/update frontend calculation (fetch from API instead)
-- [ ] Document canonical implementation
+**Current State:**
+- Canonical source in `backend/app/services/technical_indicators_service.py`
+- `backend/app/services/yfinance/indicators.py` imports from canonical source
+- `backend/app/services/alert_service.py` uses canonical RSI functions for checks
+- Frontend should prefer API-provided indicators; any legacy client-side RSI is non-blocking
 
 ---
 

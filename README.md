@@ -317,7 +317,7 @@ Notes:
 
 #### Get Calculated Metrics
 ```http
-GET /api/stock-data/{stock_id}/calculated-metrics?period=1y&use_cache=true
+GET /stock-data/{stock_id}/calculated-metrics?period=1y&use_cache=true
 ```
 
 **Parameters:**
@@ -329,12 +329,12 @@ GET /api/stock-data/{stock_id}/calculated-metrics?period=1y&use_cache=true
 
 **Example:**
 ```bash
-curl "http://localhost:8000/api/stock-data/1/calculated-metrics?period=1y"
+curl "http://localhost:8000/stock-data/1/calculated-metrics?period=1y"
 ```
 
 #### Get Stock with Calculated Metrics
 ```http
-GET /api/stocks/{stock_id}/with-calculated-metrics?period=1y
+GET /stocks/{stock_id}/with-calculated-metrics?period=1y
 ```
 
 **Response:** Stock info + extended data + calculated metrics
@@ -508,7 +508,7 @@ print(f"Risk-Adjusted Score: {risk_score:.1f}/100")
 
 ```javascript
 // Fetch stock with complete analysis
-fetch('http://localhost:8000/api/stocks/1/with-calculated-metrics?period=1y')
+fetch('http://localhost:8000/stocks/1/with-calculated-metrics?period=1y')
   .then(response => response.json())
   .then(data => {
     const stock = data;
@@ -524,10 +524,10 @@ fetch('http://localhost:8000/api/stocks/1/with-calculated-metrics?period=1y')
 
 ```bash
 # Get metrics with timing
-time curl -s "http://localhost:8000/api/stock-data/1/calculated-metrics?period=1y"
+time curl -s "http://localhost:8000/stock-data/1/calculated-metrics?period=1y"
 
 # Force refresh (bypass cache)
-curl "http://localhost:8000/api/stock-data/1/calculated-metrics?use_cache=false"
+curl "http://localhost:8000/stock-data/1/calculated-metrics?use_cache=false"
 ```
 
 ## License

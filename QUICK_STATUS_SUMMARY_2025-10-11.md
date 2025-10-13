@@ -25,11 +25,24 @@
   - Indikatoren werden auf sichtbaren Bereich gefiltert
 - **Status:** ✅ Vollständig behoben, getestet, funktioniert perfekt
 
+### 4. Cache-Service Trennung ✅ KOMPLETT
+- **Problem:** Caching (in-memory und persistent) vermischt in `cache_service.py`
+- **Lösung:** Aufteilung in dedizierte Module
+  - `in_memory_cache.py` – Transienter Cache
+  - `persistent_cache_service.py` – DB-gestützter Cache
+  - `cache_service.py` – Fassade/Kompatibilität
+- **Status:** ✅ Implementiert
+
+### 5. StockQueryService in Routes ✅ KOMPLETT
+- **Problem:** Doppelte "Stock laden oder 404"-Logik in vielen Endpoints
+- **Lösung:** Zentralisierung über `StockQueryService`
+- **Status:** ✅ In `backend/app/routes/stock_data.py` im Einsatz (`StockQueryService(db).get_stock_id_or_404(stock_id)`)
+
 ---
 
 ## ⏳ In Arbeit / Teilweise erledigt
 
-### 5. Fast_info Migration ⏳ TEILWEISE
+### 6. Fast_info Migration ⏳ TEILWEISE
 
 - **Status:** Einige Services nutzen bereits `fast_info`
 - **Offen:** Noch nicht überall umgesetzt (z.B. einige Stellen in Services)
@@ -39,30 +52,30 @@
 
 ## ❌ Noch nicht begonnen (WICHTIG!)
 
-### 6. CORS Konfiguration 🔴 KRITISCH
+### 7. CORS Konfiguration 🔴 KRITISCH
 - **Problem:** `allow_origins=["*"]` ist Sicherheitsrisiko
 - **CVSS Score:** 8.6 (HIGH)
 - **Aufwand:** 2 Stunden
 - **Priorität:** 🔴 KRITISCH - SOFORT FIX NÖTIG
 
-### 7. Authentication 🔴 HOCH
+### 8. Authentication 🔴 HOCH
 - **Problem:** Alle Endpoints öffentlich zugänglich
 - **Aufwand:** 24 Stunden (Phase 1: API Keys)
 - **Priorität:** 🔴 HOCH (falls Multi-User geplant)
 
-### 8. Frontend Component Splitting 🟡 MITTEL
+### 9. Frontend Component Splitting 🟡 MITTEL
 - **Problem:** 
   - `StockChart.js` = 2003 Zeilen (!!)
   - `StockTable.js` = 985 Zeilen
 - **Aufwand:** 16-24 Stunden
 - **Priorität:** 🟡 MITTEL
 
-### 9. Frontend Tests 🟡 MITTEL
+### 10. Frontend Tests 🟡 MITTEL
 - **Problem:** 0 Frontend Tests (nur Backend hat Tests)
 - **Aufwand:** 24 Stunden
 - **Priorität:** 🟡 MITTEL
 
-### 10. Rate Limiting 🟡 MITTEL
+### 11. Rate Limiting 🟡 MITTEL
 - **Problem:** Keine Protection gegen yfinance API Missbrauch
 - **Aufwand:** 8 Stunden
 - **Priorität:** 🟡 MITTEL
@@ -86,8 +99,7 @@
 ### Diese Woche (DRINGEND):
 
 1. **CORS Fix** - 2h - 🔴 KRITISCH
-2. ~~**RSI Konsolidierung fertig**~~ - ✅ **ERLEDIGT**
-3. **API Key Auth** - 8h - 🔴 HOCH
+2. **API Key Auth** - 8h - 🔴 HOCH
 
 ### Nächste Woche:
 
