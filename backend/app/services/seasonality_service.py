@@ -13,6 +13,9 @@ def calculate_monthly_returns(df: pd.DataFrame, price_col: str = 'Close') -> pd.
 def calculate_seasonality(monthly_returns: pd.Series, years_back: Optional[int] = None) -> pd.DataFrame:
     if years_back is not None:
         cutoff_date = datetime.now() - timedelta(days=years_back*365)
+        # Ensure cutoff_date is timezone-aware if monthly_returns.index is
+        if hasattr(monthly_returns.index, 'tz') and monthly_returns.index.tz is not None:
+            cutoff_date = pd.Timestamp(cutoff_date, tz=monthly_returns.index.tz)
         monthly_returns = monthly_returns[monthly_returns.index >= cutoff_date]
     df = pd.DataFrame({
         'return': monthly_returns.values,

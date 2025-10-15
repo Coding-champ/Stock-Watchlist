@@ -37,36 +37,62 @@ router = APIRouter(prefix="/stocks", tags=["stocks"])
 # Analysten-Endpunkt mit Fehlerbehandlung
 @router.get("/{stock_id}/analyst-ratings")
 def get_stock_analyst_ratings(stock_id: int, db: Session = Depends(get_db)):
+    import logging
+    logger = logging.getLogger("analyst_debug")
     try:
-        # Call get_stock with only stock_id and db, not with Query objects
         stock = get_stock(stock_id=stock_id, db=db)
         if not stock:
+            logger.error(f"Stock not found for id {stock_id}")
             return {"error": "Stock not found", "price_targets": {}, "recommendations": {}}
         ticker_symbol = stock.ticker_symbol
+        logger.info(f"Fetching analyst data for ticker: {ticker_symbol}")
+        import yfinance as yf
+        ticker = yf.Ticker(ticker_symbol)
+        info = ticker.info
+        recommendations = ticker.recommendations
+        analyst_price_targets = getattr(ticker, 'analyst_price_targets', None)
+        logger.info(f"yfinance.info: {info}")
+        logger.info(f"yfinance.recommendations: {recommendations}")
+        logger.info(f"yfinance.analyst_price_targets: {analyst_price_targets}")
         overview = get_complete_analyst_overview(ticker_symbol)
+        logger.info(f"Overview returned: {overview}")
         return overview
     except Exception as e:
         import traceback
+        logger.error(f"Exception in analyst endpoint: {e}\n{traceback.format_exc()}")
         return {"error": str(e), "trace": traceback.format_exc(), "price_targets": {}, "recommendations": {}}
 
 
 # Saisonalität-Endpunkt mit Fehlerbehandlung
 @router.get("/{stock_id}/seasonality")
-def get_stock_seasonality(stock_id: int, years_back: int = None):
+def get_stock_seasonality(stock_id: int, years_back: int = None, db: Session = Depends(get_db)):
+    import logging
+    logger = logging.getLogger("seasonality_debug")
     try:
-        prices = get_historical_prices(stock_id)
-        if not prices or len(prices) == 0:
+        # Get ticker_symbol from stock_id
+        stock = StockQueryService(db).get_stock_id_or_404(stock_id)
+        ticker_symbol = stock.ticker_symbol
+        logger.info(f"Resolved ticker_symbol for stock_id {stock_id}: {ticker_symbol}")
+        prices_df = get_historical_prices(ticker_symbol, period="max")
+        logger.info(f"Historical prices for ticker {ticker_symbol}: {prices_df}")
+        if prices_df is None or prices_df.empty:
+            logger.warning(f"No historical prices found for ticker {ticker_symbol}")
             return []
-        df = pd.DataFrame(prices)
+        df = prices_df
+        logger.info(f"DataFrame head: {df.head()}")
         seasonality = get_all_seasonalities(df)
+        logger.info(f"Seasonality result keys: {list(seasonality.keys())}")
         if years_back:
             key = f"{years_back}y"
             result = seasonality.get(key, seasonality['all'])
+            logger.info(f"Seasonality for {key}: {result}")
         else:
             result = seasonality['all']
+            logger.info(f"Seasonality for all: {result}")
         return result.to_dict(orient="records")
     except Exception as e:
         import traceback
+        logger.error(f"Exception in seasonality endpoint: {e}\n{traceback.format_exc()}")
         return {"error": str(e), "trace": traceback.format_exc(), "data": []}
 
 logger = logging.getLogger(__name__)
@@ -246,11 +272,11 @@ def get_stocks(
 
 @router.get("/{stock_id}", response_model=schemas.Stock)
 def get_stock(
-    stock_id: int, 
-    watchlist_id: Optional[int] = Query(None, description="Optional watchlist context"),
-    background_tasks: BackgroundTasks = None, 
-    db: Session = Depends(get_db)
-):
+        stock_id: int,
+        watchlist_id: Optional[int] = None,
+        background_tasks: BackgroundTasks = None,
+        db: Session = Depends(get_db)
+    ):
     """Get a specific stock with its latest data"""
     stock = StockQueryService(db).get_stock_id_or_404(stock_id)
     
