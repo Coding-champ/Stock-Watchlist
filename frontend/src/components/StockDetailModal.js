@@ -100,19 +100,33 @@ function StockDetailModal({ stock, onClose }) {
               className={`tab-button ${activeTab === 'fundamentals' ? 'active' : ''}`}
               onClick={() => setActiveTab('fundamentals')}
             >
-              � Fundamentaldaten
+              🔢 Fundamentaldaten
             </button>
             <button 
               className={`tab-button ${activeTab === 'analysis' ? 'active' : ''}`}
               onClick={() => setActiveTab('analysis')}
             >
-              � Auswertung
+              📋 Auswertung
             </button>
             <button 
               className={`tab-button ${activeTab === 'investment' ? 'active' : ''}`}
               onClick={() => setActiveTab('investment')}
             >
               🎯 Investment
+            </button>
+            <button
+              key="Saisonalität"
+              className={`tab-button${activeTab === 'saisonalität' ? ' active' : ''}`}
+              onClick={() => setActiveTab('saisonalität')}
+            >
+              🌦️ Saisonalität
+            </button>
+            <button
+              key="Analysten"
+              className={`tab-button${activeTab === 'analysten' ? ' active' : ''}`}
+              onClick={() => setActiveTab('analysten')}
+            >
+              🧑 Analysten
             </button>
             <button 
               className={`tab-button ${activeTab === 'company' ? 'active' : ''}`}
