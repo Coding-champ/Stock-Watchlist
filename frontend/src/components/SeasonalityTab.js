@@ -10,10 +10,23 @@ function SeasonalityTab({ stockId }) {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch(`/api/stocks/${stockId}/seasonality?years_back=${selectedPeriod === 'all' ? '' : selectedPeriod.replace('y','')}`)
-      .then(res => res.json())
+    // Always send a valid years_back value; for 'all', use a sensible default (e.g., 15)
+    const yearsBack = selectedPeriod === 'all' ? '15' : selectedPeriod.replace('y', '');
+    fetch(`/api/stocks/${stockId}/seasonality?years_back=${yearsBack}`)
+      .then(res => {
+        if (!res.ok) {
+          throw new Error('API response not OK');
+        }
+        return res.json();
+      })
       .then(data => {
-        setSeasonality(data);
+        // Defensive: ensure data is array
+        if (Array.isArray(data)) {
+          setSeasonality(data);
+        } else {
+          setSeasonality([]);
+          setError('Ungültige Saisonalitätsdaten vom Server');
+        }
         setLoading(false);
       })
       .catch(err => {
@@ -29,8 +42,13 @@ function SeasonalityTab({ stockId }) {
     { key: '15y', label: '15 Jahre' }
   ];
 
-  const bestMonth = seasonality.reduce((prev, curr) => curr.avg_return > prev.avg_return ? curr : prev, seasonality[0] || {});
-  const worstMonth = seasonality.reduce((prev, curr) => curr.avg_return < prev.avg_return ? curr : prev, seasonality[0] || {});
+  // Defensive: only use reduce if seasonality is array and not empty
+  const bestMonth = Array.isArray(seasonality) && seasonality.length > 0
+    ? seasonality.reduce((prev, curr) => curr.avg_return > prev.avg_return ? curr : prev, seasonality[0])
+    : null;
+  const worstMonth = Array.isArray(seasonality) && seasonality.length > 0
+    ? seasonality.reduce((prev, curr) => curr.avg_return < prev.avg_return ? curr : prev, seasonality[0])
+    : null;
 
   return (
     <div className="seasonality-tab">
@@ -54,13 +72,13 @@ function SeasonalityTab({ stockId }) {
           <div className="summary-cards">
             <div className="summary-card best">
               <span role="img" aria-label="Bester Monat">📈</span>
-              <div>Bester Monat: <strong>{bestMonth.month_name}</strong></div>
-              <div>Ø Return: {bestMonth.avg_return}%</div>
+              <div>Bester Monat: <strong>{bestMonth ? bestMonth.month_name : 'Keine Daten'}</strong></div>
+              <div>Ø Return: {bestMonth ? bestMonth.avg_return + '%' : '-'}</div>
             </div>
             <div className="summary-card worst">
               <span role="img" aria-label="Schlechtester Monat">📉</span>
-              <div>Schlechtester Monat: <strong>{worstMonth.month_name}</strong></div>
-              <div>Ø Return: {worstMonth.avg_return}%</div>
+              <div>Schlechtester Monat: <strong>{worstMonth ? worstMonth.month_name : 'Keine Daten'}</strong></div>
+              <div>Ø Return: {worstMonth ? worstMonth.avg_return + '%' : '-'}</div>
             </div>
           </div>
           <div className="seasonality-table-wrapper">

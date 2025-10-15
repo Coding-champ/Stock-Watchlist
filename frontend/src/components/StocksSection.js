@@ -5,7 +5,7 @@ import StockModal from './StockModal';
 import StockDetailModal from './StockDetailModal';
 import StockChartModal from './StockChartModal';
 
-const API_BASE = process.env.REACT_APP_API_BASE || '';
+const API_BASE = process.env.REACT_APP_API_BASE || '/api';
 
 function StocksSection({ watchlist, watchlists, onShowToast }) {
   const [stocks, setStocks] = useState([]);

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import CalculatedMetricsTab from './CalculatedMetricsTab';
+import AnalystTab from './AnalystTab';
+import SeasonalityTab from './SeasonalityTab';
 import StockChart from './StockChart';
 import AlertModal from './AlertModal';
 import { getCurrencyForStock, getUnitForAlertType, getAlertTypeLabel, getConditionLabel, formatNumber } from '../utils/currencyUtils';
@@ -339,6 +341,20 @@ function StockDetailModal({ stock, onClose }) {
 
                 {/* Calculated Metrics */}
                 <CalculatedMetricsTab stockId={stock.id} />
+              </div>
+            )}
+
+            {/* SAISONALITÄT TAB */}
+            {activeTab === 'saisonalität' && (
+              <div className="tab-panel">
+                <SeasonalityTab stockId={stock.id} />
+              </div>
+            )}
+
+            {/* ANALYSTEN TAB */}
+            {activeTab === 'analysten' && (
+              <div className="tab-panel">
+                <AnalystTab stockId={stock.id} />
               </div>
             )}
 

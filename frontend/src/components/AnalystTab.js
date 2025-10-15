@@ -29,71 +29,77 @@ function AnalystTab({ stockId }) {
         <div className="error">{error}</div>
       ) : analystData ? (
         <>
-          <div className="summary-cards">
-            <div className="summary-card price">
-              <span role="img" aria-label="Kursziel">🎯</span>
-              <div>Ø Kursziel: <strong>{analystData.price_targets.target_mean} €</strong></div>
-              <div>Potential: {analystData.price_targets.upside_mean}%</div>
+          {analystData.price_targets && (
+            <div className="summary-cards">
+              <div className="summary-card price">
+                <span role="img" aria-label="Kursziel">🎯</span>
+                <div>Ø Kursziel: <strong>{analystData.price_targets.target_mean} €</strong></div>
+                <div>Potential: {analystData.price_targets.upside_mean}%</div>
+              </div>
+              <div className="summary-card analysts">
+                <span role="img" aria-label="Analysten">🧑‍💼</span>
+                <div>Anzahl Analysten: <strong>{analystData.price_targets.num_analysts}</strong></div>
+              </div>
             </div>
-            <div className="summary-card analysts">
-              <span role="img" aria-label="Analysten">🧑‍💼</span>
-              <div>Anzahl Analysten: <strong>{analystData.price_targets.num_analysts}</strong></div>
+          )}
+          {analystData.price_targets && (
+            <div className="analyst-table-wrapper">
+              <table className="analyst-table">
+                <thead>
+                  <tr>
+                    <th>Kursziel Hoch</th>
+                    <th>Kursziel Ø</th>
+                    <th>Kursziel Median</th>
+                    <th>Kursziel Tief</th>
+                    <th>Spread</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{analystData.price_targets.target_high} €</td>
+                    <td>{analystData.price_targets.target_mean} €</td>
+                    <td>{analystData.price_targets.target_median} €</td>
+                    <td>{analystData.price_targets.target_low} €</td>
+                    <td>{analystData.price_targets.target_spread} €</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          </div>
-          <div className="analyst-table-wrapper">
-            <table className="analyst-table">
-              <thead>
-                <tr>
-                  <th>Kursziel Hoch</th>
-                  <th>Kursziel Ø</th>
-                  <th>Kursziel Median</th>
-                  <th>Kursziel Tief</th>
-                  <th>Spread</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>{analystData.price_targets.target_high} €</td>
-                  <td>{analystData.price_targets.target_mean} €</td>
-                  <td>{analystData.price_targets.target_median} €</td>
-                  <td>{analystData.price_targets.target_low} €</td>
-                  <td>{analystData.price_targets.target_spread} €</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div className="recommendations-section">
-            <h3>Empfehlungen</h3>
-            <table className="recommendations-table">
-              <thead>
-                <tr>
-                  <th>Strong Buy</th>
-                  <th>Buy</th>
-                  <th>Hold</th>
-                  <th>Sell</th>
-                  <th>Strong Sell</th>
-                  <th>Konsens</th>
-                  <th>Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>{analystData.recommendations.current.strong_buy}</td>
-                  <td>{analystData.recommendations.current.buy}</td>
-                  <td>{analystData.recommendations.current.hold}</td>
-                  <td>{analystData.recommendations.current.sell}</td>
-                  <td>{analystData.recommendations.current.strong_sell}</td>
-                  <td>{analystData.recommendations.current.consensus_rating}</td>
-                  <td>{analystData.recommendations.current.consensus_score}</td>
-                </tr>
-              </tbody>
-            </table>
-            <div className="revision-info">
-              <div>Revisionen (1 Monat): {analystData.recommendations.revisions_1m}</div>
-              <div>Revisionen (3 Monate): {analystData.recommendations.revisions_3m}</div>
-              <div>Stand: {analystData.recommendations.latest_date}</div>
+          )}
+          {analystData.recommendations && analystData.recommendations.current && (
+            <div className="recommendations-section">
+              <h3>Empfehlungen</h3>
+              <table className="recommendations-table">
+                <thead>
+                  <tr>
+                    <th>Strong Buy</th>
+                    <th>Buy</th>
+                    <th>Hold</th>
+                    <th>Sell</th>
+                    <th>Strong Sell</th>
+                    <th>Konsens</th>
+                    <th>Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{analystData.recommendations.current.strong_buy}</td>
+                    <td>{analystData.recommendations.current.buy}</td>
+                    <td>{analystData.recommendations.current.hold}</td>
+                    <td>{analystData.recommendations.current.sell}</td>
+                    <td>{analystData.recommendations.current.strong_sell}</td>
+                    <td>{analystData.recommendations.current.consensus_rating}</td>
+                    <td>{analystData.recommendations.current.consensus_score}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div className="revision-info">
+                <div>Revisionen (1 Monat): {analystData.recommendations.revisions_1m}</div>
+                <div>Revisionen (3 Monate): {analystData.recommendations.revisions_3m}</div>
+                <div>Stand: {analystData.recommendations.latest_date}</div>
+              </div>
             </div>
-          </div>
+          )}
         </>
       ) : null}
     </div>

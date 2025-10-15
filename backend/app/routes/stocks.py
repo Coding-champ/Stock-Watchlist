@@ -28,60 +28,46 @@ from backend.app.services.yfinance_service import (
 )
 from backend.app.services.cache_service import StockDataCacheService
 from backend.app.services.stock_service import StockService
-
-router = APIRouter()
-
-# Analysten-Endpunkt
-@router.get("/{stock_id}/analyst-ratings")
-def get_stock_analyst_ratings(stock_id: int):
-    stock = get_stock(stock_id)
-    ticker_symbol = stock.ticker_symbol
-    overview = get_complete_analyst_overview(ticker_symbol)
-    return overview
-
-# Saisonalität-Endpunkt
-@router.get("/{stock_id}/seasonality")
-def get_stock_seasonality(stock_id: int, years_back: int = None):
-    prices = get_historical_prices(stock_id)
-    df = pd.DataFrame(prices)
-    seasonality = get_all_seasonalities(df)
-    if years_back:
-        key = f"{years_back}y"
-        result = seasonality.get(key, seasonality['all'])
-    else:
-        result = seasonality['all']
-    return result.to_dict(orient="records")
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
-from sqlalchemy import desc, asc, func
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta, date
-from threading import Lock
-import logging
-from backend.app import schemas
-from backend.app.models import (
-    Stock as StockModel,
-    StockInWatchlist as StockInWatchlistModel,
-    StockPriceData as StockPriceDataModel,
-    StockFundamentalData as StockFundamentalDataModel,
-    Watchlist as WatchlistModel,
-    ExtendedStockDataCache as ExtendedStockDataCacheModel,
-)
-from backend.app.database import get_db, SessionLocal
-from backend.app.services.yfinance_service import (
-    get_stock_info, get_current_stock_data, get_fast_market_data, get_extended_stock_data,
-    get_stock_dividends_and_splits, get_stock_calendar_and_earnings,
-    get_analyst_data, get_institutional_holders,
-    get_stock_info_by_identifier, get_ticker_from_isin,
-    calculate_technical_indicators
-)
-from backend.app.services.cache_service import StockDataCacheService
-from backend.app.services.stock_service import StockService
 from backend.app.services.historical_price_service import HistoricalPriceService
 from backend.app.services.fundamental_data_service import FundamentalDataService
 from backend.app.services.stock_query_service import StockQueryService
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
+
+# Analysten-Endpunkt mit Fehlerbehandlung
+@router.get("/{stock_id}/analyst-ratings")
+def get_stock_analyst_ratings(stock_id: int, db: Session = Depends(get_db)):
+    try:
+        # Call get_stock with only stock_id and db, not with Query objects
+        stock = get_stock(stock_id=stock_id, db=db)
+        if not stock:
+            return {"error": "Stock not found", "price_targets": {}, "recommendations": {}}
+        ticker_symbol = stock.ticker_symbol
+        overview = get_complete_analyst_overview(ticker_symbol)
+        return overview
+    except Exception as e:
+        import traceback
+        return {"error": str(e), "trace": traceback.format_exc(), "price_targets": {}, "recommendations": {}}
+
+
+# Saisonalität-Endpunkt mit Fehlerbehandlung
+@router.get("/{stock_id}/seasonality")
+def get_stock_seasonality(stock_id: int, years_back: int = None):
+    try:
+        prices = get_historical_prices(stock_id)
+        if not prices or len(prices) == 0:
+            return []
+        df = pd.DataFrame(prices)
+        seasonality = get_all_seasonalities(df)
+        if years_back:
+            key = f"{years_back}y"
+            result = seasonality.get(key, seasonality['all'])
+        else:
+            result = seasonality['all']
+        return result.to_dict(orient="records")
+    except Exception as e:
+        import traceback
+        return {"error": str(e), "trace": traceback.format_exc(), "data": []}
 
 logger = logging.getLogger(__name__)
 
