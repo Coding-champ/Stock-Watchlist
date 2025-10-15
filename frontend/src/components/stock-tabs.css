@@ -1,0 +1,123 @@
+.seasonality-tab {
+  padding: 1rem;
+}
+.period-selector {
+  margin-bottom: 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+.period-btn {
+  background: #f0f4fa;
+  border: 1px solid #c3d0e6;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-weight: 500;
+  color: #234;
+  transition: background 0.2s;
+}
+.period-btn.active {
+  background: #2a6edb;
+  color: #fff;
+  border-color: #2a6edb;
+}
+.summary-cards {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.summary-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 1rem;
+  min-width: 180px;
+  text-align: center;
+  font-size: 1rem;
+}
+.summary-card.best {
+  border-left: 4px solid #38b000;
+}
+.summary-card.worst {
+  border-left: 4px solid #d90429;
+}
+.seasonality-table-wrapper {
+  overflow-x: auto;
+}
+.seasonality-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+.seasonality-table th, .seasonality-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: right;
+}
+.seasonality-table th {
+  background: #f0f4fa;
+  color: #234;
+}
+.seasonality-table td.pos {
+  color: #38b000;
+  font-weight: 600;
+}
+.seasonality-table td.neg {
+  color: #d90429;
+  font-weight: 600;
+}
+.seasonality-table td {
+  text-align: right;
+}
+.seasonality-table td:first-child {
+  text-align: left;
+}
+.loading, .error {
+  margin: 2rem 0;
+  text-align: center;
+  color: #2a6edb;
+}
+.analyst-tab {
+  padding: 1rem;
+}
+.analyst-table-wrapper {
+  margin-bottom: 1rem;
+}
+.analyst-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.analyst-table th, .analyst-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: right;
+}
+.analyst-table th {
+  background: #f0f4fa;
+  color: #234;
+}
+.analyst-table td:first-child {
+  text-align: left;
+}
+.recommendations-section {
+  margin-top: 2rem;
+}
+.recommendations-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+.recommendations-table th, .recommendations-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: center;
+}
+.recommendations-table th {
+  background: #f0f4fa;
+  color: #234;
+}
+.revision-info {
+  font-size: 0.95rem;
+  color: #234;
+  margin-top: 0.5rem;
+}

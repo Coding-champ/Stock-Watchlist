@@ -5,6 +5,59 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta, date
 from threading import Lock
 import logging
+import pandas as pd
+from backend.app.services.yfinance_service import get_historical_prices
+from backend.app.services.seasonality_service import get_all_seasonalities
+from backend.app.services.analyst_service import get_complete_analyst_overview
+from backend.app import schemas
+from backend.app.models import (
+    Stock as StockModel,
+    StockInWatchlist as StockInWatchlistModel,
+    StockPriceData as StockPriceDataModel,
+    StockFundamentalData as StockFundamentalDataModel,
+    Watchlist as WatchlistModel,
+    ExtendedStockDataCache as ExtendedStockDataCacheModel,
+)
+from backend.app.database import get_db, SessionLocal
+from backend.app.services.yfinance_service import (
+    get_stock_info, get_current_stock_data, get_fast_market_data, get_extended_stock_data,
+    get_stock_dividends_and_splits, get_stock_calendar_and_earnings,
+    get_analyst_data, get_institutional_holders,
+    get_stock_info_by_identifier, get_ticker_from_isin,
+    calculate_technical_indicators
+)
+from backend.app.services.cache_service import StockDataCacheService
+from backend.app.services.stock_service import StockService
+
+router = APIRouter()
+
+# Analysten-Endpunkt
+@router.get("/{stock_id}/analyst-ratings")
+def get_stock_analyst_ratings(stock_id: int):
+    stock = get_stock(stock_id)
+    ticker_symbol = stock.ticker_symbol
+    overview = get_complete_analyst_overview(ticker_symbol)
+    return overview
+
+# Saisonalität-Endpunkt
+@router.get("/{stock_id}/seasonality")
+def get_stock_seasonality(stock_id: int, years_back: int = None):
+    prices = get_historical_prices(stock_id)
+    df = pd.DataFrame(prices)
+    seasonality = get_all_seasonalities(df)
+    if years_back:
+        key = f"{years_back}y"
+        result = seasonality.get(key, seasonality['all'])
+    else:
+        result = seasonality['all']
+    return result.to_dict(orient="records")
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+from sqlalchemy import desc, asc, func
+from typing import List, Optional, Dict, Any
+from datetime import datetime, timedelta, date
+from threading import Lock
+import logging
 from backend.app import schemas
 from backend.app.models import (
     Stock as StockModel,
