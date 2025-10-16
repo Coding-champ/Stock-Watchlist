@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import './VolumeProfile.css';
 
-const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:8000';
+const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:8080';
 
 /**
  * Volume Profile Component

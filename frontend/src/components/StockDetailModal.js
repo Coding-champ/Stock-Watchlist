@@ -7,7 +7,7 @@ import AlertModal from './AlertModal';
 import { getCurrencyForStock, getUnitForAlertType, getAlertTypeLabel, getConditionLabel, formatNumber } from '../utils/currencyUtils';
 import { useAlerts } from '../hooks/useAlerts';
 
-const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:8000';
+const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:8080';
 
 function StockDetailModal({ stock, onClose }) {
   const { alerts, loadAlerts, toggleAlert, deleteAlert } = useAlerts(stock.id);
