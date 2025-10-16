@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
+import './AnalystTab.css';
 
 function AnalystTab({ stockId }) {
   const [analystData, setAnalystData] = useState(null);
@@ -29,74 +30,97 @@ function AnalystTab({ stockId }) {
         <div className="error">{error}</div>
       ) : analystData ? (
         <>
+          {/* Kursziele Cards */}
           {analystData.price_targets && (
-            <div className="summary-cards">
-              <div className="summary-card price">
-                <span role="img" aria-label="Kursziel">🎯</span>
-                <div>Ø Kursziel: <strong>{analystData.price_targets.target_mean} €</strong></div>
-                <div>Potential: {analystData.price_targets.upside_mean}%</div>
+            <div className="analyst-cards">
+              <div className="analyst-card current">
+                <div className="analyst-card__title">Aktueller Kurs</div>
+                <div className="analyst-card__value">{analystData.price_targets.current_price} €</div>
               </div>
-              <div className="summary-card analysts">
-                <span role="img" aria-label="Analysten">🧑‍💼</span>
-                <div>Anzahl Analysten: <strong>{analystData.price_targets.num_analysts}</strong></div>
+              <div className="analyst-card mean">
+                <div className="analyst-card__title">Ø Kursziel</div>
+                <div className="analyst-card__value">{analystData.price_targets.target_mean} €</div>
+                <div className="analyst-card__potential" style={{color: analystData.price_targets.upside_mean >= 0 ? '#22c55e' : '#ef4444'}}>
+                  {analystData.price_targets.upside_mean >= 0 ? '+' : ''}{analystData.price_targets.upside_mean}% Potential
+                </div>
+              </div>
+              <div className="analyst-card high">
+                <div className="analyst-card__title">Höchstes Ziel</div>
+                <div className="analyst-card__value">{analystData.price_targets.target_high} €</div>
+                <div className="analyst-card__potential" style={{color: '#7c3aed'}}>
+                  +{analystData.price_targets.upside_high}% Potential
+                </div>
+              </div>
+              <div className="analyst-card low">
+                <div className="analyst-card__title">Niedrigstes Ziel</div>
+                <div className="analyst-card__value">{analystData.price_targets.target_low} €</div>
+                <div className="analyst-card__potential" style={{color: '#ef4444'}}>
+                  {analystData.price_targets.upside_low}% Potential
+                </div>
+              </div>
+              <div className="analyst-card spread">
+                <div className="analyst-card__title">Spread</div>
+                <div className="analyst-card__value">{analystData.price_targets.target_spread} €</div>
+                <div className="analyst-card__meta">{analystData.price_targets.target_spread_pct}%</div>
+              </div>
+              <div className="analyst-card analysts">
+                <div className="analyst-card__title">Anzahl Analysten</div>
+                <div className="analyst-card__value">{analystData.price_targets.num_analysts}</div>
               </div>
             </div>
           )}
-          {analystData.price_targets && (
-            <div className="analyst-table-wrapper">
-              <table className="analyst-table">
-                <thead>
-                  <tr>
-                    <th>Kursziel Hoch</th>
-                    <th>Kursziel Ø</th>
-                    <th>Kursziel Median</th>
-                    <th>Kursziel Tief</th>
-                    <th>Spread</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>{analystData.price_targets.target_high} €</td>
-                    <td>{analystData.price_targets.target_mean} €</td>
-                    <td>{analystData.price_targets.target_median} €</td>
-                    <td>{analystData.price_targets.target_low} €</td>
-                    <td>{analystData.price_targets.target_spread} €</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          )}
+
+          {/* Empfehlungen */}
           {analystData.recommendations && analystData.recommendations.current && (
-            <div className="recommendations-section">
-              <h3>Empfehlungen</h3>
-              <table className="recommendations-table">
-                <thead>
-                  <tr>
-                    <th>Strong Buy</th>
-                    <th>Buy</th>
-                    <th>Hold</th>
-                    <th>Sell</th>
-                    <th>Strong Sell</th>
-                    <th>Konsens</th>
-                    <th>Score</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>{analystData.recommendations.current.strong_buy}</td>
-                    <td>{analystData.recommendations.current.buy}</td>
-                    <td>{analystData.recommendations.current.hold}</td>
-                    <td>{analystData.recommendations.current.sell}</td>
-                    <td>{analystData.recommendations.current.strong_sell}</td>
-                    <td>{analystData.recommendations.current.consensus_rating}</td>
-                    <td>{analystData.recommendations.current.consensus_score}</td>
-                  </tr>
-                </tbody>
-              </table>
-              <div className="revision-info">
-                <div>Revisionen (1 Monat): {analystData.recommendations.revisions_1m}</div>
-                <div>Revisionen (3 Monate): {analystData.recommendations.revisions_3m}</div>
-                <div>Stand: {analystData.recommendations.latest_date}</div>
+            <div className="analyst-recommendations">
+              <div className="analyst-recommendations__header">
+                <div className={`analyst-recommendations__rating analyst-recommendations__rating--${analystData.recommendations.current.consensus_rating.toLowerCase()}`}
+                  style={{fontSize: '2.6rem', fontWeight: 800}}>
+                  {analystData.recommendations.current.consensus_rating}
+                </div>
+                <div className="analyst-recommendations__score">
+                  Score: <strong>{analystData.recommendations.current.consensus_score}</strong>/5.0
+                </div>
+                <div className="analyst-recommendations__meta">
+                  <span><strong>{analystData.price_targets.num_analysts}</strong> Analysten</span>
+                </div>
+              </div>
+              <div className="analyst-recommendations__bar-vertical">
+                {[
+                  {label: 'Strong Buy', value: analystData.recommendations.current.strong_buy, class: 'strong-buy', color: '#22c55e'},
+                  {label: 'Buy', value: analystData.recommendations.current.buy, class: 'buy', color: '#4ade80'},
+                  {label: 'Hold', value: analystData.recommendations.current.hold, class: 'hold', color: '#facc15', textColor: '#7c3aed'},
+                  {label: 'Sell', value: analystData.recommendations.current.sell, class: 'sell', color: '#f87171'},
+                  {label: 'Strong Sell', value: analystData.recommendations.current.strong_sell, class: 'strong-sell', color: '#ef4444'}
+                ].map((seg, idx) => {
+                  const pct = Math.round(seg.value / analystData.price_targets.num_analysts * 100);
+                  return (
+                    <div key={seg.label} className="analyst-bar-row">
+                      <div className="analyst-bar-label">{seg.label}</div>
+                      <div className="analyst-bar-track">
+                        <div
+                          className={`analyst-bar-fill analyst-bar-${seg.class}`}
+                          style={{width: `${pct}%`, background: seg.color, color: seg.textColor || '#fff'}}>
+                          {seg.value > 0 && <span className="analyst-bar-value">{seg.value}</span>}
+                        </div>
+                      </div>
+                      <div className="analyst-bar-percent">{pct}%</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="analyst-recommendations__revisions">
+                <span className="analyst-recommendations__revision-box analyst-recommendations__revision-box--blue">Revisionen (1 Monat): <strong>{analystData.recommendations.revisions_1m}</strong></span>
+                <span className="analyst-recommendations__revision-box analyst-recommendations__revision-box--purple">Revisionen (3 Monate): <strong>{analystData.recommendations.revisions_3m}</strong></span>
+              </div>
+              <div className="analyst-recommendations__date analyst-recommendations__revision-box analyst-recommendations__revision-box--gray">
+                {(() => {
+                  const rawDate = analystData.recommendations.latest_date;
+                  if (!rawDate || rawDate === '1970-01-01') return null;
+                  const dateObj = new Date(rawDate);
+                  if (isNaN(dateObj.getTime())) return null;
+                  return `Stand: ${dateObj.toLocaleDateString('de-DE')}`;
+                })()}
               </div>
             </div>
           )}

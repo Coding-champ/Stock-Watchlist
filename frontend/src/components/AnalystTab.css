@@ -1,0 +1,241 @@
+.analyst-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  min-width: 240px;
+}
+.analyst-bar-label {
+  width: 110px;
+  font-size: 1.08rem;
+  color: #22223b;
+  font-weight: 500;
+  text-align: left;
+}
+.analyst-bar-track {
+  flex: 1;
+  background: #eceff4;
+  border-radius: 999px;
+  height: 38px;
+  position: relative;
+  overflow: hidden;
+  min-width: 120px;
+  max-width: 420px;
+  display: flex;
+  align-items: center;
+}
+.analyst-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  font-size: 1.18rem;
+  padding-left: 20px;
+  transition: width 0.4s cubic-bezier(.4,1.3,.6,1);
+  position: relative;
+}
+.analyst-bar-strong-buy { background: #22c55e; }
+.analyst-bar-buy { background: #4ade80; }
+.analyst-bar-hold { background: #facc15; color: #7c3aed; }
+.analyst-bar-sell { background: #f87171; }
+.analyst-bar-strong-sell { background: #ef4444; }
+.analyst-bar-value {
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.08rem;
+  margin-right: 6px;
+}
+.analyst-bar-percent {
+  width: 38px;
+  text-align: right;
+  font-size: 1.08rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+.analyst-recommendations__bar-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+  margin: 18px 0 18px 0;
+  align-items: flex-start;
+  width: 100%;
+  max-width: 340px;
+}
+.analyst-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.analyst-card {
+  flex: 1 1 220px;
+  min-width: 200px;
+  background: #f8faff;
+  border: 1.5px solid #e0e7ef;
+  border-radius: 18px;
+  box-shadow: 0 4px 18px rgba(124, 58, 237, 0.06);
+  padding: 22px 24px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  position: relative;
+}
+
+.analyst-card.current {
+  background: #eaf3ff;
+  border-color: #b6d4fe;
+}
+.analyst-card.mean {
+  background: #e8fbe8;
+  border-color: #b6f0b6;
+}
+.analyst-card.high {
+  background: #f6f0ff;
+  border-color: #d1b6fe;
+}
+.analyst-card.low {
+  background: #fff7ed;
+  border-color: #ffd6b6;
+}
+.analyst-card.spread {
+  background: #f0f7ff;
+  border-color: #b6d4fe;
+}
+
+.analyst-card__title {
+  font-size: 1.08rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.analyst-card__value {
+  font-size: 2.1rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.analyst-card__potential {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.analyst-card__meta {
+  font-size: 0.95rem;
+  color: #6b7280;
+}
+
+.analyst-recommendations {
+  background: #fff;
+  border-radius: 18px;
+  border: 1.5px solid #e0e7ef;
+  box-shadow: 0 4px 18px rgba(124, 58, 237, 0.06);
+  padding: 24px 28px 18px 28px;
+  margin-bottom: 18px;
+}
+
+.analyst-recommendations__header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 12px;
+}
+.analyst-recommendations__rating {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #2563eb;
+}
+.analyst-recommendations__score {
+  font-size: 1.1rem;
+  color: #6b7280;
+}
+.analyst-recommendations__bar {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 18px 0;
+}
+.analyst-recommendations__rating--buy {
+  color: #2563eb;
+  background: linear-gradient(90deg, #e0e7ff 60%, #fff 100%);
+  border-radius: 12px;
+  padding: 6px 18px;
+  box-shadow: 0 2px 8px rgba(37,99,235,0.08);
+}
+.analyst-recommendations__rating--hold {
+  color: #facc15;
+  background: linear-gradient(90deg, #fef9c3 60%, #fff 100%);
+  border-radius: 12px;
+  padding: 6px 18px;
+  box-shadow: 0 2px 8px rgba(250,204,21,0.08);
+}
+.analyst-recommendations__rating--sell {
+  color: #ef4444;
+  background: linear-gradient(90deg, #fee2e2 60%, #fff 100%);
+  border-radius: 12px;
+  padding: 6px 18px;
+  box-shadow: 0 2px 8px rgba(239,68,68,0.08);
+}
+
+.analyst-recommendations__bar-segment {
+  height: 18px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: #fff;
+  padding: 0 10px;
+  position: relative;
+}
+.analyst-recommendations__bar-strong-buy { background: #22c55e; }
+.analyst-recommendations__bar-buy { background: #4ade80; }
+.analyst-recommendations__bar-hold { background: #facc15; color: #7c3aed; }
+.analyst-recommendations__bar-sell { background: #f87171; }
+.analyst-recommendations__bar-strong-sell { background: #a1a1aa; }
+
+.analyst-recommendations__revision-box {
+  border-radius: 10px;
+  display: inline-block;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.98rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  margin-right: 8px;
+  margin-bottom: 4px;
+  box-shadow: 0 2px 8px rgba(124,58,237,0.07);
+}
+.analyst-recommendations__revision-box--blue {
+  background: #e0f2fe;
+  color: #2563eb;
+}
+.analyst-recommendations__revision-box--purple {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+.analyst-recommendations__revision-box--gray {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+.analyst-recommendations__meta {
+  display: flex;
+  gap: 24px;
+  font-size: 1.02rem;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+.analyst-recommendations__meta strong {
+  color: #1f2937;
+  font-weight: 700;
+}
+.analyst-recommendations__revisions {
+  display: flex;
+  gap: 18px;
+  font-size: 0.98rem;
+  color: #6366f1;
+  margin-bottom: 2px;
+}
+.analyst-recommendations__date {
+  font-size: 0.92rem;
+  color: #9ca3af;
+}

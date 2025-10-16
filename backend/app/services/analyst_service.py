@@ -79,13 +79,14 @@ def analyze_recommendations(data: Dict) -> Dict:
     recs_3m_ago = recs_3m_ago.iloc[0] if len(recs_3m_ago) > 0 else None
     revisions_1m = len(recommendations_df[recommendations_df.index >= one_month_ago])
     revisions_3m = len(recommendations_df[recommendations_df.index >= three_months_ago])
+    latest_date = recommendations_df.index[0].strftime('%Y-%m-%d') if len(recommendations_df) > 0 else None
     result = {
         'current': format_recommendation(latest_recs) if latest_recs is not None else None,
         'revisions_1m': revisions_1m,
         'revisions_3m': revisions_3m,
         'changes_1m': calculate_recommendation_changes(recs_1m_ago, latest_recs) if recs_1m_ago is not None else None,
         'changes_3m': calculate_recommendation_changes(recs_3m_ago, latest_recs) if recs_3m_ago is not None else None,
-        'latest_date': recommendations_df.index[0].strftime('%Y-%m-%d') if len(recommendations_df) > 0 else None,
+        'latest_date': latest_date,
         'total_recommendations': len(recommendations_df)
     }
     return result
