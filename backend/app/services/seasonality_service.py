@@ -3,10 +3,31 @@ import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
-def calculate_monthly_returns(df: pd.DataFrame, price_col: str = 'Close') -> pd.DataFrame:
+def calculate_monthly_returns(df: pd.DataFrame, price_col: str = 'Close') -> pd.Series:
+    # Ensure index is datetime
     if not isinstance(df.index, pd.DatetimeIndex):
         df.index = pd.to_datetime(df.index)
+
+    # If no data, return empty Series
+    if df.empty:
+        return pd.Series(dtype=float)
+
+    # Resample to month-end prices (last available price in each calendar month)
     monthly_prices = df[price_col].resample('M').last()
+
+    # If the most recent month is incomplete (last row date before month end), drop it
+    last_row_date = df.index.max()
+    # Compute month end while preserving timezone info
+    try:
+        month_end = last_row_date + pd.offsets.MonthEnd(0)
+    except Exception:
+        # Fallback to period-based end_time (may drop tz)
+        month_end = last_row_date.to_period('M').end_time
+
+    if last_row_date < month_end:
+        if len(monthly_prices) > 0 and monthly_prices.index.max().month == last_row_date.month and monthly_prices.index.max().year == last_row_date.year:
+            monthly_prices = monthly_prices.iloc[:-1]
+
     monthly_returns = monthly_prices.pct_change() * 100
     return monthly_returns.dropna()
 

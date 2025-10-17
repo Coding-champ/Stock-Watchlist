@@ -1,0 +1,124 @@
+
+.btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #d6d6d6;
+  background: #f5f7fa;
+  color: #333;
+  cursor: pointer;
+  font-size: 14px;
+}
+.btn.btn-active {
+  background: #1e88e5;
+  color: #fff;
+  border: 1px solid #1e88e5;
+}
+
+.summary-container {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.card {
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
+  min-width: 220px;
+}
+.best-card {
+  border: 1px solid rgba(16,185,129,0.15);
+  background: #f3fff7;
+  color: #0b8a3a;
+}
+.worst-card {
+  border: 1px solid rgba(229,115,115,0.12);
+  background: #fff4f4;
+  color: #b71c1c;
+}
+.small-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.month {
+  font-size: 28px;
+  font-weight: 800;
+  margin-top: 6px;
+  margin-bottom: 6px;
+}
+.avg {
+  font-size: 16px;
+  color: inherit;
+  opacity: 0.95;
+}
+
+.chart-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+/* seasonality tab styles */
+/* chart container class is available for future styling */
+.seasonality-chart { display: block; }
+
+.seasonality-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+  margin-top: 16px;
+}
+.seasonality-table thead tr {
+  background: #eef2f6;
+  text-align: left;
+  border-bottom: 1px solid #e6eef6;
+}
+.custom-tooltip { background: white; padding: 8px; border: 1px solid #ddd; }
+.tooltip-label { font-size: 12px; margin-bottom: 6px; }
+.tooltip-items { font-size: 13px; }
+.tooltip-row { display: flex; justify-content: space-between; gap: 8px; }
+.tooltip-name { color: #000; }
+.tooltip-value { font-weight: 600; }
+
+.emoji { font-size: 18px; }
+
+.periods-container { display: flex; gap: 10px; margin-bottom: 12px; }
+
+.table-container { margin-top: 16px; }
+.seasonality-table th {
+  padding: 12px 16px;
+  color: #374151;
+  font-weight: 700;
+}
+.seasonality-table tbody tr:nth-child(even) { background: #fbfdff; }
+.seasonality-table tbody tr { background: #fff; }
+.seasonality-table td { padding: 12px 16px; color: #374151; }
+.month-name { font-weight: 600; }
+
+.win-pill {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 9999px;
+  font-weight: 700;
+}
+
+/* value cell variants used in seasonality table */
+.value-cell { padding: 12px 16px; font-size: 15px; }
+.value-pos { color: #16a34a; }
+.value-neg { color: #e11d48; }
+.value-emph { font-weight: 700; font-size: 17px; }
+
+/* win-pill color variants */
+.win-pill--high { background: rgba(16,185,129,0.12); color: #15803d; }
+.win-pill--mid { background: rgba(59,130,246,0.12); color: #2563eb; }
+.win-pill--low { background: rgba(244,63,94,0.12); color: #dc2626; }
+
+.count-cell { padding: 12px 16px; }

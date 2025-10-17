@@ -65,7 +65,7 @@ def get_stock_analyst_ratings(stock_id: int, db: Session = Depends(get_db)):
 
 # Saisonalität-Endpunkt mit Fehlerbehandlung
 @router.get("/{stock_id}/seasonality")
-def get_stock_seasonality(stock_id: int, years_back: int = None, db: Session = Depends(get_db)):
+def get_stock_seasonality(stock_id: int, years_back: int = None, include_series: bool = Query(False), db: Session = Depends(get_db)):
     import logging
     logger = logging.getLogger("seasonality_debug")
     try:
@@ -84,12 +84,70 @@ def get_stock_seasonality(stock_id: int, years_back: int = None, db: Session = D
         logger.info(f"Seasonality result keys: {list(seasonality.keys())}")
         if years_back:
             key = f"{years_back}y"
-            result = seasonality.get(key, seasonality['all'])
-            logger.info(f"Seasonality for {key}: {result}")
+            result_df = seasonality.get(key, seasonality['all'])
+            logger.info(f"Seasonality for {key}: {result_df}")
         else:
-            result = seasonality['all']
-            logger.info(f"Seasonality for all: {result}")
-        return result.to_dict(orient="records")
+            result_df = seasonality['all']
+            logger.info(f"Seasonality for all: {result_df}")
+
+        # If requested, build per-year monthly closes series (up to 10 years)
+        if include_series:
+            try:
+                # monthly_prices: last close per month (month-end)
+                monthly_prices = prices_df['Close'].resample('M').last()
+                # Determine available years (descending recent first)
+                available_years = sorted(set(monthly_prices.index.year), reverse=True)
+                # Decide how many years to include: prefer years_back if provided, else up to 10
+                max_years = min(10, int(years_back) if years_back else 10)
+                years_to_use = available_years[:max_years]
+
+                series_list = []
+                # We'll compute per-month OHLC for each year (open, high, low, close)
+                # Resample to monthly OHLC from the full prices DataFrame
+                monthly_ohlc = prices_df.resample('M').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last'})
+                for y in years_to_use:
+                    monthly_data = []
+                    monthly_closes = []
+                    for m in range(1, 13):
+                        matches = monthly_ohlc[(monthly_ohlc.index.year == y) & (monthly_ohlc.index.month == m)]
+                        if not matches.empty:
+                            row = matches.iloc[-1]
+                            o = None if pd.isna(row['Open']) else float(row['Open'])
+                            h = None if pd.isna(row['High']) else float(row['High'])
+                            l = None if pd.isna(row['Low']) else float(row['Low'])
+                            c = None if pd.isna(row['Close']) else float(row['Close'])
+                            monthly_data.append({"open": o, "high": h, "low": l, "close": c})
+                            monthly_closes.append(c)
+                        else:
+                            monthly_data.append({"open": None, "high": None, "low": None, "close": None})
+                            monthly_closes.append(None)
+                    series_list.append({"year": int(y), "monthly_ohlc": monthly_data, "monthly_closes": monthly_closes})
+                # Additionally, provide daily OHLC for the current year for detailed charts
+                try:
+                    current_year = datetime.now().year
+                    daily = prices_df[(prices_df.index.year == current_year)][['Open', 'High', 'Low', 'Close']]
+                    daily_list = []
+                    if not daily.empty:
+                        for idx, row in daily.iterrows():
+                            daily_list.append({
+                                'date': str(idx.date()),
+                                'open': None if pd.isna(row['Open']) else float(row['Open']),
+                                'high': None if pd.isna(row['High']) else float(row['High']),
+                                'low': None if pd.isna(row['Low']) else float(row['Low']),
+                                'close': None if pd.isna(row['Close']) else float(row['Close'])
+                            })
+                    else:
+                        daily_list = []
+                except Exception as e:
+                    logger.warning(f"Failed to build daily series for current year: {e}")
+                    daily_list = []
+            except Exception as e:
+                logger.warning(f"Failed to build series for seasonality: {e}")
+                series_list = []
+
+            return {"seasonality": result_df.to_dict(orient="records"), "series": series_list, "current_year_daily_ohlc": daily_list}
+
+        return result_df.to_dict(orient="records")
     except Exception as e:
         import traceback
         logger.error(f"Exception in seasonality endpoint: {e}\n{traceback.format_exc()}")

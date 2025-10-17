@@ -238,6 +238,29 @@ The React app will run on http://localhost:3000 and proxy API requests to the ba
 - `DELETE /stocks/{id}` - Delete stock
 - **`GET /stocks/{id}/with-calculated-metrics`** ⭐ - Get stock with complete analysis
 
+### Seasonality endpoint (series)
+
+- `GET /stocks/{id}/seasonality?years_back=<n>&include_series=true` - Returns monthly seasonality summary and, when `include_series=true` and the requested period is <= 10 years, an array of per-year monthly close series useful for plotting individual yearly lines.
+
+Example response shape:
+
+```json
+{
+  "seasonality": [
+    { "month": 1, "month_name": "Januar", "avg_return": 1.23, "median_return": 0.95, "win_rate": 58, "total_count": 40 },
+    ...
+  ],
+  "series": [
+    { "year": 2024, "monthly_closes": [100.0, 102.3, 101.5, ...] },
+    { "year": 2023, "monthly_closes": [95.2, 96.1, 98.7, ...] }
+  ]
+}
+```
+
+Notes:
+- `series` contains up to 10 recent years (newest first). Each `monthly_closes` array has 12 entries (null if a month is missing).
+- The frontend requests `include_series=true` automatically for time windows up to 10 years to render per-year lines on the seasonality chart.
+
 ### Stock Data
 - `GET /stock-data/{stock_id}` - Get historical data for a stock
 - `POST /stock-data/` - Add new stock data entry
