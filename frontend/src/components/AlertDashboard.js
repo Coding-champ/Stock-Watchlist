@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAlertTypeLabel, getConditionLabel, getUnitForAlertType, formatNumber } from '../utils/currencyUtils';
 import { useAlerts } from '../hooks/useAlerts';
-
-const API_BASE = process.env.REACT_APP_API_BASE || '';
+import API_BASE from '../config';
 
 function AlertDashboard({ onClose, showToast }) {
   const { alerts, loading, loadAlerts, toggleAlert, deleteAlert, checkAllAlerts } = useAlerts(null, showToast);

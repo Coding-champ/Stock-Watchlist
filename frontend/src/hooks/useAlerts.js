@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 
-const API_BASE = process.env.REACT_APP_API_BASE || '/api';
+import API_BASE from '../config';
 
 /**
  * Custom Hook for managing alerts

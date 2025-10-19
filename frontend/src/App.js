@@ -6,7 +6,7 @@ import AlertDashboard from './components/AlertDashboard';
 import { useAlerts } from './hooks/useAlerts';
 import ScreenerView from './components/screener/ScreenerView';
 
-const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:8080';
+import API_BASE from './config';
 
 function App() {
   const [watchlists, setWatchlists] = useState([]);
