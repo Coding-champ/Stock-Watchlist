@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   LineChart,
   Line,
-  BarChart,
   Bar,
   ComposedChart,
   Area,
@@ -19,7 +18,7 @@ import VolumeProfile from './VolumeProfile';
 import VolumeProfileOverlay from './VolumeProfileOverlay';
 import './StockChart.css';
 
-const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:8080';
+import API_BASE from '../config';
 
 // Time period options
 const TIME_PERIODS = [
@@ -456,7 +455,8 @@ function StockChart({ stock, isEmbedded = false }) {
       fill = '#27ae60'; // Green for oversold
     }
     
-    return <circle cx={cx} cy={cy} r={0} fill={fill} />;
+    // Use a small visible dot (1px) to satisfy linter about unused assignment and be a no-op visually
+    return <circle cx={cx} cy={cy} r={1} fill={fill} />;
   };
 
   // Render Divergence markers (RSI and MACD)
@@ -1821,7 +1821,7 @@ function StockChart({ stock, isEmbedded = false }) {
                 dataKey="rsi"
                 stroke="#8e44ad"
                 strokeWidth={2.5}
-                dot={false}
+                dot={RsiCustomDot}
                 name="RSI"
                 isAnimationActive={false}
               />

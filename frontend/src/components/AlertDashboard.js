@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getAlertTypeLabel, getConditionLabel, getUnitForAlertType, formatNumber } from '../utils/currencyUtils';
 import { useAlerts } from '../hooks/useAlerts';
 import API_BASE from '../config';
@@ -9,11 +9,7 @@ function AlertDashboard({ onClose, showToast }) {
   const [filter, setFilter] = useState('all'); // 'all', 'active', 'inactive', 'triggered'
   const [sortBy, setSortBy] = useState('created'); // 'created', 'triggered', 'stock', 'type'
 
-  useEffect(() => {
-    loadAllData();
-  }, []);
-
-  const loadAllData = async () => {
+  const loadAllData = useCallback(async () => {
     try {
       // Load alerts
       await loadAlerts();
@@ -35,7 +31,11 @@ function AlertDashboard({ onClose, showToast }) {
       console.error('Error loading data:', error);
       if (showToast) showToast('Fehler beim Laden der Daten', 'error');
     }
-  };
+  }, [loadAlerts, showToast]);
+
+  useEffect(() => {
+    loadAllData();
+  }, [loadAllData]);
 
   const handleToggleAlert = async (alert) => {
     await toggleAlert(alert);

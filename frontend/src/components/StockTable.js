@@ -373,11 +373,7 @@ function StockTable({
     const weekPerformance = priceData && typeof priceData.fifty_two_week_low === 'number'
       ? calculatePerformance(priceData.fifty_two_week_low, displayPrice)
       : null;
-    const fiftyTwoWeekRange = priceData && 
-      typeof priceData.fifty_two_week_low === 'number' && 
-      typeof priceData.fifty_two_week_high === 'number'
-      ? `${formatCurrency(priceData.fifty_two_week_low)} - ${formatCurrency(priceData.fifty_two_week_high)}`
-      : null;
+    
     
     const fiftyTwoWeekLow = priceData && typeof priceData.fifty_two_week_low === 'number'
       ? formatCurrency(priceData.fifty_two_week_low)
@@ -409,7 +405,6 @@ function StockTable({
       currentPerformance,
       watchlistPerformance,
       weekPerformance,
-      fiftyTwoWeekRange,
       fiftyTwoWeekLow,
       fiftyTwoWeekHigh,
       fiftyTwoWeekPosition,
@@ -508,7 +503,6 @@ function StockTable({
             currentPerformance,
             watchlistPerformance,
             weekPerformance,
-            fiftyTwoWeekRange,
             fiftyTwoWeekLow,
             fiftyTwoWeekHigh,
             fiftyTwoWeekPosition,

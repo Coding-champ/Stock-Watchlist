@@ -4,10 +4,10 @@ import AnalystTab from './AnalystTab';
 import SeasonalityTab from './SeasonalityTab';
 import StockChart from './StockChart';
 import AlertModal from './AlertModal';
-import { getCurrencyForStock, getUnitForAlertType, getAlertTypeLabel, getConditionLabel, formatNumber } from '../utils/currencyUtils';
+import { getUnitForAlertType, getAlertTypeLabel, getConditionLabel, formatNumber } from '../utils/currencyUtils';
 import { useAlerts } from '../hooks/useAlerts';
 
-const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:8080';
+import API_BASE from '../config';
 
 function StockDetailModal({ stock, onClose }) {
   const { alerts, loadAlerts, toggleAlert, deleteAlert } = useAlerts(stock.id);

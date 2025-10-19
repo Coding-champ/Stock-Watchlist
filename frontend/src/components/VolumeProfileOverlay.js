@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './VolumeProfileOverlay.css';
 
-const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:8080';
+import API_BASE from '../config';
 
 /**
  * Volume Profile Overlay Component
@@ -61,7 +61,7 @@ function VolumeProfileOverlay({
     };
 
     fetchVolumeProfile();
-  }, [stockId, period, numBins]); // Removed onProfileLoad from dependencies
+  }, [stockId, period, numBins, onProfileLoad]);
 
   // Separate useEffect to call onProfileLoad when data changes
   useEffect(() => {
