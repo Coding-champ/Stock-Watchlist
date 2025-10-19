@@ -112,9 +112,11 @@
 
 /* value cell variants used in seasonality table */
 .value-cell { padding: 12px 16px; font-size: 15px; }
-.value-pos { color: #16a34a; }
-.value-neg { color: #e11d48; }
-.value-emph { font-weight: 700; font-size: 17px; }
+/* make these selectors specific to table cells so they override .seasonality-table td color */
+.seasonality-table td.value-pos { color: #16a34a; }
+.seasonality-table td.value-neg { color: #e11d48; }
+.seasonality-table td.value-neutral { color: var(--color-muted, #6b7280); }
+.seasonality-table td.value-emph { font-weight: 700; font-size: 17px; }
 
 /* win-pill color variants */
 .win-pill--high { background: rgba(16,185,129,0.12); color: #15803d; }

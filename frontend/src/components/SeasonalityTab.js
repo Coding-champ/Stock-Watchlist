@@ -351,8 +351,6 @@ function SeasonalityTab({ stockId }) {
     );
   };
 
-  // Custom candle renderer is intentionally omitted while Variante A is paused.
-
   const periods = [
     { key: 'all', label: 'Gesamt' },
     { key: '5y', label: '5 Jahre' },
@@ -404,8 +402,6 @@ function SeasonalityTab({ stockId }) {
               <div className="avg">Durchschnitt: {worstMonth ? formatPercent(worstMonth.avg_return) : '-'}</div>
             </div>
           </div>
-
-          {/* (Tageskerzen entfernt) */}
 
           {/* Chart showing average return per month */}
           <div className="seasonality-chart" aria-label="Saisonalität durchschnittliche Rendite pro Monat">
@@ -520,18 +516,26 @@ function SeasonalityTab({ stockId }) {
                     <td className="month-name">{row.month_name}</td>
                     {/* Emphasize large moves (abs >= 5%) */}
                     {(() => {
-                      const avg = Number(row.avg_return) || 0;
-                      const avgEmph = Math.abs(avg) >= 5;
-                      const med = Number(row.median_return) || 0;
-                      const medEmph = Math.abs(med) >= 5;
+                      // Determine numeric values; treat null/undefined/NaN as missing
+                      const avgRaw = row.avg_return;
+                      const medRaw = row.median_return;
 
-                      const avgClass = `value-cell ${avg > 0 ? 'value-pos' : 'value-neg'} ${avgEmph ? 'value-emph' : ''}`;
-                      const medClass = `value-cell ${med > 0 ? 'value-pos' : 'value-neg'} ${medEmph ? 'value-emph' : ''}`;
+                      const avg = (avgRaw === null || avgRaw === undefined || Number.isNaN(Number(avgRaw))) ? null : Number(avgRaw);
+                      const med = (medRaw === null || medRaw === undefined || Number.isNaN(Number(medRaw))) ? null : Number(medRaw);
+
+                      const avgEmph = avg !== null && Math.abs(avg) >= 5;
+                      const medEmph = med !== null && Math.abs(med) >= 5;
+
+                      const avgPolarity = avg === null ? 'value-neutral' : (avg > 0 ? 'value-pos' : (avg < 0 ? 'value-neg' : 'value-neutral'));
+                      const medPolarity = med === null ? 'value-neutral' : (med > 0 ? 'value-pos' : (med < 0 ? 'value-neg' : 'value-neutral'));
+
+                      const avgClass = `value-cell ${avgPolarity} ${avgEmph ? 'value-emph' : ''}`;
+                      const medClass = `value-cell ${medPolarity} ${medEmph ? 'value-emph' : ''}`;
 
                       return (
                         <>
-                          <td className={avgClass}>{formatPercent(row.avg_return)}</td>
-                          <td className={medClass}>{row.median_return === null || row.median_return === undefined ? '-' : formatPercent(row.median_return)}</td>
+                          <td className={avgClass}>{avg === null ? '-' : formatPercent(avg)}</td>
+                          <td className={medClass}>{med === null ? '-' : formatPercent(med)}</td>
                         </>
                       );
                     })()}

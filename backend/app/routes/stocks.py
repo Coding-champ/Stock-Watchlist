@@ -917,9 +917,14 @@ def get_stock_extended_data(
     if not stock:
         raise HTTPException(status_code=404, detail="Stock not found")
     
-    # Use cache service to get data
+    # Use cache service to get data (call safely in case implementation is missing)
     cache_service = StockDataCacheService(db)
-    cached_data, cache_hit = cache_service.get_cached_extended_data(stock_id, force_refresh)
+    _getter = getattr(cache_service, 'get_cached_extended_data', None)
+    if not callable(_getter):
+        logging.warning(f"Cache service missing method get_cached_extended_data; cache_service={type(cache_service)}; attrs={[a for a in dir(cache_service) if not a.startswith('__')][:50]}")
+        cached_data, cache_hit = None, False
+    else:
+        cached_data, cache_hit = _getter(stock_id, force_refresh)
     
     if not cached_data or not cached_data.get('extended_data'):
         raise HTTPException(
@@ -991,8 +996,13 @@ def get_stock_detailed(
     # Use intelligent cache service for performance optimization
     try:
         cache_service = StockDataCacheService(db)
-        cached_data, cache_hit = cache_service.get_cached_extended_data(stock_id, force_refresh)
-        extended_data = cached_data.get('extended_data') if cached_data else None
+        _getter = getattr(cache_service, 'get_cached_extended_data', None)
+        if not callable(_getter):
+            logger.warning(f"Cache service missing method get_cached_extended_data; cache_service={type(cache_service)}; attrs={[a for a in dir(cache_service) if not a.startswith('__')][:50]}")
+            extended_data = None
+        else:
+            cached_data, cache_hit = _getter(stock_id, force_refresh)
+            extended_data = cached_data.get('extended_data') if cached_data else None
         
         if not extended_data:
             # Fallback to direct API call if cache fails
@@ -1000,7 +1010,14 @@ def get_stock_detailed(
     except Exception as e:
         # If cache fails, fallback to direct yfinance call
         import logging
-        logging.warning(f"Cache service failed for stock {stock_id}: {str(e)}")
+        try:
+            # If cache_service variable exists in scope, include its type and attributes for debugging
+            cache_service_type = type(cache_service) if 'cache_service' in locals() else None
+            cache_attrs = [a for a in dir(cache_service) if not a.startswith('__')] if 'cache_service' in locals() else []
+        except Exception:
+            cache_service_type = None
+            cache_attrs = []
+        logging.warning(f"Cache service failed for stock {stock_id}: {str(e)}; cache_service_type={cache_service_type}; sample_attrs={cache_attrs[:30]}")
         extended_data = get_extended_stock_data(stock.ticker_symbol)
     
     if not extended_data:
@@ -1180,8 +1197,13 @@ def get_stock_with_calculated_metrics(
     # Get extended data (with caching)
     try:
         cache_service = StockDataCacheService(db)
-        cached_data, cache_hit = cache_service.get_cached_extended_data(stock_id, force_refresh)
-        extended_data = cached_data.get('extended_data') if cached_data else None
+        _getter = getattr(cache_service, 'get_cached_extended_data', None)
+        if not callable(_getter):
+            logger.warning(f"Cache service missing method get_cached_extended_data; cache_service={type(cache_service)}; attrs={[a for a in dir(cache_service) if not a.startswith('__')][:50]}")
+            extended_data = None
+        else:
+            cached_data, cache_hit = _getter(stock_id, force_refresh)
+            extended_data = cached_data.get('extended_data') if cached_data else None
         
         if not extended_data:
             extended_data = get_extended_stock_data(stock.ticker_symbol)
@@ -1488,7 +1510,12 @@ def update_market_data(
         try:
             cache_service = StockDataCacheService(db)
             # Force refresh extended data to get latest PE ratio and fundamentals (uses .info internally)
-            extended_data_result, _ = cache_service.get_cached_extended_data(stock_id, force_refresh=True)
+            _getter = getattr(cache_service, 'get_cached_extended_data', None)
+            if not callable(_getter):
+                logger.warning(f"Cache service missing method get_cached_extended_data during market update; cache_service={type(cache_service)}; attrs={[a for a in dir(cache_service) if not a.startswith('__')][:50]}")
+                extended_data_result = None
+            else:
+                extended_data_result, _ = _getter(stock_id, force_refresh=True)
             if extended_data_result and extended_data_result.get('extended_data'):
                 financial_ratios = extended_data_result['extended_data'].get('financial_ratios', {})
                 pe_ratio = financial_ratios.get('pe_ratio')

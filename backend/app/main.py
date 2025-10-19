@@ -71,10 +71,15 @@ app.include_router(screener.router)
 async def startup_event():
     """Start background services on application startup"""
     try:
-        from backend.app.services.scheduler import start_scheduler
-        # Check alerts every 15 minutes
-        start_scheduler(interval_minutes=15)
-        logger.info("Background alert scheduler started")
+        # Scheduler can be disabled via environment variable for debugging or CI
+        enable_scheduler = os.environ.get("ENABLE_SCHEDULER", "true").lower() != "false"
+        if enable_scheduler:
+            from backend.app.services.scheduler import start_scheduler
+            # Check alerts every 15 minutes
+            start_scheduler(interval_minutes=15)
+            logger.info("Background alert scheduler started")
+        else:
+            logger.info("Background alert scheduler disabled via ENABLE_SCHEDULER=false")
     except Exception as e:
         logger.error(f"Failed to start alert scheduler: {e}")
 
