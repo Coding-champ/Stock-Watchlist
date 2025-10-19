@@ -26,9 +26,10 @@ body {
   font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background: radial-gradient(115% 115% at 10% 0%, #f5f3ff 0%, #eef2ff 45%, #ffffff 100%);
   color: var(--text-main);
-  padding: 30px 20px 55px;
+  /* increase page padding for more breathing room */
+  padding: 64px 48px 80px;
   min-height: 100vh;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .app-shell {
@@ -44,7 +45,7 @@ body {
   max-width: 1440px;
   width: 100%;
   margin: 0 auto;
-  padding: 40px;
+  padding: 48px;
   border-radius: var(--radius-large);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.98) 100%);
   border: 1px solid rgba(148, 163, 184, 0.18);
@@ -126,15 +127,131 @@ h1 {
 }
 
 .layout {
+  --sidebar-width: minmax(180px, 290px);
   display: grid;
-  grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
-  gap: 32px;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  gap: 26px;
+  /* allow smooth animation when sidebar width changes - slower for a softer feel */
+  transition: grid-template-columns 420ms cubic-bezier(.22,.9,.35,1);
 }
 
 .layout__sidebar {
   position: sticky;
   top: 32px;
   align-self: flex-start;
+}
+
+.layout--sidebar-collapsed {
+  --sidebar-width: 72px;
+}
+
+/* When collapsed, increase the horizontal gap so the main content has breathing room */
+
+.layout--sidebar-collapsed {
+  gap: 10px;
+}
+
+/* Add extra left padding to the content area when the sidebar is collapsed */
+.layout--sidebar-collapsed .layout__content {
+  padding-left: 26px;
+}
+
+/* Small margin for panels so their borders don't butt against the grid edge */
+.layout--sidebar-collapsed .layout__content .panel {
+  margin-left: 12px;
+  margin-right: 12px;
+  transition: margin 260ms cubic-bezier(.22,.9,.35,1);
+}
+
+.sidebar-placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(140deg, rgba(124, 58, 237, 0.08), rgba(99, 102, 241, 0.04));
+  border: 1px solid var(--brand-border);
+  cursor: pointer;
+}
+
+.sidebar-placeholder:focus {
+  outline: 3px solid rgba(124, 58, 237, 0.25);
+}
+
+.sidebar-placeholder__title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--brand-primary-dark);
+}
+
+.sidebar-placeholder__current {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+/* When sidebar is collapsed visually hide the full panel children (use opacity+transform so transitions run) */
+.layout__sidebar .panel__header,
+.layout__sidebar .watchlist-container,
+.layout__sidebar .panel__title,
+.layout__sidebar .panel__subtitle,
+.layout__sidebar .panel__title-group {
+  transition: opacity 380ms cubic-bezier(.22,.9,.35,1), transform 380ms cubic-bezier(.22,.9,.35,1);
+}
+
+.layout__sidebar--collapsed .panel__header,
+.layout__sidebar--collapsed .watchlist-container,
+.layout__sidebar--collapsed .panel__title,
+.layout__sidebar--collapsed .panel__subtitle,
+.layout__sidebar--collapsed .panel__title-group {
+  opacity: 0;
+  transform: translateX(-10px);
+  pointer-events: none;
+}
+
+.sidebar-mini {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.watchlist-mini-toggle {
+  background: transparent;
+  border: none;
+  color: var(--brand-primary-dark);
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.watchlist-mini-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.watchlist-mini-card {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: linear-gradient(135deg, rgba(124,58,237,0.14), rgba(99,102,241,0.06));
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(79,70,229,0.08);
+}
+
+.watchlist-mini-card.active {
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-light));
+  color: #fff;
+  box-shadow: var(--shadow-strong);
+}
+
+.watchlist-mini-card__icon {
+  font-weight: 700;
+  color: var(--brand-primary-dark);
 }
 
 .layout__content {
@@ -160,21 +277,48 @@ h1 {
     position: static;
     order: 1;
   }
+}
 
-  .layout__content {
-    order: 2;
+  .layout__sidebar--collapsed .panel__header,
+  .layout__sidebar--collapsed .watchlist-container,
+  .layout__sidebar--collapsed .panel__title,
+  .layout__sidebar--collapsed .panel__subtitle,
+  .layout__sidebar--collapsed .panel__title-group {
+    opacity: 0;
+    transform: translateX(-10px);
+    pointer-events: none;
+    /* keep elements in flow but visually hidden so the width transition animates smoothly */
   }
-}
 
-.panel {
-  background: var(--brand-surface-soft);
-  border-radius: var(--radius-large);
-  padding: 28px;
-  border: 1px solid var(--brand-border);
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(10px);
-  transition: box-shadow 0.25s ease, transform 0.2s ease;
-}
+  /* Ensure the mini list is visible and can animate in */
+  .sidebar-mini {
+    opacity: 0;
+    transform: translateX(8px) scale(.96);
+    transition: opacity 360ms cubic-bezier(.22,.9,.35,1) 120ms, transform 360ms cubic-bezier(.22,.9,.35,1) 120ms;
+  }
+
+  .layout__sidebar--collapsed .sidebar-mini {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+
+  /* mini-card pop effect */
+  .watchlist-mini-card {
+    transition: transform 320ms cubic-bezier(.22,.9,.35,1), box-shadow 320ms ease;
+  }
+
+  .layout__sidebar--collapsed .watchlist-mini-card {
+    transform: scale(1);
+  }
+
+  .watchlist-mini-card:not(.active) {
+    transform: scale(.96);
+  }
+
+  .layout__sidebar--collapsed .watchlist-mini-card:not(.active) {
+    transform: scale(1);
+  }
+
 
 .panel:hover {
   box-shadow: var(--shadow-strong);
@@ -421,14 +565,15 @@ h1 {
   margin-bottom: 18px;
 }
 
-label {
-  display: block;
-  margin-bottom: 6px;
-  color: var(--brand-primary-dark);
-  font-weight: 600;
-  font-size: 0.85rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+.panel {
+  background: var(--brand-surface-soft);
+  border-radius: var(--radius-large);
+  /* increase panel padding for more internal spacing */
+  padding: 36px;
+  border: 1px solid var(--brand-border);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(10px);
+  transition: box-shadow 0.25s ease, transform 0.2s ease, margin 200ms ease;
 }
 
 input,

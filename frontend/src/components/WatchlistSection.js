@@ -16,7 +16,7 @@ const getInitials = (name = '') => {
   return initials || trimmed.slice(0, 2).toUpperCase();
 };
 
-function WatchlistSection({ watchlists, currentWatchlist, onWatchlistSelect, onWatchlistsChange, onShowToast }) {
+function WatchlistSection({ watchlists, currentWatchlist, onWatchlistSelect, onWatchlistsChange, onShowToast, collapsed = false, onToggleCollapsed = () => {} }) {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ name: '', description: '' });
 
@@ -66,6 +66,40 @@ function WatchlistSection({ watchlists, currentWatchlist, onWatchlistSelect, onW
 
   return (
     <section className="panel panel--watchlists" aria-label="Watchlists">
+      {collapsed && (
+        <div className="sidebar-mini" aria-hidden={false}>
+          <button
+            type="button"
+            className="watchlist-mini-toggle"
+            onClick={onToggleCollapsed}
+            title="Sidebar öffnen"
+            aria-label="Sidebar öffnen"
+          >
+            ‹
+          </button>
+
+          <div className="watchlist-mini-list" role="list" aria-label="Watchlists">
+            {watchlists.map((wl) => {
+              const initials = getInitials(wl.name);
+              const isActive = currentWatchlist?.id === wl.id;
+
+              return (
+                <button
+                  key={wl.id}
+                  type="button"
+                  role="listitem"
+                  title={wl.name}
+                  aria-label={`Öffne Watchlist ${wl.name}`}
+                  className={`watchlist-mini-card ${isActive ? 'active' : ''}`}
+                  onClick={() => onWatchlistSelect(wl)}
+                >
+                  <span className="watchlist-mini-card__icon">{initials}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <div className="panel__header">
         <div className="panel__title-group">
           <span className="panel__eyebrow">Listen</span>
@@ -80,7 +114,7 @@ function WatchlistSection({ watchlists, currentWatchlist, onWatchlistSelect, onW
         </button>
       </div>
 
-  <div className="watchlist-container">
+      <div className="watchlist-container">
         {watchlists.length === 0 ? (
           <div className="empty-state empty-state--card">
             <h3>Leg direkt los</h3>

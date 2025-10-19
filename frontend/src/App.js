@@ -102,6 +102,15 @@ function App() {
     }
   };
 
+  // Collapsed sidebar state: when true the sidebar shows a compact placeholder
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const handleWatchlistSelectAndCollapse = (watchlist) => {
+    handleWatchlistSelect(watchlist);
+    // Collapse sidebar on select
+    setSidebarCollapsed(true);
+  };
+
   return (
     <div className="app-shell">
       {toast && typeof document !== 'undefined' && (
@@ -202,14 +211,16 @@ function App() {
         )}
 
         {activeView === 'screener' && (
-          <div className="layout">
-            <aside className="layout__sidebar">
+          <div className={`layout ${sidebarCollapsed ? 'layout--sidebar-collapsed' : ''}`}>
+            <aside className={`layout__sidebar ${sidebarCollapsed ? 'layout__sidebar--collapsed' : ''}`}>
               <WatchlistSection
                 watchlists={watchlists}
                 currentWatchlist={currentWatchlist}
-                onWatchlistSelect={handleWatchlistSelect}
+                onWatchlistSelect={handleWatchlistSelectAndCollapse}
                 onWatchlistsChange={loadWatchlists}
                 onShowToast={showToast}
+                collapsed={sidebarCollapsed}
+                onToggleCollapsed={() => setSidebarCollapsed((s) => !s)}
               />
             </aside>
             <main className="layout__content">
@@ -219,14 +230,16 @@ function App() {
         )}
 
         {activeView === 'watchlist' && (
-          <div className="layout">
-            <aside className="layout__sidebar">
+          <div className={`layout ${sidebarCollapsed ? 'layout--sidebar-collapsed' : ''}`}>
+            <aside className={`layout__sidebar ${sidebarCollapsed ? 'layout__sidebar--collapsed' : ''}`}>
               <WatchlistSection
                 watchlists={watchlists}
                 currentWatchlist={currentWatchlist}
-                onWatchlistSelect={handleWatchlistSelect}
+                onWatchlistSelect={handleWatchlistSelectAndCollapse}
                 onWatchlistsChange={loadWatchlists}
                 onShowToast={showToast}
+                collapsed={sidebarCollapsed}
+                onToggleCollapsed={() => setSidebarCollapsed((s) => !s)}
               />
             </aside>
             <main className="layout__content">
