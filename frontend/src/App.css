@@ -2194,6 +2194,47 @@ tr:hover {
   color: #dc3545;
 }
 
+/* Stock header and change badge for Chart modal (inserted next to title) */
+.stock-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.stock-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+.stock-change-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #e6f4ea; /* light green */
+  color: #155724; /* dark green text */
+  border-radius: 18px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04) inset;
+}
+.stock-change-badge.negative {
+  background-color: #fdecea;
+  color: #7a1f1f;
+}
+.stock-change-label {
+  opacity: 0.9;
+  font-weight: 700;
+}
+.stock-change-values {
+  white-space: nowrap;
+}
+.stock-change-placeholder {
+  opacity: 0.65;
+  font-weight: 600;
+}
+
 .chart-rsi-zone {
   fill: rgba(255, 193, 7, 0.12);
   stroke: none;

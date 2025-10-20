@@ -41,6 +41,59 @@ function StockDetailModal({ stock, onClose }) {
     loadExtendedData();
   }, [loadAlerts, loadExtendedData]);
 
+  const changeInfo = React.useMemo(() => {
+    const current = extendedData?.price_data?.current_price;
+    // try multiple possible keys for previous close
+    const prev = extendedData?.price_data?.previous_close ?? extendedData?.price_data?.previousClose ?? extendedData?.price_data?.previous_close_price ?? null;
+    if (typeof current === 'number' && typeof prev === 'number') {
+      const absolute = current - prev;
+      const relative = prev !== 0 ? (absolute / prev) * 100 : 0;
+      return { absolute, relative };
+    }
+    return null;
+  }, [extendedData]);
+
+  // If extendedData doesn't provide a previous close, try to fetch the last two price datapoints
+  const [fetchedChangeInfo, setFetchedChangeInfo] = useState(null);
+  useEffect(() => {
+    let mounted = true;
+    const controller = new AbortController();
+
+    const needsFetch = !changeInfo && stock && stock.id;
+    if (!needsFetch) return undefined;
+
+    (async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/stock-data/${stock.id}?limit=2`, { signal: controller.signal });
+        if (!resp.ok) return;
+        const json = await resp.json();
+
+        // Normalize and sort by timestamp ascending (same approach as StockTable)
+        const raw = Array.isArray(json) ? json : [];
+        const filtered = raw.filter((e) => e && e.current_price != null);
+        const ordered = filtered.slice().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        // Use the last two valid samples (robust against ordering differences)
+        if (ordered.length >= 2 && mounted) {
+          const first = Number(ordered[ordered.length - 2].current_price);
+          const last = Number(ordered[ordered.length - 1].current_price);
+          if (!Number.isNaN(first) && !Number.isNaN(last)) {
+            const absolute = last - first;
+            const relative = first !== 0 ? (absolute / first) * 100 : 0;
+            setFetchedChangeInfo({ absolute, relative });
+          }
+        }
+      } catch (e) {
+        // ignore errors silently
+      }
+    })();
+
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, [changeInfo, stock]);
+
   const formatCurrency = (value, currency = '$') => {
     if (value === null || value === undefined) return '-';
     if (typeof value === 'number') {
@@ -88,7 +141,27 @@ function StockDetailModal({ stock, onClose }) {
       <div className="modal-content expanded" onClick={(e) => e.stopPropagation()}>
         <span className="close" onClick={onClose}>&times;</span>
         <div className="stock-detail-content">
-          <h2>{stock.name} ({stock.ticker_symbol})</h2>
+          <div className="stock-header">
+            <h2>{stock.name} ({stock.ticker_symbol})</h2>
+            {
+              (() => {
+                const info = changeInfo ?? fetchedChangeInfo;
+                const cls = info ? (info.absolute >= 0 ? 'positive' : 'negative') : '';
+                return (
+                  <div className={`stock-change-badge ${cls}`} role="status" aria-live="polite">
+                    <div className="stock-change-label">Veränderung:</div>
+                    <div className="stock-change-values">
+                      {info ? (
+                        <>{info.absolute >= 0 ? '+' : ''}${info.absolute.toFixed(2)} ({info.relative >= 0 ? '+' : ''}{info.relative.toFixed(2)}%)</>
+                      ) : (
+                        <span className="stock-change-placeholder">—</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()
+            }
+          </div>
           
           {/* Tab Navigation */}
           <div className="tab-navigation">
