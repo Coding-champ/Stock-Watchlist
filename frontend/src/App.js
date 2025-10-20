@@ -152,7 +152,7 @@ function App() {
               fontSize: '0.9rem',
               fontWeight: '600',
               boxShadow: '0 4px 12px rgba(124, 58, 237, 0.2)',
-              transition: 'all 0.2s',
+              transition: 'all var(--motion-short)',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '8px'

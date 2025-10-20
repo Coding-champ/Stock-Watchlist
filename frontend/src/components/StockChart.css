@@ -48,7 +48,7 @@
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
-  transition: all 0.2s ease;
+  transition: all var(--motion-short) ease;
 }
 
 .period-button:hover,
@@ -119,7 +119,7 @@
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
-  transition: background 0.2s ease;
+  transition: background var(--motion-short) ease;
   white-space: nowrap;
 }
 
@@ -167,7 +167,7 @@
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
-  transition: background 0.2s ease;
+  transition: background var(--motion-short) ease;
 }
 
 .export-button:hover {
@@ -321,7 +321,7 @@
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
-  transition: background 0.2s ease;
+  transition: background var(--motion-short) ease;
 }
 
 .retry-button:hover {

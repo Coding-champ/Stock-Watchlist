@@ -14,7 +14,7 @@
   cursor: pointer;
   font-weight: 500;
   color: #234;
-  transition: background 0.2s;
+  transition: background var(--motion-short);
 }
 .period-btn.active {
   background: #2a6edb;

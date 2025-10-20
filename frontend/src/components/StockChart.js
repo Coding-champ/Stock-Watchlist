@@ -1078,7 +1078,7 @@ function StockChart({ stock, isEmbedded = false }) {
                         color: fibonacciType === 'retracement' ? 'white' : '#007bff',
                         cursor: 'pointer',
                         fontWeight: fibonacciType === 'retracement' ? 'bold' : 'normal',
-                        transition: 'all 0.2s'
+                        transition: 'all var(--motion-short)'
                       }}
                     >
                       📉 Retracement
@@ -1094,7 +1094,7 @@ function StockChart({ stock, isEmbedded = false }) {
                         color: fibonacciType === 'extension' ? 'white' : '#28a745',
                         cursor: 'pointer',
                         fontWeight: fibonacciType === 'extension' ? 'bold' : 'normal',
-                        transition: 'all 0.2s'
+                        transition: 'all var(--motion-short)'
                       }}
                     >
                       📈 Extension
@@ -1123,7 +1123,7 @@ function StockChart({ stock, isEmbedded = false }) {
                             border: '1px solid ' + (selectedFibLevels[level] ? '#2196f3' : '#dee2e6'),
                             borderRadius: '3px',
                             cursor: 'pointer',
-                            transition: 'all 0.2s'
+                            transition: 'all var(--motion-short)'
                           }}>
                             <input
                               type="checkbox"
@@ -1149,7 +1149,7 @@ function StockChart({ stock, isEmbedded = false }) {
                             border: '1px solid ' + (selectedExtensionLevels[level] ? '#4caf50' : '#dee2e6'),
                             borderRadius: '3px',
                             cursor: 'pointer',
-                            transition: 'all 0.2s'
+                            transition: 'all var(--motion-short)'
                           }}>
                             <input
                               type="checkbox"

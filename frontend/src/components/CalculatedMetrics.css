@@ -29,7 +29,7 @@
   z-index: 1000;
   font-size: 13px;
   line-height: 1.5;
-  animation: tooltipFadeIn 0.2s ease-out;
+  animation: tooltipFadeIn var(--motion-short) ease-out;
 }
 
 @keyframes tooltipFadeIn {
@@ -185,7 +185,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  transition: background 0.2s;
+  transition: background var(--motion-short);
 }
 
 .refresh-button:hover {
@@ -275,7 +275,7 @@
   border-radius: 8px;
   padding: 20px;
   text-align: center;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform var(--motion-short), box-shadow var(--motion-short);
 }
 
 .score-card:hover {

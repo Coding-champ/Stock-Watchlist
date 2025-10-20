@@ -16,10 +16,39 @@
   --brand-surface-soft: rgba(255, 255, 255, 0.72);
   --shadow-soft: 0 18px 40px rgba(15, 23, 42, 0.1);
   --shadow-strong: 0 28px 60px rgba(79, 70, 229, 0.16);
+  /* purple-tinged mid shadow used in cards */
+  --shadow-purple-soft: 0 14px 34px rgba(79, 70, 229, 0.12);
+  /* small, subtle shadows */
+  --shadow-muted: 0 8px 20px rgba(79, 70, 229, 0.08);
+  /* frequently used semi-transparent overlays */
+  --overlay-ghost: rgba(255, 255, 255, 0.7);
+  /* motion timing tokens so we can tune globally */
+  --motion-long: 420ms;
+  --motion-medium: 260ms;
+  --motion-short: 200ms;
   --text-main: #1f2937;
   --text-muted: #6b7280;
   --radius-large: 24px;
   --radius-medium: 18px;
+}
+
+/* Hint to the browser which properties will change on animated elements */
+.panel,
+.watchlist-card,
+.btn,
+.stock-card,
+.watchlist-mini-card {
+  will-change: transform, box-shadow, opacity;
+}
+
+/* Respect user's reduced motion preference for accessibility and perf */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 body {
@@ -304,7 +333,7 @@ h1 {
 
   /* mini-card pop effect */
   .watchlist-mini-card {
-    transition: transform 320ms cubic-bezier(.22,.9,.35,1), box-shadow 320ms ease;
+    transition: transform var(--motion-medium) cubic-bezier(.22,.9,.35,1), box-shadow var(--motion-medium) ease;
   }
 
   .layout__sidebar--collapsed .watchlist-mini-card {
@@ -493,7 +522,7 @@ h1 {
   font-size: 0.95rem;
   font-weight: 600;
   letter-spacing: 0.01em;
-  transition: transform 0.2s ease, box-shadow 0.25s ease, filter 0.2s ease;
+  transition: transform var(--motion-short) ease, box-shadow var(--motion-medium) ease, filter var(--motion-short) ease;
   box-shadow: var(--shadow-soft);
 }
 
@@ -573,7 +602,7 @@ h1 {
   border: 1px solid var(--brand-border);
   box-shadow: var(--shadow-soft);
   backdrop-filter: blur(10px);
-  transition: box-shadow 0.25s ease, transform 0.2s ease, margin 200ms ease;
+  transition: box-shadow var(--motion-medium) ease, transform var(--motion-short) ease, margin var(--motion-short) ease;
 }
 
 input,
@@ -639,9 +668,9 @@ textarea {
   cursor: pointer;
   text-align: left;
   background: linear-gradient(140deg, rgba(124, 58, 237, 0.12), rgba(99, 102, 241, 0.08));
-  box-shadow: 0 14px 34px rgba(79, 70, 229, 0.12);
+  box-shadow: var(--shadow-purple-soft);
   color: var(--text-main);
-  transition: transform 0.2s ease, box-shadow 0.25s ease;
+  transition: transform var(--motion-short) ease, box-shadow var(--motion-short) ease;
 }
 
 .watchlist-card::after {
@@ -651,7 +680,7 @@ textarea {
   border-radius: 22px;
   border: 1px solid var(--brand-border);
   pointer-events: none;
-  transition: border-color 0.2s ease;
+  transition: border-color var(--motion-short) ease;
 }
 
 .watchlist-card:hover {
@@ -1029,7 +1058,7 @@ tr:hover {
   border: 1px solid rgba(124, 58, 237, 0.12);
   background: linear-gradient(135deg, rgba(243, 244, 255, 0.85), #ffffff);
   box-shadow: 0 18px 38px rgba(79, 70, 229, 0.12);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: transform var(--motion-short) ease, box-shadow var(--motion-short) ease, border-color var(--motion-short) ease;
   cursor: pointer;
   /* Clip tiny overflow to keep rounded corners clean */
   overflow: hidden;
@@ -1235,7 +1264,7 @@ tr:hover {
   border-radius: 50%;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--motion-short) ease;
 }
 
 .stock-card__price-range-marker-dot:hover {
