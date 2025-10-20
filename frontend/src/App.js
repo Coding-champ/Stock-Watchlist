@@ -103,7 +103,7 @@ function App() {
   };
 
   // Collapsed sidebar state: when true the sidebar shows a compact placeholder
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
   const handleWatchlistSelectAndCollapse = (watchlist) => {
     handleWatchlistSelect(watchlist);
@@ -213,6 +213,16 @@ function App() {
         {activeView === 'screener' && (
           <div className={`layout ${sidebarCollapsed ? 'layout--sidebar-collapsed' : ''}`}>
             <aside className={`layout__sidebar ${sidebarCollapsed ? 'layout__sidebar--collapsed' : ''}`}>
+              <button
+                type="button"
+                className="sidebar-toggle"
+                aria-label={sidebarCollapsed ? 'Sidebar ausklappen' : 'Sidebar einklappen'}
+                onClick={() => setSidebarCollapsed((s) => !s)}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" fill="currentColor" />
+                </svg>
+              </button>
               <WatchlistSection
                 watchlists={watchlists}
                 currentWatchlist={currentWatchlist}
@@ -232,6 +242,16 @@ function App() {
         {activeView === 'watchlist' && (
           <div className={`layout ${sidebarCollapsed ? 'layout--sidebar-collapsed' : ''}`}>
             <aside className={`layout__sidebar ${sidebarCollapsed ? 'layout__sidebar--collapsed' : ''}`}>
+              <button
+                type="button"
+                className="sidebar-toggle"
+                aria-label={sidebarCollapsed ? 'Sidebar ausklappen' : 'Sidebar einklappen'}
+                onClick={() => setSidebarCollapsed((s) => !s)}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" fill="currentColor" />
+                </svg>
+              </button>
               <WatchlistSection
                 watchlists={watchlists}
                 currentWatchlist={currentWatchlist}
