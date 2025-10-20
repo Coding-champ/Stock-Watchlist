@@ -1685,6 +1685,29 @@ tr:hover {
   z-index: 20;
 }
 
+/* Portal variant: when rendered into body we position via inline styles but keep visual styles */
+.action-menu__list--portal {
+  /* Visual style for portal variant. Position is controlled inline via JS to allow fixed or absolute placement. */
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+  background: linear-gradient(180deg, #ffffff, #fbfbfe);
+  border: 2px solid rgba(124,58,237,0.12);
+  /* Ensure it's visible by default; JS can override other properties via inline style */
+  display: block;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (max-width: 720px) {
+  .action-menu__list--portal {
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+  }
+}
+
+
+
 .action-menu__item {
   width: 100%;
   border: none;

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import AlertModal from './AlertModal';
 
 import API_BASE from '../config';
@@ -32,6 +33,7 @@ function StockTable({
 }) {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [menuCoords, setMenuCoords] = useState(null);
   const [transferContext, setTransferContext] = useState(null);
   const [sparklineSeries, setSparklineSeries] = useState({});
   const [extendedDataMap, setExtendedDataMap] = useState({});
@@ -215,6 +217,21 @@ function StockTable({
     };
   }, [openMenuId, transferContext]);
 
+  // Close menu on Escape
+  useEffect(() => {
+    if (openMenuId === null) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        setOpenMenuId(null);
+        setMenuCoords(null);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [openMenuId]);
+
+  // (debug DOM append removed)
+
   useEffect(() => {
     if (!transferContext) {
       return;
@@ -353,7 +370,77 @@ function StockTable({
   const toggleMenu = (event, stockId) => {
     event.stopPropagation();
     setTransferContext(null);
-    setOpenMenuId((prev) => (prev === stockId ? null : stockId));
+    setOpenMenuId((prev) => {
+      const willOpen = prev !== stockId;
+      if (willOpen) {
+        try {
+          const MENU_WIDTH = 240;
+          const MENU_ESTIMATED_HEIGHT = 320; // used only for flip heuristic
+          const winW = typeof window !== 'undefined' ? window.innerWidth : 1024;
+          const winH = typeof window !== 'undefined' ? window.innerHeight : 768;
+
+          // Resolve the trigger element reliably
+          let triggerEl = null;
+          try {
+            triggerEl = event.currentTarget || (event.target && event.target.closest && event.target.closest('.action-menu__trigger')) || event.target || null;
+          } catch (err) {
+            triggerEl = event.currentTarget || event.target || null;
+          }
+
+          if (!triggerEl || !(triggerEl instanceof Element) || !triggerEl.classList || !triggerEl.classList.contains('action-menu__trigger')) {
+            const byAttr = document.querySelector(`.action-menu__trigger[data-stock-id="${stockId}"]`);
+            if (byAttr) triggerEl = byAttr;
+          }
+
+          const rect = triggerEl && triggerEl.getBoundingClientRect ? triggerEl.getBoundingClientRect() : null;
+
+          // We render the portal with position: fixed, so coordinates must be viewport-based (client coordinates)
+          let top = Math.round((winH - MENU_ESTIMATED_HEIGHT) / 2);
+          let left = Math.round((winW - MENU_WIDTH) / 2);
+
+          if (rect) {
+            const desiredLeft = rect.left + (rect.width / 2) - (MENU_WIDTH / 2);
+            const clampedLeft = Math.round(Math.max(8, Math.min(desiredLeft, winW - MENU_WIDTH - 8)));
+
+            // Compute page-relative coordinates so the portal moves with page scroll
+            const scrollY = typeof window !== 'undefined' ? window.scrollY || window.pageYOffset || 0 : 0;
+            const scrollX = typeof window !== 'undefined' ? window.scrollX || window.pageXOffset || 0 : 0;
+            const pageLeft = clampedLeft + scrollX;
+
+            // default pageTop below trigger (shift a few pixels down for better spacing)
+            let pageTop = Math.round(rect.bottom + 18 + scrollY);
+            // Flip above if there isn't enough space in the viewport below
+            if (rect.bottom + MENU_ESTIMATED_HEIGHT + 16 > winH) {
+              pageTop = Math.round(Math.max(8, rect.top - MENU_ESTIMATED_HEIGHT - 8 + scrollY));
+            }
+
+            setMenuCoords({ top: pageTop, left: pageLeft, width: MENU_WIDTH, absolute: true });
+          } else {
+            // Fallback to click coordinates (client coords are already viewport-relative)
+            const clientX = event.clientX || (event.nativeEvent && event.nativeEvent.clientX) || Math.round(winW / 2);
+            const clientY = event.clientY || (event.nativeEvent && event.nativeEvent.clientY) || Math.round(winH / 2);
+            const desiredLeft = clientX - (MENU_WIDTH / 2);
+            const clampedLeft = Math.round(Math.max(8, Math.min(desiredLeft, winW - MENU_WIDTH - 8)));
+            const scrollY = typeof window !== 'undefined' ? window.scrollY || window.pageYOffset || 0 : 0;
+            const scrollX = typeof window !== 'undefined' ? window.scrollX || window.pageXOffset || 0 : 0;
+            const pageLeft = clampedLeft + scrollX;
+            let pageTop = Math.round((clientY + 18) + scrollY);
+            if (clientY + MENU_ESTIMATED_HEIGHT + 16 > winH) {
+              pageTop = Math.round(Math.max(8, clientY - MENU_ESTIMATED_HEIGHT - 8 + scrollY));
+            }
+            setMenuCoords({ top: pageTop, left: pageLeft, width: MENU_WIDTH, absolute: true });
+          }
+
+          // keep the page-based coordinates set above; do not overwrite with viewport defaults
+        } catch (err) {
+          setMenuCoords(null);
+        }
+      } else {
+        setMenuCoords(null);
+      }
+
+      return willOpen ? stockId : null;
+    });
   };
 
   const sortedStocks = getSortedStocks();
@@ -622,6 +709,7 @@ function StockTable({
                   <button
                     type="button"
                     className="action-menu__trigger"
+                    data-stock-id={stock.id}
                     aria-haspopup="menu"
                     aria-expanded={openMenuId === stock.id}
                     aria-label="Weitere Aktionen"
@@ -630,132 +718,179 @@ function StockTable({
                   >
                     ⋮
                   </button>
-                  {openMenuId === stock.id && (
-                    <div className="action-menu__list" role="menu">
-                      <button
-                        type="button"
-                        className="action-menu__item"
-                        role="menuitem"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setOpenMenuId(null);
-                          if (onShowChart) {
-                            onShowChart(stock);
-                          }
-                        }}
-                      >
-                        <span>Chart anzeigen</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="action-menu__item"
-                        role="menuitem"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setOpenMenuId(null);
-                          setAlertModalStock(stock);
-                        }}
-                      >
-                        <span>🔔 Alarm hinzufügen</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="action-menu__item"
-                        role="menuitem"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setOpenMenuId(null);
-                          if (onUpdateMarketData) {
-                            onUpdateMarketData(stock.id);
-                          }
-                        }}
-                      >
-                        <span>Marktdaten aktualisieren</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="action-menu__item"
-                        role="menuitem"
-                        disabled={availableTargets.length === 0}
-                        aria-disabled={availableTargets.length === 0}
-                        onClick={(event) => {
-                          openTransferPanel(event, stock.id, availableTargets, 'move');
-                        }}
-                      >
-                        <span>Verschieben</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="action-menu__item"
-                        role="menuitem"
-                        disabled={availableTargets.length === 0}
-                        aria-disabled={availableTargets.length === 0}
-                        onClick={(event) => {
-                          openTransferPanel(event, stock.id, availableTargets, 'copy');
-                        }}
-                      >
-                        <span>Kopieren</span>
-                      </button>
-                      {transferContext?.stockId === stock.id && availableTargets.length > 0 && (
-                        <div
-                          className="action-menu__move-panel"
-                          role="group"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <span className="action-menu__move-label">
-                            {transferContext?.action === 'copy' ? 'In Watchlist kopieren' : 'Ziel-Watchlist'}
-                          </span>
-                          <select
-                            value={transferContext.selectedWatchlistId ?? ''}
-                            onChange={handleTransferSelectionChange}
-                          >
-                            {availableTargets.map((watchlist) => (
-                              <option key={watchlist.id} value={String(watchlist.id)}>
-                                {watchlist.name || `Watchlist ${watchlist.id}`}
-                              </option>
-                            ))}
-                          </select>
-                          <div className="action-menu__move-actions">
-                            <button
-                              type="button"
-                              className="action-menu__move-button action-menu__move-button--cancel"
-                              onClick={handleCancelTransfer}
-                            >
-                              Abbrechen
-                            </button>
-                            <button
-                              type="button"
-                              className="action-menu__move-button action-menu__move-button--confirm"
-                              onClick={(event) => handleConfirmTransfer(event, stock.id, availableTargets)}
-                            >
-                              {transferContext?.action === 'copy' ? 'Kopieren' : 'Verschieben'}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                      {availableTargets.length === 0 && (
-                        <div className="action-menu__hint">Keine weiteren Watchlists verfügbar</div>
-                      )}
-                      <button
-                        type="button"
-                        className="action-menu__item action-menu__item--danger"
-                        role="menuitem"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setOpenMenuId(null);
-                          onDeleteStock(stock.id);
-                        }}
-                      >
-                        <span>Löschen</span>
-                      </button>
-                    </div>
-                  )}
+                  {/* menu is rendered via portal to avoid being clipped by overflow: hidden ancestors */}
                 </div>
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Portal action menu (renders to body to avoid clipping) */}
+      {typeof document !== 'undefined' && openMenuId !== null && createPortal(
+        <div
+          className="action-menu__list action-menu__list--portal"
+          role="menu"
+          style={{
+            position: (menuCoords && menuCoords.absolute) ? 'absolute' : 'fixed',
+            top: `${(menuCoords && menuCoords.top) ? `${menuCoords.top}px` : '50%'}`,
+            left: `${(menuCoords && menuCoords.left) ? `${menuCoords.left}px` : '50%'}`,
+            width: `${(menuCoords && menuCoords.width) ? `${menuCoords.width}px` : 'min(320px, 92vw)'}`,
+            transform: `${menuCoords ? 'none' : 'translate(-50%, -50%)'}`,
+            zIndex: 99999
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {(() => {
+            // Try to locate the stock entry robustly: prefer enrichedStocks (full data),
+            // fall back to raw stocks array if needed (may happen when filters changed).
+            let entry = enrichedStocks.find((en) => en.stock.id === openMenuId) || null;
+            if (!entry) {
+              const raw = stocks.find((s) => s.id === openMenuId);
+              if (raw) {
+                entry = {
+                  stock: raw,
+                  latestData: raw.latest_data || raw.latestData || {},
+                  sparkData: sparklineSeries[raw.id]?.values || [],
+                  displayPrice: (raw.latest_data?.current_price || raw.latestData?.current_price) || null,
+                  priceTimestamp: raw.latest_data?.timestamp || raw.latestData?.timestamp || null
+                };
+              }
+            }
+
+            const stock = entry?.stock;
+            const availableTargets = stock ? watchlists.filter((wl) => wl.id !== currentWatchlistId) : [];
+
+            if (!stock) {
+              return (
+                <div className="action-menu__item">Nicht verfügbar</div>
+              );
+            }
+
+            return (
+              <>
+                <button
+                  type="button"
+                  className="action-menu__item"
+                  role="menuitem"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setOpenMenuId(null);
+                    if (onShowChart) {
+                      onShowChart(stock);
+                    }
+                  }}
+                >
+                  <span>Chart anzeigen</span>
+                </button>
+                <button
+                  type="button"
+                  className="action-menu__item"
+                  role="menuitem"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setOpenMenuId(null);
+                    setAlertModalStock(stock);
+                  }}
+                >
+                  <span>🔔 Alarm hinzufügen</span>
+                </button>
+                <button
+                  type="button"
+                  className="action-menu__item"
+                  role="menuitem"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setOpenMenuId(null);
+                    if (onUpdateMarketData) {
+                      onUpdateMarketData(stock.id);
+                    }
+                  }}
+                >
+                  <span>Marktdaten aktualisieren</span>
+                </button>
+                <button
+                  type="button"
+                  className="action-menu__item"
+                  role="menuitem"
+                  disabled={availableTargets.length === 0}
+                  aria-disabled={availableTargets.length === 0}
+                  onClick={(event) => {
+                    openTransferPanel(event, stock.id, availableTargets, 'move');
+                  }}
+                >
+                  <span>Verschieben</span>
+                </button>
+                <button
+                  type="button"
+                  className="action-menu__item"
+                  role="menuitem"
+                  disabled={availableTargets.length === 0}
+                  aria-disabled={availableTargets.length === 0}
+                  onClick={(event) => {
+                    openTransferPanel(event, stock.id, availableTargets, 'copy');
+                  }}
+                >
+                  <span>Kopieren</span>
+                </button>
+                {transferContext?.stockId === stock.id && availableTargets.length > 0 && (
+                  <div
+                    className="action-menu__move-panel"
+                    role="group"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <span className="action-menu__move-label">
+                      {transferContext?.action === 'copy' ? 'In Watchlist kopieren' : 'Ziel-Watchlist'}
+                    </span>
+                    <select
+                      value={transferContext.selectedWatchlistId ?? ''}
+                      onChange={handleTransferSelectionChange}
+                    >
+                      {availableTargets.map((watchlist) => (
+                        <option key={watchlist.id} value={String(watchlist.id)}>
+                          {watchlist.name || `Watchlist ${watchlist.id}`}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="action-menu__move-actions">
+                      <button
+                        type="button"
+                        className="action-menu__move-button action-menu__move-button--cancel"
+                        onClick={handleCancelTransfer}
+                      >
+                        Abbrechen
+                      </button>
+                      <button
+                        type="button"
+                        className="action-menu__move-button action-menu__move-button--confirm"
+                        onClick={(event) => handleConfirmTransfer(event, stock.id, availableTargets)}
+                      >
+                        {transferContext?.action === 'copy' ? 'Kopieren' : 'Verschieben'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {availableTargets.length === 0 && (
+                  <div className="action-menu__hint">Keine weiteren Watchlists verfügbar</div>
+                )}
+                <button
+                  type="button"
+                  className="action-menu__item action-menu__item--danger"
+                  role="menuitem"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setOpenMenuId(null);
+                    onDeleteStock(stock.id);
+                  }}
+                >
+                  <span>Löschen</span>
+                </button>
+              </>
+            );
+          })()}
+        </div>,
+        document.body
+      )}
 
       {/* Alert Modal */}
       {alertModalStock && (
