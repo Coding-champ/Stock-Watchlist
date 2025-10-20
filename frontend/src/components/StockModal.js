@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-
-const API_BASE = process.env.REACT_APP_API_BASE || '';
+import API_BASE from '../config';
 
 const OBSERVATION_REASON_OPTIONS = [
   { value: 'chart_technical', label: 'Charttechnische Indikatoren' },

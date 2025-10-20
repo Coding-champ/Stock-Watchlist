@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
-const API_BASE = process.env.REACT_APP_API_BASE || '';
+import API_BASE from '../config';
 
 const TIMEFRAME_OPTIONS = [
   { key: '7', label: '7T', limit: 7 },

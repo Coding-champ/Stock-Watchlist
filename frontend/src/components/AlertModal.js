@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useAlerts } from '../hooks/useAlerts';
-
-const API_BASE = process.env.REACT_APP_API_BASE || '';
+import API_BASE from '../config';
 
 // Funktion zum Ermitteln der Währung
 function getCurrencyForStock(stock) {

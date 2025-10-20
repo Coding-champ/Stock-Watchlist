@@ -4,7 +4,7 @@ This is the React frontend for the Stock Watchlist application.
 
 ## Project Structure
 
-```
+```text
 frontend/
 ├── public/              # Static files
 │   ├── favicon.ico     # App icon
@@ -37,7 +37,7 @@ npm install
 npm start
 ```
 
-The app will run on [http://localhost:3000](http://localhost:3000) and automatically proxy API requests to the backend on port 8000.
+The app will run on [http://localhost:3000](http://localhost:3000) and automatically proxy API requests to the backend (see `src/setupProxy.js`).
 
 ### Build for Production
 
@@ -61,6 +61,22 @@ This creates an optimized production build in the `build/` directory, which is s
 The frontend communicates with the FastAPI backend using the Fetch API. The base URL is configured to work with both development (via proxy) and production modes.
 
 All API endpoints are documented in the backend's Swagger UI at [http://localhost:8000/docs](http://localhost:8000/docs).
+
+### API base configuration
+
+The frontend uses a centralized `API_BASE` exported from `src/config.js`. By default this is set to `/api` so the development server can proxy requests to the backend (see `src/setupProxy.js`).
+
+- Development (default): `API_BASE = '/api'` — requests like `/api/screener/run` are proxied to the backend. No extra env vars needed when running `npm start`.
+- Production: set the environment variable `REACT_APP_API_BASE` to your API URL (for example `https://api.example.com`). The value will be used by the app instead of `/api`.
+
+Examples:
+
+```bash
+# Run production build with a real API base
+REACT_APP_API_BASE=https://api.stockwatchlist.com npm run build
+```
+
+The centralized config helps avoid mismatched URLs across components and keeps dev/prod behavior consistent.
 
 ## Technologies
 

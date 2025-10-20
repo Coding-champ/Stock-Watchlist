@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import API_BASE from '../config';
 import { createPortal } from 'react-dom';
 import StockTable from './StockTable';
 import StockModal from './StockModal';
 import StockDetailModal from './StockDetailModal';
 import StockChartModal from './StockChartModal';
 
-const API_BASE = process.env.REACT_APP_API_BASE || '/api';
 
 function StocksSection({ watchlist, watchlists, onShowToast }) {
   const [stocks, setStocks] = useState([]);

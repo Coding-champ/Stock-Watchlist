@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import AlertModal from './AlertModal';
 
-const API_BASE = (process.env.REACT_APP_API_BASE || '/api').replace(/\/$/, '');
+import API_BASE from '../config';
 const SPARKLINE_POINT_LIMIT = 90;
 
 const PERFORMANCE_SORT_KEYS = {

@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-
-const API_BASE = process.env.REACT_APP_API_BASE || '';
+import API_BASE from '../../config';
 
 const ScreenerView = () => {
   const [facets, setFacets] = useState({ countries: [], sectors: [], industries: [] });
