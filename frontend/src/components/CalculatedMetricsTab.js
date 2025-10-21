@@ -3,6 +3,7 @@ import MetricTooltip from './MetricTooltip';
 import './CalculatedMetrics.css';
 
 import API_BASE from '../config';
+import { formatPrice } from '../utils/currencyUtils';
 
 /**
  * CalculatedMetricsTab Component
@@ -72,16 +73,8 @@ function CalculatedMetricsTab({ stockId }) {
     return '-';
   };
 
-  const formatCurrency = (value, currency = '$') => {
-    if (value === null || value === undefined) return '-';
-    if (typeof value === 'number') {
-      return currency + value.toLocaleString('en-US', { 
-        minimumFractionDigits: 2, 
-        maximumFractionDigits: 2 
-      });
-    }
-    return '-';
-  };
+  // Use centralized formatPrice to ensure correct currency symbol per stock/exchange
+  const formatCurrency = (value) => formatPrice(value, { id: stockId });
 
   const getScoreClass = (score) => {
     if (score >= 80) return 'excellent';

@@ -4,7 +4,7 @@ import AnalystTab from './AnalystTab';
 import SeasonalityTab from './SeasonalityTab';
 import StockChart from './StockChart';
 import AlertModal from './AlertModal';
-import { getUnitForAlertType, getAlertTypeLabel, getConditionLabel, formatNumber } from '../utils/currencyUtils';
+import { getUnitForAlertType, getAlertTypeLabel, getConditionLabel, formatNumber, formatPrice } from '../utils/currencyUtils';
 import { useAlerts } from '../hooks/useAlerts';
 
 import API_BASE from '../config';
@@ -94,13 +94,7 @@ function StockDetailModal({ stock, onClose }) {
     };
   }, [changeInfo, stock]);
 
-  const formatCurrency = (value, currency = '$') => {
-    if (value === null || value === undefined) return '-';
-    if (typeof value === 'number') {
-      return currency + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
-    return '-';
-  };
+  // use shared formatPrice from utils which determines currency from stock (ticker/country/exchange)
 
   const formatLargeNumber = (value) => {
     if (value === null || value === undefined) return '-';
@@ -152,7 +146,7 @@ function StockDetailModal({ stock, onClose }) {
                     <div className="stock-change-label">Veränderung:</div>
                     <div className="stock-change-values">
                       {info ? (
-                        <>{info.absolute >= 0 ? '+' : ''}${info.absolute.toFixed(2)} ({info.relative >= 0 ? '+' : ''}{info.relative.toFixed(2)}%)</>
+                        <>{info.absolute >= 0 ? '+' : ''}{formatPrice(info.absolute, stock, 2)} ({info.relative >= 0 ? '+' : ''}{info.relative.toFixed(2)}%)</>
                       ) : (
                         <span className="stock-change-placeholder">—</span>
                       )}
@@ -229,31 +223,31 @@ function StockDetailModal({ stock, onClose }) {
                   <div className="detail-grid">
                     <div className="detail-item">
                       <strong>Aktueller Kurs</strong>
-                      {formatCurrency(extendedData?.price_data?.current_price)}
+                      {formatPrice(extendedData?.price_data?.current_price, stock)}
                     </div>
                     <div className="detail-item">
                       <strong>Tageshoch</strong>
-                      {formatCurrency(extendedData?.price_data?.day_high)}
+                      {formatPrice(extendedData?.price_data?.day_high, stock)}
                     </div>
                     <div className="detail-item">
                       <strong>Tagestief</strong>
-                      {formatCurrency(extendedData?.price_data?.day_low)}
+                      {formatPrice(extendedData?.price_data?.day_low, stock)}
                     </div>
                     <div className="detail-item">
                       <strong>52-Wochen Hoch</strong>
-                      {formatCurrency(extendedData?.price_data?.fifty_two_week_high)}
+                      {formatPrice(extendedData?.price_data?.fifty_two_week_high, stock)}
                     </div>
                     <div className="detail-item">
                       <strong>52-Wochen Tief</strong>
-                      {formatCurrency(extendedData?.price_data?.fifty_two_week_low)}
+                      {formatPrice(extendedData?.price_data?.fifty_two_week_low, stock)}
                     </div>
                     <div className="detail-item">
                       <strong>50-Tage Ø</strong>
-                      {formatCurrency(extendedData?.price_data?.fifty_day_average)}
+                      {formatPrice(extendedData?.price_data?.fifty_day_average, stock)}
                     </div>
                     <div className="detail-item">
                       <strong>200-Tage Ø</strong>
-                      {formatCurrency(extendedData?.price_data?.two_hundred_day_average)}
+                      {formatPrice(extendedData?.price_data?.two_hundred_day_average, stock)}
                     </div>
                   </div>
                 </div>
@@ -335,7 +329,7 @@ function StockDetailModal({ stock, onClose }) {
                     <div className="detail-grid">
                       <div className="detail-item">
                         <strong>Dividende (jährlich)</strong>
-                        {formatCurrency(extendedData?.dividend_info?.dividend_rate)}
+                        {formatPrice(extendedData?.dividend_info?.dividend_rate, stock)}
                       </div>
                       <div className="detail-item">
                         <strong>Dividendenrendite</strong>

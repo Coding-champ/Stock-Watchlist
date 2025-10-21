@@ -21,6 +21,7 @@ from backend.app.models import (
 from backend.app.database import get_db, SessionLocal
 from backend.app.services.yfinance_service import (
     get_stock_info, get_current_stock_data, get_fast_market_data, get_extended_stock_data,
+    get_fast_market_data_with_timestamp,
     get_stock_dividends_and_splits, get_stock_calendar_and_earnings,
     get_analyst_data, get_institutional_holders,
     get_stock_info_by_identifier, get_ticker_from_isin,
@@ -239,6 +240,44 @@ def _get_latest_stock_data(db: Session, stock_id: int) -> Optional[schemas.Stock
     )
     
     logger.debug(f"Created StockData object: current_price={result.current_price}")
+
+    # If the latest price is from today, try to enrich the timestamp using fast yfinance data
+    try:
+        if isinstance(latest_price.date, date) and latest_price.date == date.today():
+            try:
+                # Resolve ticker symbol
+                stock_row = db.query(StockModel).filter(StockModel.id == stock_id).first()
+                if stock_row and getattr(stock_row, 'ticker_symbol', None):
+                    fast = get_fast_market_data_with_timestamp(stock_row.ticker_symbol)
+                    if fast and isinstance(fast, dict):
+                        ts_val = fast.get('timestamp') or fast.get('last_updated')
+                        if ts_val:
+                            parsed = None
+                            # ts_val may be int/float epoch, ISO string with Z, or datetime
+                            if isinstance(ts_val, (int, float)):
+                                parsed = datetime.utcfromtimestamp(int(ts_val))
+                            elif isinstance(ts_val, str):
+                                try:
+                                    # handle trailing Z
+                                    if ts_val.endswith('Z'):
+                                        parsed = datetime.fromisoformat(ts_val.replace('Z', '+00:00'))
+                                    else:
+                                        parsed = datetime.fromisoformat(ts_val)
+                                except Exception:
+                                    try:
+                                        parsed = datetime.utcfromtimestamp(int(float(ts_val)))
+                                    except Exception:
+                                        parsed = None
+                            elif isinstance(ts_val, datetime):
+                                parsed = ts_val
+
+                            if isinstance(parsed, datetime):
+                                result.timestamp = parsed
+            except Exception:
+                # do not break on failures to enrich timestamp
+                pass
+    except Exception:
+        pass
     return result
 
 
@@ -1451,8 +1490,13 @@ def update_market_data(
         raise HTTPException(status_code=404, detail="Stock not found")
     
     try:
-        # Get current stock data from yfinance using fast_info (0.3s instead of 2-3s)
-        current_data = get_fast_market_data(stock.ticker_symbol)
+        # Get current stock data (includes optional normalized timestamp)
+        # prefer the wrapper that provides a normalized `timestamp` when available
+        current_data = None
+        try:
+            current_data = get_fast_market_data_with_timestamp(stock.ticker_symbol)
+        except Exception:
+            current_data = get_fast_market_data(stock.ticker_symbol)
         
         if not current_data:
             raise HTTPException(
@@ -1527,19 +1571,26 @@ def update_market_data(
         current_price = latest_price.close if latest_price else current_data.get('current_price')
         volume = latest_price.volume if latest_price else current_data.get('volume')
         price_date = latest_price.date if latest_price else datetime.now().date()
-        
+        data_obj = {
+            "current_price": current_price,
+            "pe_ratio": pe_ratio,
+            "change": change,
+            "change_percent": change_percent,
+            "volume": volume,
+            "date": price_date.isoformat() if isinstance(price_date, date) else str(price_date)
+        }
+
+        # If the service returned a normalized timestamp, include it
+        if current_data and isinstance(current_data, dict):
+            ts = current_data.get('timestamp') or current_data.get('last_updated')
+            if ts:
+                data_obj['timestamp'] = ts
+
         return {
             "success": True,
             "stock_id": stock_id,
             "ticker_symbol": stock.ticker_symbol,
-            "data": {
-                "current_price": current_price,
-                "pe_ratio": pe_ratio,
-                "change": change,
-                "change_percent": change_percent,
-                "volume": volume,
-                "date": price_date.isoformat() if isinstance(price_date, date) else str(price_date)
-            },
+            "data": data_obj,
             "message": "Market data updated successfully"
         }
         

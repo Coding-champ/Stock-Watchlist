@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import API_BASE from '../config';
+import { formatPrice } from '../utils/currencyUtils';
 import { createPortal } from 'react-dom';
 import StockTable from './StockTable';
 import StockModal from './StockModal';
 import StockDetailModal from './StockDetailModal';
-import StockChartModal from './StockChartModal';
 
 
 function StocksSection({ watchlist, watchlists, onShowToast }) {
@@ -12,7 +12,6 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
-  const [chartStock, setChartStock] = useState(null);
   const [loading, setLoading] = useState(false);
   const [sectorFilter, setSectorFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
@@ -20,6 +19,10 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
   const [performanceFilter, setPerformanceFilter] = useState('all');
   const [toast, setToast] = useState(null);
   const toastTimeoutRef = useRef(null);
+  // Track updating/failed ids via local state when necessary. We only use the setters
+  // in this component so ignore the first tuple item to avoid unused-variable lint.
+  const [, setUpdatingIds] = useState(new Set());
+  const [, setFailedIds] = useState(new Set());
 
   const dismissToast = useCallback(() => {
     if (toastTimeoutRef.current) {
@@ -288,23 +291,84 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
   };
 
   const handleUpdateMarketData = async (stockId) => {
+    // clear any previous failure state for this id and mark as updating
+    setFailedIds(prev => {
+      const s = new Set(prev);
+      s.delete(stockId);
+      return s;
+    });
+    setUpdatingIds(prev => {
+      const s = new Set(prev);
+      s.add(stockId);
+      return s;
+    });
+    // mark the stock in local state as updating (so StockTable can read latest_data.__updating)
+    setStocks(prev => prev.map(s => s.id === stockId ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: true, __failed: false } } : s));
     try {
       const response = await fetch(`${API_BASE}/stocks/${stockId}/update-market-data`, {
         method: 'POST'
       });
 
       if (response.ok) {
+        // success -> clear updating and failed state
+        setUpdatingIds(prev => {
+          const s = new Set(prev);
+          s.delete(stockId);
+          return s;
+        });
+        setFailedIds(prev => {
+          const s = new Set(prev);
+          s.delete(stockId);
+          return s;
+        });
+        setStocks(prev => prev.map(s => s.id === stockId ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: false, __failed: false } } : s));
         const result = await response.json();
-        const price = typeof result?.data?.current_price === 'number' ? result.data.current_price.toFixed(2) : 'N/A';
-        const pe = typeof result?.data?.pe_ratio === 'number' ? result.data.pe_ratio.toFixed(2) : 'N/A';
-        showToast(`Marktdaten aktualisiert · Kurs $${price} · KGV ${pe}`, 'success');
-        
-        // Small delay to ensure DB commit has completed
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Reload stocks to reflect updated data
-        loadStocks();
+  const priceNum = typeof result?.data?.current_price === 'number' ? result.data.current_price : null;
+  const pe = typeof result?.data?.pe_ratio === 'number' ? result.data.pe_ratio.toFixed(2) : 'N/A';
+  showToast(`Marktdaten aktualisiert · Kurs ${formatPrice(priceNum, stocks.find(s => s.id === stockId))} · KGV ${pe}`, 'success');
+
+        // Update only the single stock in the local state so the card shows the precise timestamp
+        try {
+          const updatedData = result?.data || {};
+          setStocks((prev) => prev.map((s) => {
+            if (s.id !== stockId) return s;
+            // Merge latest_data, preserving existing fields
+            const prevLatest = s.latest_data || s.latestData || {};
+            const newLatest = {
+              ...prevLatest,
+              current_price: typeof updatedData.current_price === 'number' ? updatedData.current_price : prevLatest.current_price,
+              pe_ratio: typeof updatedData.pe_ratio === 'number' ? updatedData.pe_ratio : prevLatest.pe_ratio,
+              timestamp: (updatedData.timestamp || updatedData.date) ? (updatedData.timestamp || updatedData.date) : prevLatest.timestamp
+            };
+            return { ...s, latest_data: newLatest };
+          }));
+        } catch (err) {
+          // If anything goes wrong updating local state, mark only the single stock as failed
+          // and show a retry toast instead of reloading all stocks. This avoids unexpected
+          // full-list reloads during bulk operations.
+          console.warn('Could not apply single-stock update locally; marking single stock as failed', err);
+          // mark failed for this stock so the UI shows retry affordance
+          setFailedIds(prev => {
+            const s = new Set(prev);
+            s.add(stockId);
+            return s;
+          });
+          setStocks(prev => prev.map(s => s.id === stockId ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: false, __failed: true } } : s));
+          showToast('Konnte die lokale Aktualisierung nicht anwenden. Bitte erneut versuchen.', 'warning');
+        }
       } else {
+        // mark failed
+        setUpdatingIds(prev => {
+          const s = new Set(prev);
+          s.delete(stockId);
+          return s;
+        });
+        setFailedIds(prev => {
+          const s = new Set(prev);
+          s.add(stockId);
+          return s;
+        });
+        setStocks(prev => prev.map(s => s.id === stockId ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: false, __failed: true } } : s));
         let errorMessage = 'Fehler beim Aktualisieren der Marktdaten';
         try {
           const error = await response.json();
@@ -317,6 +381,18 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
         showToast(errorMessage, 'error');
       }
     } catch (error) {
+      // network/other error -> mark failed
+      setUpdatingIds(prev => {
+        const s = new Set(prev);
+        s.delete(stockId);
+        return s;
+      });
+      setFailedIds(prev => {
+        const s = new Set(prev);
+        s.add(stockId);
+        return s;
+      });
+      setStocks(prev => prev.map(s => s.id === stockId ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: false, __failed: true } } : s));
       console.error('Error updating market data:', error);
       showToast('Fehler beim Aktualisieren der Marktdaten', 'error');
     }
@@ -336,6 +412,8 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
 
     // Update all stocks sequentially to avoid overwhelming the API
     for (const stock of stocks) {
+      // mark this stock as updating in local state
+      setStocks(prev => prev.map(s => s.id === stock.id ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: true, __failed: false } } : s));
       try {
         const response = await fetch(`${API_BASE}/stocks/${stock.id}/update-market-data`, {
           method: 'POST'
@@ -343,9 +421,31 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
 
         if (response.ok) {
           successCount++;
+          try {
+            const result = await response.json();
+            const updatedData = result?.data || {};
+            // Apply the update to the single stock in local state
+            setStocks((prev) => prev.map((s) => {
+              if (s.id !== stock.id) return s;
+              const prevLatest = s.latest_data || s.latestData || {};
+              const newLatest = {
+                ...prevLatest,
+                current_price: typeof updatedData.current_price === 'number' ? updatedData.current_price : prevLatest.current_price,
+                pe_ratio: typeof updatedData.pe_ratio === 'number' ? updatedData.pe_ratio : prevLatest.pe_ratio,
+                timestamp: (updatedData.timestamp || updatedData.date) ? (updatedData.timestamp || updatedData.date) : prevLatest.timestamp,
+                __updating: false,
+                __failed: false
+              };
+              return { ...s, latest_data: newLatest };
+            }));
+          } catch (err) {
+            console.warn(`Updated ${stock.ticker_symbol} but could not apply local update`, err);
+            setStocks(prev => prev.map(s => s.id === stock.id ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: false } } : s));
+          }
         } else {
           failCount++;
           console.warn(`Failed to update ${stock.ticker_symbol}`);
+          setStocks(prev => prev.map(s => s.id === stock.id ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: false, __failed: true } } : s));
         }
 
         // Small delay between requests to avoid rate limiting
@@ -355,10 +455,6 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
         console.error(`Error updating ${stock.ticker_symbol}:`, error);
       }
     }
-
-    // Reload all stocks after updates
-    await new Promise(resolve => setTimeout(resolve, 100));
-    await loadStocks();
 
     // Show summary toast
     if (failCount === 0) {
@@ -370,10 +466,6 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
     }
 
     setLoading(false);
-  };
-
-  const handleShowChart = (stock) => {
-    setChartStock(stock);
   };
 
   const watchlistSubtitle = watchlist.description
@@ -525,7 +617,6 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
             onMoveStock={handleMoveStock}
             onCopyStock={handleCopyStock}
             onUpdateMarketData={handleUpdateMarketData}
-            onShowChart={handleShowChart}
             performanceFilter={performanceFilter}
             onShowToast={showToast}
           />
@@ -548,12 +639,6 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
         />
       )}
 
-      {chartStock && (
-        <StockChartModal
-          stock={chartStock}
-          onClose={() => setChartStock(null)}
-        />
-      )}
       </section>
     </>
   );

@@ -398,6 +398,38 @@ h1 {
     transform: scale(.96);
   }
 
+  /* Inline icons for stock price actions */
+  .stock-card__price-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 8px;
+  }
+
+  .icon-spinner {
+    display: inline-block;
+    animation: icon-spin 800ms linear infinite;
+    color: var(--brand-primary);
+    font-size: 0.95rem;
+  }
+
+  @keyframes icon-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .icon-retry, .icon-refresh {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+  }
+
+  .icon-retry:hover, .icon-refresh:hover {
+    color: var(--brand-primary-dark);
+  }
+
   .layout__sidebar--collapsed .watchlist-mini-card:not(.active) {
     transform: scale(1);
   }
@@ -902,6 +934,26 @@ textarea {
   width: 44px;
   height: 44px;
   animation: spin 1s linear infinite;
+}
+
+/* small inline spinner used next to price */
+.stock-card__price-spinner .spinner {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+/* retry / error icon next to price */
+.stock-card__update-error {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 8px;
+  color: #d9534f; /* danger red */
+  cursor: pointer;
+  font-size: 14px;
 }
 
 @keyframes spin {

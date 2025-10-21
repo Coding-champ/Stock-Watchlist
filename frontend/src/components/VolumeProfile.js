@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import './VolumeProfile.css';
 
 import API_BASE from '../config';
+import { formatPrice } from '../utils/currencyUtils';
 
 /**
  * Volume Profile Component
@@ -75,9 +76,10 @@ function VolumeProfile({ stockId, period = 30, numBins = 50, height = 400, onLoa
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
+      const stockLike = profileData && profileData.ticker ? { ticker_symbol: profileData.ticker, country: profileData.country } : null;
       return (
         <div className="volume-profile-tooltip">
-          <p className="price">${data.price.toFixed(2)}</p>
+          <p className="price">{formatPrice(Number(data.price), stockLike, 2)}</p>
           <p className="volume">Volume: {data.volume.toLocaleString()}</p>
           {data.isPOC && <p className="marker poc">POC - Point of Control</p>}
           {data.isInValueArea && <p className="marker va">In Value Area</p>}
@@ -127,15 +129,15 @@ function VolumeProfile({ stockId, period = 30, numBins = 50, height = 400, onLoa
         <div className="key-levels">
           <div className="level-item poc">
             <span className="label">POC:</span>
-            <span className="value">${profileData.poc.toFixed(2)}</span>
+            <span className="value">{formatPrice(Number(profileData.poc), profileData && profileData.ticker ? { ticker_symbol: profileData.ticker } : null, 2)}</span>
           </div>
           <div className="level-item vah">
             <span className="label">VAH:</span>
-            <span className="value">${profileData.value_area.high.toFixed(2)}</span>
+            <span className="value">{formatPrice(Number(profileData.value_area.high), profileData && profileData.ticker ? { ticker_symbol: profileData.ticker } : null, 2)}</span>
           </div>
           <div className="level-item val">
             <span className="label">VAL:</span>
-            <span className="value">${profileData.value_area.low.toFixed(2)}</span>
+            <span className="value">{formatPrice(Number(profileData.value_area.low), profileData && profileData.ticker ? { ticker_symbol: profileData.ticker } : null, 2)}</span>
           </div>
         </div>
       </div>
@@ -151,7 +153,7 @@ function VolumeProfile({ stockId, period = 30, numBins = 50, height = 400, onLoa
           <YAxis 
             type="category" 
             dataKey="price"
-            tickFormatter={(value) => `$${value.toFixed(2)}`}
+            tickFormatter={(value) => formatPrice(Number(value), profileData && profileData.ticker ? { ticker_symbol: profileData.ticker } : null, 2)}
             width={60}
             tick={{ fontSize: 11 }}
           />
@@ -193,7 +195,7 @@ function VolumeProfile({ stockId, period = 30, numBins = 50, height = 400, onLoa
         <div className="stat">
           <span className="label">Price Range:</span>
           <span className="value">
-            ${profileData.price_range.min.toFixed(2)} - ${profileData.price_range.max.toFixed(2)}
+            {formatPrice(Number(profileData.price_range.min), profileData && profileData.ticker ? { ticker_symbol: profileData.ticker } : null, 2)} - {formatPrice(Number(profileData.price_range.max), profileData && profileData.ticker ? { ticker_symbol: profileData.ticker } : null, 2)}
           </span>
         </div>
         <div className="stat">

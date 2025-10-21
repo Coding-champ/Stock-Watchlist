@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import API_BASE from '../config';
+import { formatPrice } from '../utils/currencyUtils';
 
 const OBSERVATION_REASON_OPTIONS = [
   { value: 'chart_technical', label: 'Charttechnische Indikatoren' },
@@ -442,7 +443,7 @@ function StockModal({ watchlistId, onClose, onStockAdded, onShowToast }) {
                   {searchResult.industry && <p><strong>Branche:</strong> {searchResult.industry}</p>}
                   {searchResult.country && <p><strong>Land:</strong> {searchResult.country}</p>}
                   {searchResult.current_price && (
-                    <p><strong>Aktueller Kurs:</strong> ${searchResult.current_price}</p>
+                    <p><strong>Aktueller Kurs:</strong> {formatPrice(searchResult.current_price, searchResult)}</p>
                   )}
                   {searchResult.pe_ratio && (
                     <p><strong>KGV:</strong> {searchResult.pe_ratio}</p>

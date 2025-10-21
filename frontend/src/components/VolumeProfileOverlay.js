@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './VolumeProfileOverlay.css';
 
 import API_BASE from '../config';
+import { formatPrice } from '../utils/currencyUtils';
 
 /**
  * Volume Profile Overlay Component
@@ -252,7 +253,7 @@ function VolumeProfileOverlay({
               height: `${bar.barHeightPx}px`,
               width: `${bar.barWidth}%`
             }}
-            title={`$${bar.price.toFixed(2)} - ${bar.volume.toLocaleString()}`}
+            title={`${formatPrice(bar.price, { ticker_symbol: profileData && profileData.ticker ? profileData.ticker : null })} - ${bar.volume.toLocaleString()}`}
           />
         ))}
       </div>
@@ -269,19 +270,19 @@ function VolumeProfileOverlay({
           className="vp-label poc"
           style={{ top: `${((maxPrice - profileData.poc) / priceRangeValue) * effectiveHeight}px` }}
         >
-          <span className="label-text">POC ${profileData.poc.toFixed(2)}</span>
+          <span className="label-text">POC {formatPrice(profileData.poc, profileData && profileData.ticker ? { ticker_symbol: profileData.ticker } : null)}</span>
         </div>
         <div 
           className="vp-label vah"
           style={{ top: `${((maxPrice - profileData.value_area.high) / priceRangeValue) * effectiveHeight}px` }}
         >
-          <span className="label-text">VAH ${profileData.value_area.high.toFixed(2)}</span>
+          <span className="label-text">VAH {formatPrice(profileData.value_area.high, profileData && profileData.ticker ? { ticker_symbol: profileData.ticker } : null)}</span>
         </div>
         <div 
           className="vp-label val"
           style={{ top: `${((maxPrice - profileData.value_area.low) / priceRangeValue) * effectiveHeight}px` }}
         >
-          <span className="label-text">VAL ${profileData.value_area.low.toFixed(2)}</span>
+          <span className="label-text">VAL {formatPrice(profileData.value_area.low, profileData && profileData.ticker ? { ticker_symbol: profileData.ticker } : null)}</span>
         </div>
       </div>
     </div>

@@ -18,6 +18,7 @@ from .stock_info import (
     get_stock_info_by_identifier,
     get_stock_info,
     get_fast_market_data,
+    get_fast_market_data_with_timestamp,
     get_current_stock_data,
     search_stocks
 )
@@ -56,6 +57,7 @@ __all__ = [
     'get_stock_info_by_identifier',
     'get_stock_info',
     'get_fast_market_data',
+    'get_fast_market_data_with_timestamp',
     'get_current_stock_data',
     'search_stocks',
     

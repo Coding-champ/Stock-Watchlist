@@ -6,6 +6,7 @@ import yfinance as yf
 import pandas as pd
 from typing import Optional, Dict, Any, List
 import logging
+from datetime import datetime
 
 from .client import StockInfo, _is_probable_isin, get_ticker_from_isin
 
@@ -95,9 +96,93 @@ def get_fast_market_data(ticker_symbol: str) -> Optional[Dict[str, Any]]:
             'float_shares': getattr(fast, 'float_shares', None),
             'last_updated': getattr(fast, 'last_updated', None)
         }
-        
+    
     except Exception as e:
         logger.error(f"Error fetching fast market data for {ticker_symbol}: {str(e)}")
+        return None
+
+
+def _convert_epoch_to_iso(epoch_val):
+    try:
+        if epoch_val is None:
+            return None
+        # some yfinance fields may be strings
+        if isinstance(epoch_val, str) and epoch_val.isdigit():
+            epoch_val = int(epoch_val)
+        if isinstance(epoch_val, (int, float)):
+            return datetime.utcfromtimestamp(int(epoch_val)).isoformat() + 'Z'
+        return None
+    except Exception:
+        return None
+
+
+def get_fast_market_data_with_timestamp(ticker_symbol: str) -> Optional[Dict[str, Any]]:
+    """
+    Wrapper around get_fast_market_data that also tries to provide a normalized
+    ISO 8601 `timestamp` field. Preference order:
+      1. fast_info.last_updated
+      2. info.regularMarketTime (epoch seconds)
+      3. info.lastUpdated (ISO / str) if present
+    """
+    try:
+        data = get_fast_market_data(ticker_symbol)
+        if not data:
+            return None
+
+        # Try fast_info.last_updated first
+        ts = data.get('last_updated')
+        if ts:
+            # last_updated from fast_info may already be an ISO string or datetime
+            if isinstance(ts, (int, float)):
+                ts_iso = datetime.utcfromtimestamp(int(ts)).isoformat() + 'Z'
+            else:
+                try:
+                    # Try to coerce to ISO string
+                    ts_iso = ts.isoformat() if hasattr(ts, 'isoformat') else str(ts)
+                except Exception:
+                    ts_iso = str(ts)
+            data['timestamp'] = ts_iso
+            return data
+
+        # Fallback: check ticker.info for regularMarketTime
+        try:
+            ticker = yf.Ticker(ticker_symbol)
+            info = ticker.info or {}
+            reg_time = info.get('regularMarketTime')
+            if reg_time:
+                ts_iso = _convert_epoch_to_iso(reg_time) or (str(reg_time) if reg_time else None)
+                if ts_iso:
+                    data['timestamp'] = ts_iso
+                    return data
+
+            # lastUpdated may be present as ISO string
+            last_up = info.get('lastUpdated')
+            if last_up:
+                data['timestamp'] = last_up if isinstance(last_up, str) else str(last_up)
+                return data
+        except Exception:
+            # don't fail the whole call if info isn't available
+            pass
+
+        # Additional fallback: use get_current_stock_data which may expose other lastUpdated fields
+        try:
+            curr = get_current_stock_data(ticker_symbol)
+            if curr and isinstance(curr, dict):
+                lu = curr.get('last_updated') or curr.get('lastUpdated')
+                if lu:
+                    # normalize numeric epoch values
+                    if isinstance(lu, (int, float)):
+                        data['timestamp'] = datetime.utcfromtimestamp(int(lu)).isoformat() + 'Z'
+                    else:
+                        data['timestamp'] = lu if isinstance(lu, str) else str(lu)
+                    return data
+        except Exception:
+            pass
+
+        # No timestamp found
+        return data
+    except Exception as e:
+        logger.error(f"Error fetching fast market data with timestamp for {ticker_symbol}: {e}")
         return None
 
 

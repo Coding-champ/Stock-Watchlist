@@ -1,38 +1,7 @@
 import React, { useState } from 'react';
 import { useAlerts } from '../hooks/useAlerts';
 import API_BASE from '../config';
-
-// Funktion zum Ermitteln der Währung
-function getCurrencyForStock(stock) {
-  if (!stock) return '$'; // Fallback
-
-  // Nach Ticker-Symbol (Suffix)
-  if (stock.ticker_symbol) {
-    if (stock.ticker_symbol.endsWith('.DE') || 
-        stock.ticker_symbol.endsWith('.F') || 
-        stock.ticker_symbol.endsWith('.DU')) {
-      return '€'; // Deutsche Börsen
-    }
-    if (stock.ticker_symbol.endsWith('.L')) {
-      return '£'; // London
-    }
-    if (stock.ticker_symbol.endsWith('.TO')) {
-      return 'C$'; // Toronto
-    }
-    if (stock.ticker_symbol.endsWith('.AX')) {
-      return 'A$'; // Australien
-    }
-    if (stock.ticker_symbol.endsWith('.T')) {
-      return '¥'; // Tokyo
-    }
-    if (stock.ticker_symbol.endsWith('.SW')) {
-      return 'CHF'; // Schweiz
-    }
-  }
-  
-  // 3. Fallback zu USD
-  return '$';
-}
+import { getCurrencyForStock } from '../utils/currencyUtils';
 
 // Alarm-Typen mit deutschen Bezeichnungen
 const getAlertTypes = (stock) => [

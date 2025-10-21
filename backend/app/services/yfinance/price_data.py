@@ -132,8 +132,8 @@ def get_fast_stock_data(ticker_symbol: str) -> Optional[Dict[str, Any]]:
                 'day_low': getattr(fast_info, 'day_low', None),
                 'fifty_two_week_high': getattr(fast_info, 'year_high', None),
                 'fifty_two_week_low': getattr(fast_info, 'year_low', None),
-                'fifty_day_average': getattr(fast_info, 'fifty_day_average', None),
-                'two_hundred_day_average': getattr(fast_info, 'two_hundred_day_average', None)
+                #'fifty_day_average': getattr(fast_info, 'fifty_day_average', None),
+                #'two_hundred_day_average': getattr(fast_info, 'two_hundred_day_average', None)
             },
             
             # Volume Data (from fast_info)

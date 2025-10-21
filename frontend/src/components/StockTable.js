@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import AlertModal from './AlertModal';
+import { getLocalizedQuoteType } from '../utils/quoteTypeLabel';
 
 import API_BASE from '../config';
+import { formatPrice } from '../utils/currencyUtils';
 const SPARKLINE_POINT_LIMIT = 90;
 
 const PERFORMANCE_SORT_KEYS = {
@@ -31,6 +33,7 @@ function StockTable({
   performanceFilter = 'all',
   onShowToast
 }) {
+  // Expect parent to pass updating/failed sets via props if desired in future.
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuCoords, setMenuCoords] = useState(null);
@@ -395,8 +398,6 @@ function StockTable({
           const rect = triggerEl && triggerEl.getBoundingClientRect ? triggerEl.getBoundingClientRect() : null;
 
           // We render the portal with position: fixed, so coordinates must be viewport-based (client coordinates)
-          let top = Math.round((winH - MENU_ESTIMATED_HEIGHT) / 2);
-          let left = Math.round((winW - MENU_WIDTH) / 2);
 
           if (rect) {
             const desiredLeft = rect.left + (rect.width / 2) - (MENU_WIDTH / 2);
@@ -456,18 +457,19 @@ function StockTable({
     const earliestPrice = sparkData.length > 0 ? sparkData[0] : null;
     const currentPerformance = calculatePerformance(previousPrice, displayPrice);
     const watchlistPerformance = calculatePerformance(earliestPrice, displayPrice);
-    const priceData = extendedDataMap[stock.id]?.price_data;
+  const priceData = extendedDataMap[stock.id]?.price_data;
+  const stockHint = { ...stock, currency: priceData?.currency || stock.currency || stock.exchange };
     const weekPerformance = priceData && typeof priceData.fifty_two_week_low === 'number'
       ? calculatePerformance(priceData.fifty_two_week_low, displayPrice)
       : null;
     
     
     const fiftyTwoWeekLow = priceData && typeof priceData.fifty_two_week_low === 'number'
-      ? formatCurrency(priceData.fifty_two_week_low)
+      ? formatPrice(priceData.fifty_two_week_low, stockHint)
       : null;
     
     const fiftyTwoWeekHigh = priceData && typeof priceData.fifty_two_week_high === 'number'
-      ? formatCurrency(priceData.fifty_two_week_high)
+      ? formatPrice(priceData.fifty_two_week_high, stockHint)
       : null;
     
     // Calculate position for range bar (0-100%)
@@ -478,7 +480,7 @@ function StockTable({
       ? ((displayPrice - priceData.fifty_two_week_low) / (priceData.fifty_two_week_high - priceData.fifty_two_week_low)) * 100
       : null;
     
-    const watchlistDuration = formatWatchlistDuration(stock.created_at);
+  const watchlistDuration = formatWatchlistDuration(stock.created_at);
     const chartId = `sparkline-${stock.id}`;
     const observationReasons = Array.isArray(stock.observation_reasons) ? stock.observation_reasons : [];
     const observationNote = typeof stock.observation_notes === 'string' ? stock.observation_notes : null;
@@ -488,6 +490,7 @@ function StockTable({
       latestData,
       sparkData,
       displayPrice,
+      stockHint,
       priceTimestamp,
       currentPerformance,
       watchlistPerformance,
@@ -598,8 +601,9 @@ function StockTable({
             observationReasons,
             observationNote
           } = entry;
+          const { stockHint } = entry;
           const trimmedObservationNote = observationNote && observationNote.trim();
-          const availableTargets = watchlists.filter((wl) => wl.id !== currentWatchlistId);
+
           return (
             <div
               key={stock.id}
@@ -625,7 +629,15 @@ function StockTable({
                 <div className="stock-card__meta">
                   <div className="stock-card__title">{stock.name}</div>
                   <div className="stock-card__subtitle">
-                    Aktie · Ticker {stock.ticker_symbol}
+                  {(() => {
+                    // Try several locations where quote_type may be provided
+                    const ext = extendedDataMap[stock.id];
+                    const extQuote = ext && ext.price_data && ext.price_data.quote_type;
+                    const latestQuote = (stock.latest_data && stock.latest_data.quote_type) || (stock.latestData && stock.latestData.quote_type);
+                    const top = stock.quote_type || stock.fast_info?.quote_type || stock.quoteType || stock.quoteType;
+                    const localized = getLocalizedQuoteType(extQuote || latestQuote || top);
+                    return `${localized} · Ticker ${stock.ticker_symbol}`;
+                  })()}
                   </div>
                   <div className="stock-card__tags">
                     <span>{stock.ticker_symbol}</span>
@@ -654,9 +666,30 @@ function StockTable({
               </div>
 
               <div className="stock-card__price">
-                <span className="stock-card__price-value">{formatCurrency(displayPrice)}</span>
+                <span className="stock-card__price-value">{formatPrice(displayPrice, stockHint)}</span>
                 <span className="stock-card__price-meta">
                   {priceTimestamp ? formatTime(priceTimestamp) : 'Keine aktuellen Marktdaten'}
+                  {onUpdateMarketData && (() => {
+                    const latest = stock.latest_data || stock.latestData || {};
+                    if (latest.__updating) {
+                      return <span className="icon-spinner" aria-hidden="true" style={{ marginLeft: 8 }}>⟳</span>;
+                    }
+                    if (latest.__failed) {
+                      return (
+                        <button
+                          type="button"
+                          className="icon-retry"
+                          onClick={(e) => { e.stopPropagation(); onUpdateMarketData(stock.id); }}
+                          title="Erneut versuchen"
+                          style={{ marginLeft: 8 }}
+                        >
+                          ↺
+                        </button>
+                      );
+                    }
+
+                    return null;
+                  })()}
                 </span>
                 {fiftyTwoWeekLow && fiftyTwoWeekHigh && fiftyTwoWeekPosition !== null && (
                   <div className="stock-card__price-range-container">
@@ -689,15 +722,18 @@ function StockTable({
                 <PerformanceMetric
                   label="aktuell"
                   data={currentPerformance}
+                  stock={stock}
                 />
                 <PerformanceMetric
                   label="52 Wochen"
                   data={weekPerformance}
+                  stock={stock}
                 />
                 <PerformanceMetric
                   label="Watchlist"
                   data={watchlistPerformance}
                   hint={watchlistDuration}
+                  stock={stock}
                 />
               </div>
 
@@ -774,11 +810,6 @@ function StockTable({
                   className="action-menu__item"
                   role="menuitem"
                   onClick={(event) => {
-                    event.stopPropagation();
-                    setOpenMenuId(null);
-                    if (onShowChart) {
-                      onShowChart(stock);
-                    }
                   }}
                 >
                   <span>Chart anzeigen</span>
@@ -793,7 +824,7 @@ function StockTable({
                     setAlertModalStock(stock);
                   }}
                 >
-                  <span>🔔 Alarm hinzufügen</span>
+                  <span>Alarm hinzufügen</span>
                 </button>
                 <button
                   type="button"
@@ -963,43 +994,69 @@ function matchesPerformanceFilter(filter, entry) {
   }
 }
 
-function formatCurrency(value) {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return '-';
-  }
-
-  return new Intl.NumberFormat('de-DE', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(value);
-}
+// formatPrice from utils is used directly throughout this component; remove wrapper to avoid unused symbol
 
 function formatTime(timestamp) {
-  const date = timestamp ? new Date(timestamp) : null;
-  if (!date || Number.isNaN(date.getTime())) {
-    return '-';
+  if (!timestamp) return '-';
+
+  // Handle numeric epoch seconds
+  if (typeof timestamp === 'number') {
+    // assume seconds
+    const dateNum = new Date(timestamp * 1000);
+    if (!isNaN(dateNum.getTime())) {
+      return `${dateNum.toLocaleDateString('de-DE')} · ${dateNum.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+    }
   }
 
-  return `${date.toLocaleDateString('de-DE')} · ${date.toLocaleTimeString('de-DE', {
-    hour: '2-digit',
-    minute: '2-digit'
-  })}`;
+  // Handle Date objects
+  if (timestamp instanceof Date) {
+    const d = timestamp;
+    if (Number.isNaN(d.getTime())) return '-';
+    return `${d.toLocaleDateString('de-DE')} · ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+
+  // Handle strings
+  if (typeof timestamp === 'string') {
+    const trimmed = timestamp.trim();
+    // Date-only format YYYY-MM-DD -> show only date (no 00:00)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      try {
+        const d = new Date(trimmed + 'T00:00:00');
+        if (!isNaN(d.getTime())) return d.toLocaleDateString('de-DE');
+      } catch (e) {
+        return trimmed;
+      }
+    }
+
+    // Pure epoch digits in string
+    if (/^\d+$/.test(trimmed)) {
+      try {
+        const sec = parseInt(trimmed, 10);
+        const d = new Date(sec * 1000);
+        if (!isNaN(d.getTime())) return `${d.toLocaleDateString('de-DE')} · ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+      } catch (e) {
+        // fallthrough
+      }
+    }
+
+    // Fallback: let Date parse ISO strings
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      return `${parsed.toLocaleDateString('de-DE')} · ${parsed.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+
+    return trimmed;
+  }
+
+  return '-';
 }
 
-function formatSignedCurrency(value) {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return '-';
-  }
-
+function formatSignedCurrency(value, stockLike) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '-';
   const sign = value > 0 ? '+' : value < 0 ? '-' : '';
-  const formatted = new Intl.NumberFormat('de-DE', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(Math.abs(value));
-
-  return `${sign}${formatted} USD`;
+  // Use formatPrice for localized formatting; strip sign from formatted and prepend our sign
+  const formatted = formatPrice(Math.abs(value), stockLike);
+  return `${sign}${formatted}`;
 }
 
 function formatPercent(value) {
@@ -1107,7 +1164,7 @@ function Sparkline({ data, id, width = 140, height = 48, color = '#7c3aed' }) {
   );
 }
 
-function PerformanceMetric({ label, data, hint }) {
+function PerformanceMetric({ label, data, hint, stock }) {
   const state = data ? data.direction : 'neutral';
   const appearance = state === 'positive' ? 'positive' : state === 'negative' ? 'negative' : 'neutral';
 
@@ -1115,7 +1172,7 @@ function PerformanceMetric({ label, data, hint }) {
     <div className={`performance-metric performance-metric--${appearance}`}>
       <span className="performance-metric__label">{label}</span>
       <span className="performance-metric__value">{data ? formatPercent(data.percent) : '-'}</span>
-      <span className="performance-metric__delta">{data ? formatSignedCurrency(data.amount) : '-'}</span>
+      <span className="performance-metric__delta">{data ? formatSignedCurrency(data.amount, stock) : '-'}</span>
       {hint && <span className="performance-metric__hint">{hint}</span>}
     </div>
   );

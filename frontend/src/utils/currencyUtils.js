@@ -17,7 +17,7 @@ export const formatNumber = (value, decimals = 2, suffix = '') => {
   return '-';
 };
 
-// Währungszuordnung nach Land/Region
+// Währungszuordnung nach Land/Region (symbol)
 const CURRENCY_MAP = {
   // Nordamerika
   'USA': '$',
@@ -78,39 +78,71 @@ const CURRENCY_MAP = {
   'New Zealand': 'NZ$',
 };
 
+// ISO currency codes mapping for key countries / exchanges
+const CURRENCY_CODE_MAP = {
+  'Germany': 'EUR', 'Deutschland': 'EUR',
+  'France': 'EUR', 'Frankreich': 'EUR',
+  'Italy': 'EUR', 'Italien': 'EUR',
+  'Spain': 'EUR', 'Spanien': 'EUR',
+  'Netherlands': 'EUR', 'Niederlande': 'EUR',
+  'Belgium': 'EUR', 'Belgien': 'EUR',
+  'Portugal': 'EUR',
+  'Greece': 'EUR', 'Griechenland': 'EUR',
+  'Ireland': 'EUR', 'Irland': 'EUR',
+  'Finland': 'EUR', 'Finnland': 'EUR',
+  'Austria': 'EUR', 'Österreich': 'EUR',
+  'United States': 'USD', 'USA': 'USD', 'US': 'USD',
+  'Canada': 'CAD', 'Kanada': 'CAD',
+  'United Kingdom': 'GBP', 'UK': 'GBP', 'Großbritannien': 'GBP',
+  'Switzerland': 'CHF', 'Schweiz': 'CHF',
+  'Japan': 'JPY',
+  'China': 'CNY',
+  'India': 'INR', 'Indien': 'INR',
+  'South Korea': 'KRW', 'Südkorea': 'KRW',
+  'Australia': 'AUD', 'Australien': 'AUD',
+  'New Zealand': 'NZD', 'Neuseeland': 'NZD',
+  'Hong Kong': 'HKD'
+};
+
 // Börsen-Suffix zu Währung Mapping
 const EXCHANGE_SUFFIX_MAP = {
-  '.DE': '€',    // Xetra (Frankfurt)
-  '.F': '€',     // Frankfurt
-  '.DU': '€',    // Düsseldorf
-  '.MU': '€',    // München
-  '.BE': '€',    // Berlin
-  '.HM': '€',    // Hamburg
-  '.HA': '€',    // Hannover
-  '.STU': '€',   // Stuttgart
-  '.PA': '€',    // Paris
-  '.MI': '€',    // Mailand
-  '.AS': '€',    // Amsterdam
-  '.BR': '€',    // Brüssel
-  '.LS': '€',    // Lissabon
-  '.MC': '€',    // Madrid
-  '.L': '£',     // London
-  '.SW': 'CHF',  // Schweiz (SIX)
-  '.VX': 'CHF',  // Schweiz (Virt-X)
-  '.TO': 'C$',   // Toronto
-  '.V': 'C$',    // TSX Venture
-  '.AX': 'A$',   // Australian Securities Exchange
-  '.NZ': 'NZ$',  // New Zealand Stock Exchange
-  '.T': '¥',     // Tokyo
-  '.HK': 'HK$',  // Hong Kong
-  '.SS': '¥',    // Shanghai
-  '.SZ': '¥',    // Shenzhen
-  '.KS': '₩',    // Korea Stock Exchange
-  '.BO': '₹',    // Bombay Stock Exchange
-  '.NS': '₹',    // National Stock Exchange of India
-  '.OL': 'kr',   // Oslo
-  '.ST': 'kr',   // Stockholm
-  '.CO': 'kr',   // Copenhagen
+  '.DE': 'EUR',    // Xetra (Frankfurt)
+  '.F': 'EUR',     // Frankfurt
+  '.DU': 'EUR',    // Düsseldorf
+  '.MU': 'EUR',    // München
+  '.BE': 'EUR',    // Berlin
+  '.HM': 'EUR',    // Hamburg
+  '.HA': 'EUR',    // Hannover
+  '.STU': 'EUR',   // Stuttgart
+  '.PA': 'EUR',    // Paris
+  '.MI': 'EUR',    // Mailand
+  '.AS': 'EUR',    // Amsterdam
+  '.BR': 'EUR',    // Brüssel
+  '.LS': 'EUR',    // Lissabon
+  '.MC': 'EUR',    // Madrid
+  '.L': 'GBP',     // London
+  '.SW': 'CHF',    // Schweiz (SIX)
+  '.VX': 'CHF',    // Schweiz (Virt-X)
+  '.TO': 'CAD',    // Toronto
+  '.V': 'CAD',     // TSX Venture
+  '.AX': 'AUD',    // Australian Securities Exchange
+  '.NZ': 'NZD',    // New Zealand Stock Exchange
+  '.T': 'JPY',     // Tokyo
+  '.HK': 'HKD',    // Hong Kong
+  '.SS': 'CNY',    // Shanghai
+  '.SZ': 'CNY',    // Shenzhen
+  '.KS': 'KRW',    // Korea Stock Exchange
+  '.BO': 'INR',    // Bombay Stock Exchange
+  '.NS': 'INR',    // National Stock Exchange of India
+  '.OL': 'NOK',    // Oslo
+  '.ST': 'SEK',    // Stockholm
+  '.CO': 'DKK',    // Copenhagen
+};
+
+// Map symbol fallback for backward compatibility (used by getCurrencyForStock)
+const EXCHANGE_SUFFIX_SYMBOL_MAP = {
+  '.DE': '€', '.F': '€', '.DU': '€', '.MU': '€', '.BE': '€', '.HM': '€', '.HA': '€', '.STU': '€', '.PA': '€', '.MI': '€', '.AS': '€', '.BR': '€', '.LS': '€', '.MC': '€',
+  '.L': '£', '.SW': 'CHF', '.VX': 'CHF', '.TO': 'C$', '.V': 'C$', '.AX': 'A$', '.NZ': 'NZ$', '.T': '¥', '.HK': 'HK$', '.SS': '¥', '.SZ': '¥', '.KS': '₩', '.BO': '₹', '.NS': '₹', '.OL': 'kr', '.ST': 'kr', '.CO': 'kr'
 };
 
 /**
@@ -131,15 +163,50 @@ export function getCurrencyForStock(stock) {
     const ticker = stock.ticker_symbol.toUpperCase();
     
     // Suche nach bekannten Börsen-Suffixen
-    for (const [suffix, currency] of Object.entries(EXCHANGE_SUFFIX_MAP)) {
-      if (ticker.endsWith(suffix)) {
-        return currency;
+    for (const suffix of Object.keys(EXCHANGE_SUFFIX_MAP)) {
+        if (ticker.endsWith(suffix)) {
+          // return symbol mapping for backward compatibility
+          return EXCHANGE_SUFFIX_SYMBOL_MAP[suffix] || CURRENCY_MAP[stock.country] || '$';
+        }
       }
-    }
   }
   
   // 3. Fallback zu USD (Standard für US-Aktien und unbekannte)
   return '$';
+}
+
+/**
+ * Determine ISO currency code for stock (e.g., 'EUR', 'USD')
+ * @param {Object} stock
+ * @returns {string} ISO currency (defaults to 'USD')
+ */
+export function getCurrencyCodeForStock(stock) {
+  if (!stock) return 'USD';
+
+  // 1. country mapping
+  if (stock.country && CURRENCY_CODE_MAP[stock.country]) return CURRENCY_CODE_MAP[stock.country];
+
+  // 2. explicit currency code in stock object (common in extended data)
+  if (stock.currency && typeof stock.currency === 'string' && /^[A-Za-z]{3}$/.test(stock.currency)) {
+    return stock.currency.toUpperCase();
+  }
+
+  // 3. ticker suffix mapping
+  if (stock.ticker_symbol) {
+    const ticker = stock.ticker_symbol.toUpperCase();
+    for (const [suffix, iso] of Object.entries(EXCHANGE_SUFFIX_MAP)) {
+      if (ticker.endsWith(suffix)) return iso;
+    }
+  }
+
+  // 4. exchange field heuristic
+  if (stock.exchange && typeof stock.exchange === 'string') {
+    const e = stock.exchange.toUpperCase();
+    if (e.includes('DE') || e === 'XETRA' || e === 'FRA') return 'EUR';
+    if (['NASDAQ','NMS','NYSE','AMEX','ARCA'].includes(e)) return 'USD';
+  }
+
+  return 'USD';
 }
 
 /**
@@ -150,20 +217,20 @@ export function getCurrencyForStock(stock) {
  * @returns {string} Formatierter Preis mit Währung (z.B. "$150.00", "€45.50")
  */
 export function formatPrice(value, stock, decimals = 2) {
-  if (value === null || value === undefined || isNaN(value)) {
-    return '-';
+  if (value === null || value === undefined || isNaN(value)) return '-';
+
+  // Determine ISO currency code and use Intl for German localization
+  const iso = getCurrencyCodeForStock(stock);
+  try {
+    const nf = new Intl.NumberFormat('de-DE', { style: 'currency', currency: iso, minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    return nf.format(Number(value));
+  } catch (e) {
+    // Fallback: symbol based formatting
+    const symbol = getCurrencyForStock(stock) || '$';
+    const formattedValue = Number(value).toFixed(decimals);
+    if (symbol === '€' || symbol === 'CHF' || symbol === 'kr') return `${formattedValue} ${symbol}`;
+    return `${symbol}${formattedValue}`;
   }
-  
-  const currency = getCurrencyForStock(stock);
-  const formattedValue = Number(value).toFixed(decimals);
-  
-  // Bei Euro und anderen europäischen Währungen: Währung hinten
-  if (currency === '€' || currency === 'kr' || currency === 'CHF') {
-    return `${formattedValue} ${currency}`;
-  }
-  
-  // Bei Dollar, Pfund, Yen etc.: Währung vorne
-  return `${currency}${formattedValue}`;
 }
 
 /**
