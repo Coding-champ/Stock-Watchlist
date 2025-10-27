@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import MetricTooltip from './MetricTooltip';
 import './CalculatedMetrics.css';
 
@@ -9,61 +9,219 @@ import { formatPrice } from '../utils/currencyUtils';
  * CalculatedMetricsTab Component
  * Displays comprehensive calculated metrics for a stock
  */
-function CalculatedMetricsTab({ stockId }) {
+function CalculatedMetricsTab({ stockId, isActive = true, prefetch = false, chartLatestVwap = null }) {
+  // Debug: log mount/prop changes so devtools can confirm the component is active
+  // Remove these logs after verification
+  useEffect(() => {
+    // mount props change - no debug logging in production
+  }, [stockId, isActive, prefetch, chartLatestVwap]);
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [vwapData, setVwapData] = useState(null);
+  const [vwapFallbackUsed, setVwapFallbackUsed] = useState(false);
+  const [animateReady, setAnimateReady] = useState(false);
+
+  // Ref to store the current AbortController so we can cancel in-flight requests
+  const controllerRef = useRef(null);
 
   const loadMetrics = useCallback(async () => {
+    // Abort previous in-flight request to avoid race conditions
+    if (controllerRef.current) {
+      try { controllerRef.current.abort(); } catch (e) { /* ignore */ }
+      controllerRef.current = null;
+    }
+
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    const { signal } = controller;
+
     setLoading(true);
     setError(null);
-    
+
+  // load initiated
+
     try {
       // Load calculated metrics
-      const response = await fetch(`${API_BASE}/stock-data/${stockId}/calculated-metrics`);
-      
+      const response = await fetch(`${API_BASE}/stock-data/${stockId}/calculated-metrics`, { signal });
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
       setMetrics(data);
-      
-      // Load VWAP from technical indicators
-      const vwapResponse = await fetch(`${API_BASE}/stock-data/${stockId}/technical-indicators?period=1y&indicators=vwap`);
+
+      // Load VWAP from technical indicators (use same signal so both requests can be aborted)
+      const vwapResponse = await fetch(`${API_BASE}/stock-data/${stockId}/technical-indicators?period=1y&indicators=vwap`, { signal });
       if (vwapResponse.ok) {
         const vwapJson = await vwapResponse.json();
-        if (vwapJson.indicators && vwapJson.indicators.vwap) {
-          const vwapArray = vwapJson.indicators.vwap;
-          const currentVwap = vwapArray[vwapArray.length - 1]; // Latest VWAP value
-          
-          // Get current price from close prices (last value)
-          let currentPrice = null;
-          if (vwapJson.close && vwapJson.close.length > 0) {
-            currentPrice = vwapJson.close[vwapJson.close.length - 1];
+
+        // Helper: try to extract the last numeric value from different shapes
+        const extractLatestNumber = (maybeArray) => {
+          if (!maybeArray) return null;
+          if (Array.isArray(maybeArray) && maybeArray.length > 0) {
+            // find last defined numeric element (skip null/undefined)
+            for (let i = maybeArray.length - 1; i >= 0; i--) {
+              const v = maybeArray[i];
+              if (v !== null && v !== undefined && typeof v === 'number' && !Number.isNaN(v)) return v;
+              // allow objects like {value: 123}
+              if (v && typeof v === 'object') {
+                const candidate = v.value ?? v.y ?? v.vwap ?? null;
+                if (typeof candidate === 'number' && !Number.isNaN(candidate)) return candidate;
+              }
+            }
           }
-          
-          setVwapData({ 
-            current: currentVwap,
-            currentPrice: currentPrice
-          });
+          // if it's a single number
+          if (typeof maybeArray === 'number' && !Number.isNaN(maybeArray)) return maybeArray;
+          return null;
+        };
+
+        let currentVwap = null;
+        if (vwapJson.indicators) {
+          // indicators.vwap could be array or object
+          currentVwap = extractLatestNumber(vwapJson.indicators.vwap);
+        }
+
+        // Fallback: if the technical-indicators endpoint didn't include VWAP,
+        // try to compute a simple VWAP from recent price history (client-side)
+        // using the /stocks/<id>/price-history endpoint (limit last 20 days).
+        let fallbackUsed = false;
+        if (currentVwap === null) {
+          // Prefer computing VWAP from the same chart data the StockChart uses
+          // to ensure consistency between Chart and Auswertung tabs.
+          try {
+            const chartResp = await fetch(`${API_BASE}/stock-data/${stockId}/chart?period=1y&include_volume=true`, { signal });
+            if (chartResp.ok) {
+              const chartJson = await chartResp.json();
+              const closes = Array.isArray(chartJson.close) ? chartJson.close : (chartJson?.close || []);
+              const volumes = Array.isArray(chartJson.volume) ? chartJson.volume : (chartJson?.volume || []);
+              // take last up to 20 entries
+              const n = Math.min(20, closes.length, volumes.length);
+              let volSum = 0;
+              let pwSum = 0;
+              for (let i = closes.length - n; i < closes.length; i++) {
+                const close = closes[i];
+                const vol = volumes[i];
+                if (typeof close === 'number' && typeof vol === 'number' && vol > 0) {
+                  pwSum += close * vol;
+                  volSum += vol;
+                }
+              }
+              if (volSum > 0) {
+                currentVwap = pwSum / volSum;
+                fallbackUsed = true;
+              }
+            }
+          } catch (err) {
+            // ignore and try older price-history endpoint next
+          }
+
+          // If chart-based fallback failed, fall back to the legacy price-history endpoint
+          if (currentVwap === null) {
+            try {
+              const histResp = await fetch(`${API_BASE}/stocks/${stockId}/price-history?limit=20`, { signal });
+              if (histResp.ok) {
+                const histJson = await histResp.json();
+                const priceRecords = Array.isArray(histJson.data) ? histJson.data : (histJson || []).slice ? histJson : [];
+                let volSum = 0;
+                let pwSum = 0;
+                for (const r of priceRecords) {
+                  const close = r?.close ?? r?.price ?? r?.close_price ?? null;
+                  const vol = r?.volume ?? r?.vol ?? null;
+                  if (typeof close === 'number' && typeof vol === 'number' && vol > 0) {
+                    pwSum += close * vol;
+                    volSum += vol;
+                  }
+                }
+                if (volSum > 0) {
+                  currentVwap = pwSum / volSum;
+                  fallbackUsed = true;
+                }
+              }
+            } catch (err) {
+              // ignore errors for the fallback; we'll simply not show VWAP
+            }
+          }
+        }
+
+        // Try multiple places for current price: vwapJson.close, vwapJson.close_price, or previously fetched metrics
+        let currentPrice = extractLatestNumber(vwapJson.close) || extractLatestNumber(vwapJson.close_price) || null;
+        if (!currentPrice && data && data.metrics && data.metrics.basic_indicators && typeof data.metrics.basic_indicators.current_price === 'number') {
+          currentPrice = data.metrics.basic_indicators.current_price;
+        }
+
+        // If the parent (Chart) provided a latest VWAP, prefer that to ensure both tabs match
+        if (typeof chartLatestVwap === 'number' && !Number.isNaN(chartLatestVwap)) {
+          currentVwap = chartLatestVwap;
+          // mark fallbackUsed false because chart is authoritative
+          fallbackUsed = false;
+        }
+
+        if (currentVwap !== null) {
+          const payload = { current: currentVwap, currentPrice };
+          setVwapData(payload);
+          setVwapFallbackUsed(fallbackUsed);
+          // VWAP data set (no debug log)
         }
       }
-      
+
       setLastUpdated(new Date());
     } catch (err) {
+      // Don't treat AbortError as an error state the user needs to see
+      if (err && err.name === 'AbortError') {
+        // aborted - no further state updates
+        // console.log('loadMetrics aborted');
+        return;
+      }
       console.error('Error loading calculated metrics:', err);
       setError('Fehler beim Laden der Metriken. Bitte versuche es später erneut.');
     } finally {
-      setLoading(false);
+      // Only update loading state if not aborted
+      if (!signal.aborted) setLoading(false);
+      if (controllerRef.current === controller) controllerRef.current = null;
     }
-  }, [stockId]);
+  }, [stockId, chartLatestVwap]);
+
+  // Load metrics when component becomes active (e.g. when the "Auswertung" tab is selected).
+  // Keep default isActive = true for backward compatibility so behavior is unchanged
+  // when parent doesn't pass the prop.
+  useEffect(() => {
+    // Start loading when either the tab becomes active or prefetch is requested
+    if (isActive || prefetch) {
+      loadMetrics();
+    } else {
+      // If the tab becomes inactive and prefetch isn't requested, abort any in-flight request.
+      if (controllerRef.current) {
+        try { controllerRef.current.abort(); } catch (e) { /* ignore */ }
+        controllerRef.current = null;
+      }
+    }
+
+    // Cleanup on unmount: ensure any in-flight request is aborted
+  }, [isActive, prefetch, loadMetrics]);
 
   useEffect(() => {
-    loadMetrics();
-  }, [loadMetrics]);
+    return () => {
+      if (controllerRef.current) {
+        try { controllerRef.current.abort(); } catch (e) { /* ignore */ }
+        controllerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Trigger a short fade-in when loading completes
+  useEffect(() => {
+    let t;
+    if (!loading) {
+      // small delay so skeleton unmounts before fade-in
+      t = setTimeout(() => setAnimateReady(true), 60);
+    } else {
+      setAnimateReady(false);
+    }
+    return () => clearTimeout(t);
+  }, [loading]);
 
   const formatNumber = (value, decimals = 2, suffix = '') => {
     if (value === null || value === undefined) return '-';
@@ -130,10 +288,84 @@ function CalculatedMetricsTab({ stockId }) {
   };
 
   if (loading) {
+    // Show a non-blocking skeleton loader to avoid a jarring spinner
     return (
       <div className="calculated-metrics-container">
-        <div className="loading-spinner">
-          <div>⏳ Lade Calculated Metrics...</div>
+        <div className="calculated-metrics-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="skeleton skeleton-title" style={{ width: 160, height: 22 }} />
+            <div className="skeleton skeleton-subtitle" style={{ width: 90 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div className="skeleton skeleton-line" style={{ width: 90, height: 34, borderRadius: 6 }} />
+            <div className="skeleton skeleton-line" style={{ width: 120, height: 14 }} />
+          </div>
+        </div>
+
+        <div className="metrics-phase-section">
+          <div className="phase-section-header phase-1">
+            <div className="skeleton" style={{ width: 140, height: 18, borderRadius: 6 }} />
+          </div>
+          <div className="phase-section-body">
+            <div className="skeleton-line" style={{ width: '60%' }} />
+            <div className="skeleton-line" style={{ width: '40%' }} />
+            <div style={{ height: 12 }} />
+            <div className="indicator-row">
+              <div className="indicator-label"><div className="skeleton-line" style={{ width: 140 }} /></div>
+              <div className="indicator-value"><div className="skeleton-line" style={{ width: 120 }} /></div>
+            </div>
+            <div className="indicator-row">
+              <div className="indicator-label"><div className="skeleton-line" style={{ width: 140 }} /></div>
+              <div className="indicator-value"><div className="skeleton-line" style={{ width: 120 }} /></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="metrics-phase-section">
+          <div className="phase-section-header phase-2">
+            <div className="skeleton" style={{ width: 140, height: 18, borderRadius: 6 }} />
+          </div>
+          <div className="phase-section-body">
+            <div className="skeleton-grid">
+              <div className="skeleton-card">
+                <div className="skeleton-line" style={{ width: '50%', height: 18 }} />
+                <div style={{ height: 12 }} />
+                <div className="skeleton-line" style={{ width: '80%', height: 36 }} />
+              </div>
+              <div className="skeleton-card">
+                <div className="skeleton-line" style={{ width: '50%', height: 18 }} />
+                <div style={{ height: 12 }} />
+                <div className="skeleton-line" style={{ width: '80%', height: 36 }} />
+              </div>
+              <div className="skeleton-card">
+                <div className="skeleton-line" style={{ width: '50%', height: 18 }} />
+                <div style={{ height: 12 }} />
+                <div className="skeleton-line" style={{ width: '80%', height: 36 }} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="metrics-phase-section">
+          <div className="phase-section-header phase-3">
+            <div className="skeleton" style={{ width: 140, height: 18, borderRadius: 6 }} />
+          </div>
+          <div className="phase-section-body">
+            <div className="metrics-grid">
+              <div className="metric-box skeleton-card">
+                <div className="skeleton-line" style={{ width: '40%', height: 16 }} />
+                <div style={{ height: 12 }} />
+                <div className="skeleton-line" style={{ width: '90%', height: 14 }} />
+                <div className="skeleton-line" style={{ width: '60%', height: 14 }} />
+              </div>
+              <div className="metric-box skeleton-card">
+                <div className="skeleton-line" style={{ width: '40%', height: 16 }} />
+                <div style={{ height: 12 }} />
+                <div className="skeleton-line" style={{ width: '90%', height: 14 }} />
+                <div className="skeleton-line" style={{ width: '60%', height: 14 }} />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -171,7 +403,7 @@ function CalculatedMetricsTab({ stockId }) {
   return (
     <div className="calculated-metrics-container">
       {/* Header */}
-      <div className="calculated-metrics-header">
+  <div className={`calculated-metrics-header ${animateReady ? 'fade-in' : ''}`}>
         <div className="calculated-metrics-title">
           <span className="icon">📊</span>
           <span>Calculated Metrics</span>
@@ -190,113 +422,10 @@ function CalculatedMetricsTab({ stockId }) {
         </div>
       </div>
 
-      {/* PHASE 2: Valuation Scores (am wichtigsten, daher zuerst) */}
-      <div className="metrics-phase-section">
-        <div className="phase-section-header phase-2">
-          <span>⭐ PHASE 2: VALUATION SCORES</span>
-        </div>
-        <div className="phase-section-body">
-          <div className="score-cards-container">
-            {/* Value Score */}
-            <div className="score-card">
-              <MetricTooltip
-                title="Value Score"
-                value={`${formatNumber(valuationScores.value_score, 1)}/100`}
-                description="Bewertet die Unterbewertung einer Aktie basierend auf KGV, KBV und anderen Faktoren."
-                interpretation={[
-                  { range: '80-100', label: 'Exzellent', isCurrent: valuationScores.value_score >= 80 },
-                  { range: '60-79', label: 'Gut', isCurrent: valuationScores.value_score >= 60 && valuationScores.value_score < 80 },
-                  { range: '40-59', label: 'Moderat', isCurrent: valuationScores.value_score >= 40 && valuationScores.value_score < 60 },
-                  { range: '20-39', label: 'Schwach', isCurrent: valuationScores.value_score >= 20 && valuationScores.value_score < 40 },
-                  { range: '0-19', label: 'Schlecht', isCurrent: valuationScores.value_score < 20 }
-                ]}
-              >
-                <div className="score-card-title">Value Score</div>
-              </MetricTooltip>
-              <div className="score-card-value">
-                {formatNumber(valuationScores.value_score, 0)}
-                <span className="denominator">/100</span>
-              </div>
-              <div className="score-bar">
-                <div 
-                  className={`score-bar-fill ${getScoreClass(valuationScores.value_score)}`}
-                  style={{ width: `${valuationScores.value_score || 0}%` }}
-                />
-              </div>
-              <div className={`score-badge ${getScoreClass(valuationScores.value_score)}`}>
-                {getScoreLabel(valuationScores.value_score)}
-              </div>
-            </div>
-
-            {/* Quality Score */}
-            <div className="score-card">
-              <MetricTooltip
-                title="Quality Score"
-                value={`${formatNumber(valuationScores.quality_score, 1)}/100`}
-                description="Misst die Qualität des Unternehmens anhand von ROE, Gewinnmargen und Verschuldung."
-                interpretation={[
-                  { range: '80-100', label: 'Exzellent', isCurrent: valuationScores.quality_score >= 80 },
-                  { range: '60-79', label: 'Gut', isCurrent: valuationScores.quality_score >= 60 && valuationScores.quality_score < 80 },
-                  { range: '40-59', label: 'Moderat', isCurrent: valuationScores.quality_score >= 40 && valuationScores.quality_score < 60 },
-                  { range: '20-39', label: 'Schwach', isCurrent: valuationScores.quality_score >= 20 && valuationScores.quality_score < 40 },
-                  { range: '0-19', label: 'Schlecht', isCurrent: valuationScores.quality_score < 20 }
-                ]}
-              >
-                <div className="score-card-title">Quality Score</div>
-              </MetricTooltip>
-              <div className="score-card-value">
-                {formatNumber(valuationScores.quality_score, 0)}
-                <span className="denominator">/100</span>
-              </div>
-              <div className="score-bar">
-                <div 
-                  className={`score-bar-fill ${getScoreClass(valuationScores.quality_score)}`}
-                  style={{ width: `${valuationScores.quality_score || 0}%` }}
-                />
-              </div>
-              <div className={`score-badge ${getScoreClass(valuationScores.quality_score)}`}>
-                {getScoreLabel(valuationScores.quality_score)}
-              </div>
-            </div>
-
-            {/* Dividend Score */}
-            <div className="score-card">
-              <MetricTooltip
-                title="Dividend Score"
-                value={`${formatNumber(valuationScores.dividend_score, 1)}/100`}
-                description="Bewertet die Dividendenattraktivität basierend auf Rendite, Ausschüttungsquote und Nachhaltigkeit."
-                interpretation={[
-                  { range: '80-100', label: 'Exzellent', isCurrent: valuationScores.dividend_score >= 80 },
-                  { range: '60-79', label: 'Gut', isCurrent: valuationScores.dividend_score >= 60 && valuationScores.dividend_score < 80 },
-                  { range: '40-59', label: 'Moderat', isCurrent: valuationScores.dividend_score >= 40 && valuationScores.dividend_score < 60 },
-                  { range: '20-39', label: 'Schwach', isCurrent: valuationScores.dividend_score >= 20 && valuationScores.dividend_score < 40 },
-                  { range: '0-19', label: 'Schlecht', isCurrent: valuationScores.dividend_score < 20 }
-                ]}
-              >
-                <div className="score-card-title">Dividend Score</div>
-              </MetricTooltip>
-              <div className="score-card-value">
-                {formatNumber(valuationScores.dividend_score, 0)}
-                <span className="denominator">/100</span>
-              </div>
-              <div className="score-bar">
-                <div 
-                  className={`score-bar-fill ${getScoreClass(valuationScores.dividend_score)}`}
-                  style={{ width: `${valuationScores.dividend_score || 0}%` }}
-                />
-              </div>
-              <div className={`score-badge ${getScoreClass(valuationScores.dividend_score)}`}>
-                {getScoreLabel(valuationScores.dividend_score)}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* PHASE 1: Basic Indicators */}
+      {/* Basic Indicators */}
       <div className="metrics-phase-section">
         <div className="phase-section-header phase-1">
-          <span>📊 PHASE 1: KEY INDICATORS</span>
+          <span> BASIC INDICATORS</span>
         </div>
         <div className="phase-section-body">
           {/* 52-Week Range */}
@@ -441,10 +570,113 @@ function CalculatedMetricsTab({ stockId }) {
         </div>
       </div>
 
-      {/* PHASE 3: Advanced Analysis */}
+      {/* Valuation Scores */}
+      <div className="metrics-phase-section">
+        <div className="phase-section-header phase-2">
+          <span>VALUATION SCORES</span>
+        </div>
+        <div className="phase-section-body">
+            <div className={`score-cards-container ${animateReady ? 'fade-in fade-in-delay' : ''}`}>
+            {/* Value Score */}
+            <div className="score-card">
+              <MetricTooltip
+                title="Value Score"
+                value={`${formatNumber(valuationScores.value_score, 1)}/100`}
+                description="Bewertet die Unterbewertung einer Aktie basierend auf KGV, KBV und anderen Faktoren."
+                interpretation={[
+                  { range: '80-100', label: 'Exzellent', isCurrent: valuationScores.value_score >= 80 },
+                  { range: '60-79', label: 'Gut', isCurrent: valuationScores.value_score >= 60 && valuationScores.value_score < 80 },
+                  { range: '40-59', label: 'Moderat', isCurrent: valuationScores.value_score >= 40 && valuationScores.value_score < 60 },
+                  { range: '20-39', label: 'Schwach', isCurrent: valuationScores.value_score >= 20 && valuationScores.value_score < 40 },
+                  { range: '0-19', label: 'Schlecht', isCurrent: valuationScores.value_score < 20 }
+                ]}
+              >
+                <div className="score-card-title">Value Score</div>
+              </MetricTooltip>
+              <div className="score-card-value">
+                {formatNumber(valuationScores.value_score, 0)}
+                <span className="denominator">/100</span>
+              </div>
+              <div className="score-bar">
+                <div 
+                  className={`score-bar-fill ${getScoreClass(valuationScores.value_score)}`}
+                  style={{ width: `${valuationScores.value_score || 0}%` }}
+                />
+              </div>
+              <div className={`score-badge ${getScoreClass(valuationScores.value_score)}`}>
+                {getScoreLabel(valuationScores.value_score)}
+              </div>
+            </div>
+
+            {/* Quality Score */}
+            <div className="score-card">
+              <MetricTooltip
+                title="Quality Score"
+                value={`${formatNumber(valuationScores.quality_score, 1)}/100`}
+                description="Misst die Qualität des Unternehmens anhand von ROE, Gewinnmargen und Verschuldung."
+                interpretation={[
+                  { range: '80-100', label: 'Exzellent', isCurrent: valuationScores.quality_score >= 80 },
+                  { range: '60-79', label: 'Gut', isCurrent: valuationScores.quality_score >= 60 && valuationScores.quality_score < 80 },
+                  { range: '40-59', label: 'Moderat', isCurrent: valuationScores.quality_score >= 40 && valuationScores.quality_score < 60 },
+                  { range: '20-39', label: 'Schwach', isCurrent: valuationScores.quality_score >= 20 && valuationScores.quality_score < 40 },
+                  { range: '0-19', label: 'Schlecht', isCurrent: valuationScores.quality_score < 20 }
+                ]}
+              >
+                <div className="score-card-title">Quality Score</div>
+              </MetricTooltip>
+              <div className="score-card-value">
+                {formatNumber(valuationScores.quality_score, 0)}
+                <span className="denominator">/100</span>
+              </div>
+              <div className="score-bar">
+                <div 
+                  className={`score-bar-fill ${getScoreClass(valuationScores.quality_score)}`}
+                  style={{ width: `${valuationScores.quality_score || 0}%` }}
+                />
+              </div>
+              <div className={`score-badge ${getScoreClass(valuationScores.quality_score)}`}>
+                {getScoreLabel(valuationScores.quality_score)}
+              </div>
+            </div>
+
+            {/* Dividend Score */}
+            <div className="score-card">
+              <MetricTooltip
+                title="Dividend Score"
+                value={`${formatNumber(valuationScores.dividend_score, 1)}/100`}
+                description="Bewertet die Dividendenattraktivität basierend auf Rendite, Ausschüttungsquote und Nachhaltigkeit."
+                interpretation={[
+                  { range: '80-100', label: 'Exzellent', isCurrent: valuationScores.dividend_score >= 80 },
+                  { range: '60-79', label: 'Gut', isCurrent: valuationScores.dividend_score >= 60 && valuationScores.dividend_score < 80 },
+                  { range: '40-59', label: 'Moderat', isCurrent: valuationScores.dividend_score >= 40 && valuationScores.dividend_score < 60 },
+                  { range: '20-39', label: 'Schwach', isCurrent: valuationScores.dividend_score >= 20 && valuationScores.dividend_score < 40 },
+                  { range: '0-19', label: 'Schlecht', isCurrent: valuationScores.dividend_score < 20 }
+                ]}
+              >
+                <div className="score-card-title">Dividend Score</div>
+              </MetricTooltip>
+              <div className="score-card-value">
+                {formatNumber(valuationScores.dividend_score, 0)}
+                <span className="denominator">/100</span>
+              </div>
+              <div className="score-bar">
+                <div 
+                  className={`score-bar-fill ${getScoreClass(valuationScores.dividend_score)}`}
+                  style={{ width: `${valuationScores.dividend_score || 0}%` }}
+                />
+              </div>
+              <div className={`score-badge ${getScoreClass(valuationScores.dividend_score)}`}>
+                {getScoreLabel(valuationScores.dividend_score)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Advanced Analysis */}
       <div className="metrics-phase-section">
         <div className="phase-section-header phase-3">
-          <span>🔬 PHASE 3: ADVANCED ANALYSIS</span>
+          <span>ADVANCED ANALYSIS</span>
         </div>
         <div className="phase-section-body">
           <div className="metrics-grid">
@@ -554,7 +786,11 @@ function CalculatedMetricsTab({ stockId }) {
             </div>
 
             {/* VWAP (Volume Weighted Average Price) */}
-            {vwapData && vwapData.current && vwapData.currentPrice && (
+            {/* Render VWAP panel if we have a VWAP value from the indicators OR a fallback in basic_indicators */}
+            {(() => {
+              const vwapCurrent = (vwapData && vwapData.current) || basicIndicators.vwap || null;
+              const currentPriceForVwap = (vwapData && vwapData.currentPrice) || basicIndicators.current_price || null;
+              return vwapCurrent !== null ? (
               <div className="metric-box">
                 <div className="metric-box-title">💧 VWAP - Volume Weighted Average Price</div>
                 <div className="metric-box-content">
@@ -568,7 +804,7 @@ function CalculatedMetricsTab({ stockId }) {
                       </MetricTooltip>
                     </span>
                     <span className="metric-item-value">
-                      {formatCurrency(vwapData.current)}
+                      {vwapCurrent !== null ? formatCurrency(vwapCurrent) : 'n/a'}
                     </span>
                   </div>
                   
@@ -577,13 +813,19 @@ function CalculatedMetricsTab({ stockId }) {
                       Current Price
                     </span>
                     <span className="metric-item-value">
-                      {formatCurrency(vwapData.currentPrice)}
+                        {currentPriceForVwap !== null ? formatCurrency(currentPriceForVwap) : 'n/a'}
                     </span>
                   </div>
 
+                  {vwapFallbackUsed && vwapData && (
+                    <div style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
+                      ℹ️ VWAP wurde clientseitig berechnet (letzte 20 Tage)
+                    </div>
+                  )}
+
                   {(() => {
-                    const currentPrice = vwapData.currentPrice;
-                    const vwap = vwapData.current;
+                    const currentPrice = currentPriceForVwap;
+                    const vwap = vwapCurrent;
                     const diffPercent = ((currentPrice - vwap) / vwap) * 100;
                     const isAboveVwap = currentPrice > vwap;
                     
@@ -594,28 +836,27 @@ function CalculatedMetricsTab({ stockId }) {
                             Distance to VWAP
                           </span>
                           <span className="metric-item-value" style={{ 
-                            color: isAboveVwap ? '#27ae60' : '#e74c3c',
+                            color: (currentPrice !== null && isAboveVwap) ? '#27ae60' : '#e74c3c',
                             fontWeight: 'bold'
                           }}>
-                            {isAboveVwap ? '+' : ''}{formatNumber(diffPercent, 2)}%
-                            {isAboveVwap ? ' ↑' : ' ↓'}
+                            {currentPrice !== null ? (isAboveVwap ? '+' : '') + formatNumber(diffPercent, 2) + (isAboveVwap ? ' ↑' : ' ↓') : 'n/a'}
                           </span>
                         </div>
                         
                         <div style={{ 
                           marginTop: '15px', 
                           padding: '12px', 
-                          backgroundColor: isAboveVwap ? '#e8f5e9' : '#ffebee', 
+                          backgroundColor: (currentPrice !== null && isAboveVwap) ? '#e8f5e9' : '#ffebee', 
                           borderRadius: '6px',
-                          borderLeft: `4px solid ${isAboveVwap ? '#27ae60' : '#e74c3c'}`
+                          borderLeft: `4px solid ${(currentPrice !== null && isAboveVwap) ? '#27ae60' : '#e74c3c'}`
                         }}>
                           <div style={{ fontSize: '13px', color: '#333', marginBottom: '8px' }}>
                             <strong>
-                              {isAboveVwap ? '📈 Bullish Signal' : '📉 Bearish Signal'}
+                              {(currentPrice !== null && isAboveVwap) ? '📈 Bullish Signal' : '📉 Bearish Signal'}
                             </strong>
                           </div>
                           <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.5' }}>
-                            {isAboveVwap ? (
+                            {(currentPrice !== null && isAboveVwap) ? (
                               <>
                                 ✅ Preis über VWAP → Käufer dominieren<br/>
                                 ✅ Institutioneller Support vorhanden<br/>
@@ -639,7 +880,7 @@ function CalculatedMetricsTab({ stockId }) {
                           fontSize: '12px',
                           color: '#666'
                         }}>
-                          💡 <strong>Trading Tip:</strong> {isAboveVwap 
+                          💡 <strong>Trading Tip:</strong> {(currentPrice !== null && isAboveVwap) 
                             ? 'Long-Positionen bevorzugen. Bei Rücksetzer auf VWAP als Entry nutzen.'
                             : 'Vorsicht bei Long-Positionen. Warten bis Preis über VWAP steigt.'}
                         </div>
@@ -648,7 +889,8 @@ function CalculatedMetricsTab({ stockId }) {
                   })()}
                 </div>
               </div>
-            )}
+              ) : null;
+            })()}
 
             {/* ATR & Stop-Loss Levels */}
             {advancedAnalysis.atr_current && (

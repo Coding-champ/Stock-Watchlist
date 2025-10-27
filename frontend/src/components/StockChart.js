@@ -41,7 +41,7 @@ const CHART_TYPES = {
   CANDLESTICK: 'candlestick'
 };
 
-function StockChart({ stock, isEmbedded = false }) {
+function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   const [chartData, setChartData] = useState(null);
   // eslint-disable-next-line no-unused-vars
   const [indicators, setIndicators] = useState(null);
@@ -198,6 +198,29 @@ function StockChart({ stock, isEmbedded = false }) {
         atr: indicatorsJson?.indicators?.atr?.[index],
         vwap: indicatorsJson?.indicators?.vwap?.[index]
       }));
+
+      // If the technical-indicators endpoint didn't provide VWAP series,
+      // compute a simple rolling VWAP (20-period) from close and volume
+      // so the chart can still display a VWAP line when the backend omits it.
+      const hasVwapFromApi = !!(indicatorsJson && indicatorsJson.indicators && Array.isArray(indicatorsJson.indicators.vwap) && indicatorsJson.indicators.vwap.some(v => v !== null && v !== undefined));
+      if (!hasVwapFromApi) {
+        const windowSize = 20;
+        for (let i = 0; i < transformedData.length; i++) {
+          let volSum = 0;
+          let pvSum = 0;
+          // look back up to windowSize points (including current)
+          for (let j = Math.max(0, i - (windowSize - 1)); j <= i; j++) {
+            const rec = transformedData[j];
+            const close = rec?.close;
+            const vol = rec?.volume;
+            if (typeof close === 'number' && typeof vol === 'number' && vol > 0) {
+              pvSum += close * vol;
+              volSum += vol;
+            }
+          }
+          transformedData[i].vwap = volSum > 0 ? (pvSum / volSum) : null;
+        }
+      }
       
       // Calculate 10-day Volume Moving Average
       const volumeMA10 = transformedData.map((item, index) => {
@@ -222,6 +245,13 @@ function StockChart({ stock, isEmbedded = false }) {
       });
       
       setChartData(transformedData);
+      // Notify parent about latest VWAP single-value so siblings can use the same source of truth
+      try {
+        const latest = transformedData.length ? transformedData[transformedData.length - 1].vwap : null;
+        if (typeof onLatestVwap === 'function') onLatestVwap(latest);
+      } catch (e) {
+        // ignore
+      }
       // Store indicators for potential future use
       // eslint-disable-next-line no-unused-vars
       setIndicators(indicatorsJson);
@@ -298,7 +328,7 @@ function StockChart({ stock, isEmbedded = false }) {
     } finally {
       setLoading(false);
     }
-  }, [stock.id, period, customStartDate, customEndDate]); // Include all dependencies
+  }, [stock.id, period, customStartDate, customEndDate, onLatestVwap]); // Include all dependencies
 
   useEffect(() => {
     fetchChartData();

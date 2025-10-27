@@ -10,6 +10,7 @@ import { useAlerts } from '../hooks/useAlerts';
 import API_BASE from '../config';
 
 function StockDetailModal({ stock, onClose }) {
+  const [chartLatestVwap, setChartLatestVwap] = useState(null);
   const { alerts, loadAlerts, toggleAlert, deleteAlert } = useAlerts(stock.id);
   const [extendedData, setExtendedData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -210,7 +211,7 @@ function StockDetailModal({ stock, onClose }) {
             {/* CHART TAB */}
             {activeTab === 'chart' && (
               <div className="tab-panel">
-                <StockChart stock={stock} isEmbedded={true} />
+                <StockChart stock={stock} isEmbedded={true} onLatestVwap={setChartLatestVwap} />
               </div>
             )}
 
@@ -407,13 +408,14 @@ function StockDetailModal({ stock, onClose }) {
                 </div>
 
                 {/* Calculated Metrics */}
-                <CalculatedMetricsTab stockId={stock.id} />
+                {/* Pass isActive so CalculatedMetricsTab fetches immediately when this tab is selected */}
+                <CalculatedMetricsTab stockId={stock.id} isActive={activeTab === 'analysis'} prefetch={true} chartLatestVwap={chartLatestVwap} />
               </div>
             )}
 
             {/* SAISONALITÄT TAB */}
             {activeTab === 'saisonalität' && (
-              <div className="tab-panel">
+                <div className="tab-panel">
                 <SeasonalityTab stockId={stock.id} />
               </div>
             )}

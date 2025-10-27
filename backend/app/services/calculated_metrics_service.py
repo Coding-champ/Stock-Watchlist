@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
-# PHASE 1: BASIS-INDIKATOREN
+# BASIS-INDIKATOREN
 # ============================================================================
 
 def calculate_52week_distance(current_price: Optional[float], 
@@ -439,7 +439,7 @@ def find_support_resistance(historical_prices: List[float],
 
 
 # ============================================================================
-# PHASE 2: BEWERTUNGS-SCORES
+# BEWERTUNGS-SCORES
 # ============================================================================
 
 def calculate_peg_ratio(pe_ratio: Optional[float],
@@ -693,9 +693,8 @@ def calculate_dividend_safety_score(dividend_yield: Optional[float],
 
 
 # ============================================================================
-# PHASE 3: ERWEITERTE ANALYSE
+# ERWEITERTE ANALYSE
 # ============================================================================
-# Note: RSI and MACD have been moved to technical_indicators_service.py
 
 def calculate_stochastic_oscillator(high_prices: pd.Series,
                                    low_prices: pd.Series,
@@ -1270,7 +1269,7 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
         'calculation_timestamp': datetime.now().isoformat()
     }
     
-    # ========== PHASE 1 ==========
+    # ========== BASIC INDICATORS ==========
     
     # 52-Wochen Distanz - merge the dict into basic_indicators
     week_52_metrics = calculate_52week_distance(
@@ -1335,9 +1334,9 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
                 max_levels=3
             )
             result['basic_indicators']['support_resistance'] = support_resistance_data
-    
-    # ========== PHASE 2 ==========
-    
+
+    # ========== VALUATION SCORES ==========
+
     # PEG Ratio
     result['valuation_scores']['peg_ratio'] = calculate_peg_ratio(
         stock_data.get('pe_ratio'),
@@ -1371,9 +1370,9 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
         stock_data.get('five_year_avg_dividend_yield')
     )
     result['valuation_scores'].update(dividend_metrics)
-    
-    # ========== PHASE 3 ==========
-    
+
+    # ========== ADVANCED ANALYSIS ==========
+
     logging.info(f"[calculate_all_metrics] before .empty check 2, type: {type(historical_prices)}")
     assert historical_prices is None or isinstance(historical_prices, pd.DataFrame), f"historical_prices is not a DataFrame: {type(historical_prices)}"
     if historical_prices is not None and not historical_prices.empty:
