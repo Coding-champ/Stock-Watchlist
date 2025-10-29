@@ -53,6 +53,49 @@ function CalculatedMetricsTab({ stockId, isActive = true, prefetch = false, char
       const data = await response.json();
       setMetrics(data);
 
+      // If SMA values are missing from calculated-metrics, try to fetch them from
+      // the technical-indicators endpoint and merge the latest value into metrics
+      try {
+        const hasSma50 = data?.metrics?.basic_indicators?.sma_50 !== undefined && data?.metrics?.basic_indicators?.sma_50 !== null;
+        const hasSma200 = data?.metrics?.basic_indicators?.sma_200 !== undefined && data?.metrics?.basic_indicators?.sma_200 !== null;
+        if (!hasSma50 || !hasSma200) {
+          const smaResp = await fetch(`${API_BASE}/stock-data/${stockId}/technical-indicators?period=1y&indicators=sma_50&indicators=sma_200`, { signal });
+          if (smaResp.ok) {
+            const smaJson = await smaResp.json();
+            const extractLatestNumber = (maybeArray) => {
+              if (!maybeArray) return null;
+              if (Array.isArray(maybeArray) && maybeArray.length > 0) {
+                for (let i = maybeArray.length - 1; i >= 0; i--) {
+                  const v = maybeArray[i];
+                  if (v !== null && v !== undefined && typeof v === 'number' && !Number.isNaN(v)) return v;
+                  if (v && typeof v === 'object') {
+                    const candidate = v.value ?? v.y ?? v.sma ?? null;
+                    if (typeof candidate === 'number' && !Number.isNaN(candidate)) return candidate;
+                  }
+                }
+              }
+              if (typeof maybeArray === 'number' && !Number.isNaN(maybeArray)) return maybeArray;
+              return null;
+            };
+
+            const sma50Val = extractLatestNumber(smaJson?.indicators?.sma_50);
+            const sma200Val = extractLatestNumber(smaJson?.indicators?.sma_200);
+            if (sma50Val !== null || sma200Val !== null) {
+              setMetrics(prev => {
+                const next = { ...(prev || {} ) };
+                next.metrics = { ...(next.metrics || {} ) };
+                next.metrics.basic_indicators = { ...(next.metrics.basic_indicators || {} ) };
+                if (sma50Val !== null) next.metrics.basic_indicators.sma_50 = sma50Val;
+                if (sma200Val !== null) next.metrics.basic_indicators.sma_200 = sma200Val;
+                return next;
+              });
+            }
+          }
+        }
+      } catch (e) {
+        // ignore SMA fetch errors — not critical for the tab
+      }
+
       // Load VWAP from technical indicators (use same signal so both requests can be aborted)
       const vwapResponse = await fetch(`${API_BASE}/stock-data/${stockId}/technical-indicators?period=1y&indicators=vwap`, { signal });
       if (vwapResponse.ok) {

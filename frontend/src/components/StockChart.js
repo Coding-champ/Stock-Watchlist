@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   LineChart,
   Line,
@@ -44,8 +44,8 @@ const CHART_TYPES = {
 
 function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   const [chartData, setChartData] = useState(null);
-  // eslint-disable-next-line no-unused-vars
-  const [indicators, setIndicators] = useState(null);
+  // stored fetched/cached indicators (lazy-loaded)
+  const [indicators, setIndicators] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [crossoverData, setCrossoverData] = useState(null);
@@ -161,37 +161,28 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
       
   const chartJson = await chartResponse.json();
       
-  // Fetch indicators separately as a fallback, but prefer server-provided indicators
+  // Fetch only the SMA indicators initially (keep payload small). Other indicators are
+  // fetched lazily when the user toggles them on. The chart endpoint still contains
+  // aligned series in `chartJson.indicators` which we prefer when present.
   let indicatorsJson = null;
-  // Always fetch all indicators to avoid re-loading when toggling visibility (used as fallback)
-  // Include 'stochastic' so the frontend can render the Slow Stochastic subchart and Auswertung
-  const indicatorsList = ['sma_50', 'sma_200', 'rsi', 'macd', 'bollinger', 'atr', 'vwap', 'stochastic'];
+  const initialIndicatorsList = ['sma_50', 'sma_200'];
       
       let indicatorsResponse = await fetch(
-        `${API_BASE}/stock-data/${stock.id}/technical-indicators?period=${period}&${indicatorsList.map(i => `indicators=${i}`).join('&')}`
+        `${API_BASE}/stock-data/${stock.id}/technical-indicators?period=${period}&${initialIndicatorsList.map(i => `indicators=${i}`).join('&')}`
       );
-      
-      if (!indicatorsResponse.ok) {
-        // Retry once if the indicators endpoint failed (transient network/server issue)
-        try {
-          console.warn('Indicators endpoint failed, retrying once...', indicatorsResponse.status);
-          indicatorsResponse = await fetch(
-            `${API_BASE}/stock-data/${stock.id}/technical-indicators?period=${period}&${indicatorsList.map(i => `indicators=${i}`).join('&')}`
-          );
-        } catch (e) {
-          console.warn('Indicators retry threw error', e);
-        }
-      }
-
       if (indicatorsResponse && indicatorsResponse.ok) {
         indicatorsJson = await indicatorsResponse.json();
       }
 
   // Merge indicators: prefer chart payload indicators (they include warmup/alignment),
-  // but fall back to the separate indicators endpoint for any missing series.
-  const mergedFromApi = indicatorsJson && indicatorsJson.indicators ? indicatorsJson.indicators : {};
+  // then merge cached/fetched indicators stored in state (indicators).
   const chartIndicators = chartJson && chartJson.indicators ? chartJson.indicators : {};
-  const sourceIndicators = { ...mergedFromApi, ...chartIndicators };
+  const fetchedIndicators = indicatorsJson && indicatorsJson.indicators ? indicatorsJson.indicators : {};
+      // Seed cached indicators with any initially fetched SMA series
+      if (Object.keys(fetchedIndicators).length) {
+        setIndicators(prev => ({ ...prev, ...fetchedIndicators }));
+      }
+  const sourceIndicators = { ...fetchedIndicators, ...chartIndicators };
       
       // Transform data for Recharts
       const transformedData = chartJson.dates.map((date, index) => ({
@@ -301,9 +292,9 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
       } catch (e) {
         // ignore
       }
-      // Store indicators for potential future use
-      // eslint-disable-next-line no-unused-vars
-      setIndicators(indicatorsJson);
+  // Store indicators for potential future use — merge into existing cache
+  // eslint-disable-next-line no-unused-vars
+  setIndicators(prev => ({ ...prev, ...(indicatorsJson?.indicators || {}) }));
       
       // Store Bollinger Bands signal data
       if (indicatorsJson?.indicators?.bollinger) {
@@ -382,6 +373,116 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   useEffect(() => {
     fetchChartData();
   }, [fetchChartData]);
+
+  // Helper to fetch one or more indicators lazily and merge into state & chartData
+  const fetchIndicators = useCallback(async (indicatorNames) => {
+    if (!indicatorNames || indicatorNames.length === 0) return;
+    try {
+      // Prevent fetching indicators that are already present or currently in-flight
+      const toFetch = [];
+      indicatorNames.forEach(name => {
+        if (indicatorsRef.current && (name in indicatorsRef.current)) return;
+        if (inFlightIndicatorsRef.current.has(name)) return;
+        toFetch.push(name);
+      });
+      if (toFetch.length === 0) return;
+
+      // Mark as in-flight
+      toFetch.forEach(n => inFlightIndicatorsRef.current.add(n));
+
+      const resp = await fetch(`${API_BASE}/stock-data/${stock.id}/technical-indicators?period=${period}&${toFetch.map(i => `indicators=${i}`).join('&')}`);
+      if (!resp.ok) return;
+      const json = await resp.json();
+      const newInd = json?.indicators || {};
+
+      // Merge into cached indicators
+      setIndicators(prev => ({ ...prev, ...newInd }));
+
+      // Also merge values into chartData (align by index) using functional update
+      setChartData(prev => {
+        if (!prev || prev.length === 0) return prev;
+        const updated = prev.map((row, idx) => {
+          const copy = { ...row };
+          for (const key of Object.keys(newInd)) {
+            const val = newInd[key];
+            if (val === undefined || val === null) continue;
+            if (key === 'macd') {
+              copy.macd = val.macd?.[idx] ?? copy.macd;
+              copy.macdSignal = val.signal?.[idx] ?? copy.macdSignal;
+              copy.macdHistogram = val.histogram?.[idx] ?? val.hist?.[idx] ?? copy.macdHistogram;
+            } else if (key === 'bollinger') {
+              copy.bollingerUpper = val.upper?.[idx] ?? copy.bollingerUpper;
+              copy.bollingerMiddle = val.middle?.[idx] ?? val.sma?.[idx] ?? copy.bollingerMiddle;
+              copy.bollingerLower = val.lower?.[idx] ?? copy.bollingerLower;
+              copy.bollingerPercentB = val.percent_b?.[idx] ?? copy.bollingerPercentB;
+              copy.bollingerBandwidth = val.bandwidth?.[idx] ?? copy.bollingerBandwidth;
+            } else if (key === 'stochastic') {
+              copy.k_percent = val.k_percent?.[idx] ?? copy.k_percent;
+              copy.d_percent = val.d_percent?.[idx] ?? copy.d_percent;
+            } else {
+              copy[key] = Array.isArray(val) ? val[idx] : val;
+            }
+          }
+          return copy;
+        });
+        return updated;
+      });
+
+      // done — clear in-flight markers for fetched items
+      toFetch.forEach(n => inFlightIndicatorsRef.current.delete(n));
+    } catch (e) {
+      console.warn('Lazy indicators fetch failed', e);
+      // make sure to clear in-flight markers on error to allow retries
+      indicatorNames.forEach(n => inFlightIndicatorsRef.current.delete(n));
+    }
+  }, [API_BASE, stock.id, period]);
+
+  // Refs to track latest indicators state and in-flight fetches to avoid races/loops
+  const indicatorsRef = useRef(indicators);
+  const inFlightIndicatorsRef = useRef(new Set());
+
+  // Keep indicatorsRef in sync with state
+  useEffect(() => {
+    indicatorsRef.current = indicators;
+  }, [indicators]);
+
+  // Watch indicator toggles and fetch lazily when user enables them.
+  // Use refs to check current cache and in-flight requests to avoid loops/duplicates.
+  useEffect(() => {
+    if (showRSI && !(indicatorsRef.current && ('rsi' in indicatorsRef.current)) && !inFlightIndicatorsRef.current.has('rsi')) {
+      fetchIndicators(['rsi']);
+    }
+  }, [showRSI, fetchIndicators]);
+
+  useEffect(() => {
+    if (showMACD && !(indicatorsRef.current && ('macd' in indicatorsRef.current)) && !inFlightIndicatorsRef.current.has('macd')) {
+      fetchIndicators(['macd']);
+    }
+  }, [showMACD, fetchIndicators]);
+
+  useEffect(() => {
+    if (showBollinger && !(indicatorsRef.current && ('bollinger' in indicatorsRef.current)) && !inFlightIndicatorsRef.current.has('bollinger')) {
+      fetchIndicators(['bollinger']);
+    }
+  }, [showBollinger, fetchIndicators]);
+
+  useEffect(() => {
+    if (showATR && !(indicatorsRef.current && ('atr' in indicatorsRef.current)) && !inFlightIndicatorsRef.current.has('atr')) {
+      fetchIndicators(['atr']);
+    }
+  }, [showATR, fetchIndicators]);
+
+  useEffect(() => {
+    if (showVWAP && !(indicatorsRef.current && ('vwap' in indicatorsRef.current)) && !inFlightIndicatorsRef.current.has('vwap')) {
+      fetchIndicators(['vwap']);
+    }
+  }, [showVWAP, fetchIndicators]);
+
+  useEffect(() => {
+    if (showStochastic && !(indicatorsRef.current && ('stochastic' in indicatorsRef.current)) && !inFlightIndicatorsRef.current.has('stochastic')) {
+      fetchIndicators(['stochastic']);
+    }
+  }, [showStochastic, fetchIndicators]);
 
   // Export functions
   const exportToPNG = () => {
