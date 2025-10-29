@@ -109,6 +109,102 @@ def _filter_indicators_by_dates(indicators_result: Dict[str, Any], target_dates:
     return filtered_indicators
 
 
+def _estimate_required_warmup_bars(indicators: Optional[List[str]]) -> Optional[int]:
+    """
+    Estimate required warmup bars (history) given a list of indicators.
+    Returns the maximum window length needed by the requested indicators.
+    """
+    if not indicators:
+        return None
+
+    # Base mapping of indicator -> required bars
+    mapping = {
+        'sma_50': 50,
+        'sma_200': 200,
+        'sma': 200,  # generic fallback
+        'rsi': 14,
+        'macd': 35,  # slow (26) + signal (9)
+        'bollinger': 20,
+        'stochastic': 20,
+        'vwap': 20,
+        'atr': 14
+    }
+
+    required = 0
+    for ind in indicators:
+        name = ind.lower() if isinstance(ind, str) else ''
+        if not name:
+            continue
+        if name in mapping:
+            required = max(required, mapping[name])
+            continue
+        # handle names like 'sma_50' or 'sma_200'
+        if 'sma' in name:
+            if '200' in name:
+                required = max(required, 200)
+            elif '50' in name:
+                required = max(required, 50)
+            else:
+                required = max(required, 50)
+            continue
+        if 'macd' in name:
+            required = max(required, mapping['macd'])
+            continue
+        if 'rsi' in name:
+            required = max(required, mapping['rsi'])
+            continue
+        if 'stochastic' in name or 'stoch' in name:
+            required = max(required, mapping['stochastic'])
+            continue
+        if 'bollinger' in name:
+            required = max(required, mapping['bollinger'])
+
+    return required if required > 0 else None
+
+
+def _period_to_days(period: str) -> int:
+    """Approximate number of days for a period string."""
+    map_days = {
+        '1d': 1,
+        '5d': 5,
+        '1mo': 30,
+        '2mo': 60,
+        '3mo': 90,
+        '6mo': 180,
+        '1y': 365,
+        '2y': 730,
+        '3y': 1095,
+        '5y': 1825,
+        '10y': 3650,
+        'ytd': 365,
+        'max': 3650
+    }
+    return map_days.get(period, 365)
+
+
+def _period_for_days(days: int) -> str:
+    """Return an appropriate yfinance period string approximating the given days."""
+    if days <= 5:
+        return '5d'
+    if days <= 30:
+        return '1mo'
+    if days <= 90:
+        return '3mo'
+    if days <= 180:
+        return '6mo'
+    if days <= 365:
+        return '1y'
+    if days <= 730:
+        return '2y'
+    if days <= 1095:
+        return '3y'
+    if days <= 1825:
+        return '5y'
+    if days <= 3650:
+        return '10y'
+    return 'max'
+
+
 def get_fast_stock_data(ticker_symbol: str) -> Optional[Dict[str, Any]]:
     """
     Get fast stock data using fast_info (optimized for speed)
@@ -305,10 +401,65 @@ def get_chart_data(
             hist = ticker.history(start=start, end=end, interval=interval)
             cutoff_date = None
         else:
-            # Use extended period for better indicator calculations
-            extended_period = _get_extended_period(period)
+            # Determine dynamic warmup based on requested indicators
+            # Default: rely on conservative extended_period mapping
+            warmup_bars = None
+            if indicators:
+                warmup_bars = _estimate_required_warmup_bars(indicators)
+
+            # If explicit warmup not available, fall back to configured mapping
+            # Also ensure volume MA warmup (20 bars) if volume will be returned
+            # We prefer a 20-bar warmup to support both 10-day and 20-day volume averages
+            if include_volume:
+                warmup_bars = max(warmup_bars or 0, 20)
+
+            if warmup_bars is None:
+                extended_period = _get_extended_period(period)
+            else:
+                # Estimate display days for requested period
+                display_days = _period_to_days(period)
+
+                # Map interval to approximate trading bars per calendar day.
+                bars_per_day_map = {
+                    '1m': 390,
+                    '5m': 78,
+                    '15m': 26,
+                    '30m': 13,
+                    '60m': 6,
+                    '1h': 6,
+                    '1d': 1,
+                    '1wk': 1.0 / 5.0,   # one weekly bar per 5 trading days
+                    '1mo': 1.0 / 21.0,  # one monthly bar per ~21 trading days
+                }
+
+                # Determine bars per calendar day for the requested interval (default 1)
+                bars_per_day = bars_per_day_map.get(interval, 1)
+
+                # Compute approximate number of display bars requested
+                display_bars = max(1, int(display_days * bars_per_day))
+
+                # Total bars needed = display bars + indicator warmup bars + safety margin
+                safety_margin_bars = max(10, int(0.05 * (display_bars + warmup_bars))) if warmup_bars else 10
+                total_bars_needed = display_bars + (warmup_bars or 0) + safety_margin_bars
+
+                # Convert required bars back to conservative calendar days
+                # Avoid division by very small bars_per_day by ensuring a minimum
+                effective_bars_per_day = bars_per_day if bars_per_day >= 0.05 else 0.05
+                weekend_holiday_factor = 1.15  # account for weekends/holidays
+                required_days = int((total_bars_needed / effective_bars_per_day) * weekend_holiday_factor) + 1
+
+                # Ensure at least the display days are requested
+                total_days = max(required_days, display_days)
+                extended_period = _period_for_days(total_days)
+
+                # compute extended_period above; now fetch hist for whichever branch
+                pass
+
+            # Fetch historical data for the computed extended_period
             hist = ticker.history(period=extended_period, interval=interval)
-            
+            # Debug info
+            logger.debug(f"extended_period={extended_period}, interval={interval}, indicators={indicators}")
+
             # Calculate cutoff date to filter back to requested period
             # We load extra data for indicators but only return the requested period
             if not hist.empty and extended_period != period:
@@ -320,25 +471,116 @@ def get_chart_data(
             logger.warning(f"No chart data found for {ticker_symbol}")
             return None
         
-        # Calculate indicators on full dataset (with warmup period)
+    # Calculate indicators on full dataset (with warmup period)
         indicators_result = None
         if indicators:
-            from .indicators import calculate_technical_indicators
-            indicators_result = calculate_technical_indicators(
-                ticker_symbol=ticker_symbol,
-                period=period,
-                indicators=indicators,
-                hist=hist  # Pass full historical data for accurate indicator calculation
+            # Compute indicators directly using low-level indicator implementations to avoid recursion
+            from backend.app.services.indicators_core import (
+                calculate_sma,
+                calculate_rsi,
+                calculate_macd,
+                calculate_bollinger_bands,
             )
+            import re
+
+            indicators_result = {
+                'dates': [d.isoformat() for d in hist.index],
+                'indicators': {}
+            }
+
+            for ind in indicators:
+                name = ind.lower() if isinstance(ind, str) else ''
+                try:
+                    if name.startswith('sma'):
+                        # try to extract window from name, e.g. 'sma_50'
+                        m = re.search(r"(\d+)", name)
+                        window = int(m.group(1)) if m else 50
+                        indicators_result['indicators'][f'sma_{window}'] = calculate_sma(hist['Close'], window).tolist()
+                    elif name == 'rsi':
+                        indicators_result['indicators']['rsi'] = calculate_rsi(hist['Close'], 14).tolist()
+                    elif name == 'macd':
+                        macd_df = calculate_macd(hist['Close'])
+                        indicators_result['indicators']['macd'] = {
+                            'macd': macd_df['macd'].tolist(),
+                            'signal': macd_df['signal'].tolist(),
+                            'hist': macd_df['hist'].tolist()
+                        }
+                    elif 'bollinger' in name:
+                        bb = calculate_bollinger_bands(hist['Close'])
+                        indicators_result['indicators']['bollinger'] = {
+                            'upper': bb['upper'].tolist(),
+                            'middle': bb['sma'].tolist(),
+                            'lower': bb['lower'].tolist()
+                        }
+                    else:
+                        # fallback: try sma default 50
+                        m = re.search(r"(\d+)", name)
+                        if m:
+                            window = int(m.group(1))
+                            indicators_result['indicators'][name] = calculate_sma(hist['Close'], window).tolist()
+                except Exception:
+                    # If indicator calculation fails, set None to indicate unavailability
+                    indicators_result['indicators'][name] = None
+
+        # Compute volume moving averages if volume requested
+        if include_volume and 'Volume' in hist.columns:
+            try:
+                # 10-day and 20-day volume moving averages (align with frontend expectations)
+                vol_ma10 = hist['Volume'].rolling(window=10).mean()
+                vol_ma20 = hist['Volume'].rolling(window=20).mean()
+                # Ensure it's serializable (convert NaN to None)
+                indicators_result = indicators_result or {'dates': [d.isoformat() for d in hist.index], 'indicators': {}}
+                indicators_result['indicators']['volumeMA10'] = [None if pd.isna(v) else float(v) for v in vol_ma10.tolist()]
+                indicators_result['indicators']['volumeMA20'] = [None if pd.isna(v) else float(v) for v in vol_ma20.tolist()]
+            except Exception:
+                # Non-fatal: skip volume MA if calculation fails
+                logger.debug("volumeMA10 calculation failed, skipping")
         
         # Filter data to requested period if we loaded extended data
         if cutoff_date:
+            # Ensure the filtered (visible) start has enough prior warmup bars
+            # so that indicators (SMA/RSI/etc.) are numeric at the first visible index.
+            try:
+                required_warmup = _estimate_required_warmup_bars(indicators) or 0
+            except Exception:
+                required_warmup = 0
+            # Ensure volume MA warmup is accounted for when volume is included
+            if include_volume:
+                required_warmup = max(required_warmup, 10)
+            logger.debug(f"required_warmup={required_warmup}")
+
+            # Find the first index in hist that is >= cutoff_date
+            idx_positions = [i for i, d in enumerate(hist.index) if d >= cutoff_date]
+            if idx_positions:
+                first_pos = idx_positions[0]
+            else:
+                first_pos = 0
+            logger.debug(f"first_pos={first_pos}, hist_len={len(hist)}")
+
+            # If we don't have enough prior bars before first_pos, shift the visible
+            # start forward (later) to the earliest position that does have enough prior bars.
+            if required_warmup and len(hist) > required_warmup and first_pos < required_warmup:
+                new_start_pos = required_warmup
+                logger.debug(f"shifting start from pos {first_pos} to {new_start_pos}")
+                if new_start_pos < len(hist):
+                    cutoff_date = hist.index[new_start_pos]
+
             hist = hist[hist.index >= cutoff_date]
             logger.debug(f"Filtered data from {cutoff_date} to {hist.index[-1]} for period {period}")
         
         # Prepare chart data
         chart_data = []
-        for date, row in hist.iterrows():
+        # Precompute filtered volume moving averages (10 & 20) for per-point inclusion
+        try:
+            filtered_volumes = [int(row['Volume']) if pd.notna(row['Volume']) else None for _, row in hist.iterrows()]
+            vol_series = pd.Series([v if v is not None else np.nan for v in filtered_volumes])
+            vol_ma10_filtered = vol_series.rolling(window=10).mean().tolist()
+            vol_ma20_filtered = vol_series.rolling(window=20).mean().tolist()
+        except Exception:
+            vol_ma10_filtered = [None] * len(hist)
+            vol_ma20_filtered = [None] * len(hist)
+
+        for i, (date, row) in enumerate(hist.iterrows()):
             data_point = {
                 'date': date.isoformat(),
                 'open': float(row['Open']) if pd.notna(row['Open']) else None,
@@ -362,6 +604,18 @@ def get_chart_data(
             # Include volume if requested
             if include_volume and 'Volume' in row:
                 data_point['volume'] = int(row['Volume']) if pd.notna(row['Volume']) else None
+                # include precomputed 10-day volume moving average per point
+                try:
+                    ma_val = vol_ma10_filtered[i]
+                    data_point['volumeMA10'] = None if (ma_val is None or (isinstance(ma_val, float) and pd.isna(ma_val))) else float(ma_val)
+                except Exception:
+                    data_point['volumeMA10'] = None
+                # include precomputed 20-day volume moving average per point
+                try:
+                    ma20 = vol_ma20_filtered[i]
+                    data_point['volumeMA20'] = None if (ma20 is None or (isinstance(ma20, float) and pd.isna(ma20))) else float(ma20)
+                except Exception:
+                    data_point['volumeMA20'] = None
             
             chart_data.append(data_point)
         
@@ -372,6 +626,15 @@ def get_chart_data(
         lows = [item['low'] for item in chart_data]
         closes = [item['close'] for item in chart_data]
         volumes = [item['volume'] for item in chart_data]
+        # Compute aggregate average volume stats from the filtered data
+        try:
+            avg_volume = int(pd.Series([v for v in volumes if v is not None]).mean()) if any(v is not None for v in volumes) else None
+        except Exception:
+            avg_volume = None
+        try:
+            avg_volume_10days = int(pd.Series([v for v in volumes if v is not None]).tail(10).mean()) if any(v is not None for v in volumes) else None
+        except Exception:
+            avg_volume_10days = None
         
         result = {
             'ticker': ticker_symbol,
@@ -385,7 +648,11 @@ def get_chart_data(
             'volume': volumes, # Frontend expects this
             'chart_data': chart_data,  # Keep for backward compatibility
             'data': chart_data,  # Keep for backward compatibility
-            'indicators': {}
+            'indicators': {},
+            'volume_data': {
+                'average_volume': avg_volume,
+                'average_volume_10days': avg_volume_10days
+            }
         }
         
         # Add filtered indicators to result

@@ -4,6 +4,7 @@ Fetches price data, calculates overlays/indicators using indicators_core.py, ret
 """
 
 import pandas as pd
+import numpy as np
 from typing import Optional, Dict, Any, List
 from backend.app.services.indicators_core import (
     calculate_rsi,
@@ -36,6 +37,7 @@ def get_chart_with_indicators(
         end=end,
         include_dividends=True,
         include_volume=include_volume,
+        indicators=indicators,
     )
     # Accept multiple possible keys for price data
     prices = None
@@ -64,37 +66,64 @@ def get_chart_with_indicators(
         'low': low,
         'close': close,
         'volume': volume,
-        'indicators': {}
+        'indicators': {},
+        # pass through volume summary if backend provided it
+        'volume_data': chart_data.get('volume_data') if chart_data and isinstance(chart_data, dict) and chart_data.get('volume_data') else None
     }
-    # Calculate requested indicators
-    if indicators is None:
-        indicators = ['sma_50', 'sma_200', 'rsi', 'macd', 'bollinger']
-    close_prices = df['close'] if 'close' in df else pd.Series([])
-    high_prices = df['high'] if 'high' in df else pd.Series([])
-    low_prices = df['low'] if 'low' in df else pd.Series([])
-    volume = df['volume'] if 'volume' in df else pd.Series([])
-    for indicator in indicators:
+    # If the fetched chart_data already contains precomputed indicators (with warmup), use them
+    if chart_data and chart_data.get('indicators'):
         try:
-            if indicator == 'sma_50':
-                result['indicators']['sma_50'] = calculate_sma(close_prices, 50).tolist()
-            elif indicator == 'sma_200':
-                result['indicators']['sma_200'] = calculate_sma(close_prices, 200).tolist()
-            elif indicator == 'rsi':
-                result['indicators']['rsi'] = calculate_rsi(close_prices, 14).tolist()
-            elif indicator == 'macd':
-                macd_df = calculate_macd(close_prices)
-                result['indicators']['macd'] = {
-                    'macd': macd_df['macd'].tolist(),
-                    'signal': macd_df['signal'].tolist(),
-                    'hist': macd_df['hist'].tolist()
-                }
-            elif indicator == 'bollinger':
-                bb_df = calculate_bollinger_bands(close_prices)
-                result['indicators']['bollinger'] = {
-                    'upper': bb_df['upper'].tolist(),
-                    'middle': bb_df['sma'].tolist(),
-                    'lower': bb_df['lower'].tolist()
-                }
-        except Exception as e:
-            result['indicators'][indicator] = None
+            result['indicators'] = chart_data.get('indicators', {})
+            # Ensure indicator lists align with dates length; fallback to recompute if mismatch
+            for name, series in list(result['indicators'].items()):
+                if isinstance(series, list) and len(series) != len(dates):
+                    # mismatch detected; drop indicators to allow local computation below
+                    result['indicators'] = {}
+                    break
+        except Exception:
+            # on any issue, fall back to local computation
+            result['indicators'] = {}
+
+    # Calculate requested indicators locally if not provided by chart_data
+    if not result['indicators']:
+        if indicators is None:
+            indicators = ['sma_50', 'sma_200', 'rsi', 'macd', 'bollinger']
+        close_prices = df['close'] if 'close' in df else pd.Series([])
+        high_prices = df['high'] if 'high' in df else pd.Series([])
+        low_prices = df['low'] if 'low' in df else pd.Series([])
+        volume = df['volume'] if 'volume' in df else pd.Series([])
+        for indicator in indicators:
+            try:
+                if indicator == 'sma_50':
+                    result['indicators']['sma_50'] = calculate_sma(close_prices, 50).tolist()
+                elif indicator == 'sma_200':
+                    result['indicators']['sma_200'] = calculate_sma(close_prices, 200).tolist()
+                elif indicator == 'rsi':
+                    result['indicators']['rsi'] = calculate_rsi(close_prices, 14).tolist()
+                elif indicator == 'macd':
+                    macd_df = calculate_macd(close_prices)
+                    result['indicators']['macd'] = {
+                        'macd': macd_df['macd'].tolist(),
+                        'signal': macd_df['signal'].tolist(),
+                        'hist': macd_df['hist'].tolist()
+                    }
+                elif indicator == 'bollinger':
+                    bb_df = calculate_bollinger_bands(close_prices)
+                    result['indicators']['bollinger'] = {
+                        'upper': bb_df['upper'].tolist(),
+                        'middle': bb_df['sma'].tolist(),
+                        'lower': bb_df['lower'].tolist()
+                    }
+            except Exception as e:
+                result['indicators'][indicator] = None
+        # also compute volume moving averages locally if volume series available
+        try:
+            if 'volume' in df and df['volume'].notna().any():
+                vol_series = df['volume']
+                # 10-day and 20-day moving averages
+                result['indicators']['volumeMA10'] = vol_series.rolling(window=10).mean().fillna(value=np.nan).tolist()
+                result['indicators']['volumeMA20'] = vol_series.rolling(window=20).mean().fillna(value=np.nan).tolist()
+        except Exception:
+            # non-fatal
+            pass
     return result

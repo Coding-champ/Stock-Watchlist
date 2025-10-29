@@ -233,6 +233,11 @@ curl -X GET "http://localhost:8000/api/stock-data/1/calculated-metrics?period=1y
 - **golden_cross**: True if SMA50 > SMA200 (bullish signal)
 - **death_cross**: True if SMA50 < SMA200 (bearish signal)
 
+##### Hinweis zur SMA-Berechnung
+
+- Die im API-Response angegebenen SMAs (z. B. `sma_50`, `sma_200`) werden über "N Bars" der jeweils gelieferten Zeitreihe berechnet. Das heißt: SMA50 = Mittelwert über 50 Datenpunkte (50 Bars). Bei Standard-Abfragen mit Interval `1d` entspricht das 50 Handelstagen; bei Intraday-Intervallen (z. B. `1h`) entspricht SMA50 50 Stunden/Bars.
+- Dieses Verhalten ist bewusst so gewählt, damit die Indikatoren konsistent zu den im Frontend angezeigten Chart-Bars sind. Falls erforderlich, kann die Berechnung alternativ über tägliche Resampling-Logik ("50 Handelstage") realisiert werden — diese Option ist derzeit nicht standardmäßig aktiviert und müsste explizit angefordert.
+
 #### Volume Metrics
 - **relative_volume**: Current volume / average volume ratio
 - **volume_category**: `"very_low"` (< 0.5), `"low"` (0.5-0.8), `"normal"` (0.8-1.2), `"high"` (1.2-1.5), `"very_high"` (> 1.5)

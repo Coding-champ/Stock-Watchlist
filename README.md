@@ -22,6 +22,12 @@ Comprehensive stock analysis with 3-phase metric calculation:
 - Relative volume comparison
 - Free cashflow yield calculation
 
+#### Hinweis zur SMA-Berechnung
+
+- Die in diesem Projekt verwendeten gleitenden Durchschnitte (z. B. SMA50, SMA200) werden über "N Bars" der jeweils verwendeten Daten-Intervalle berechnet. Das bedeutet: SMA50 = Mittelwert über 50 Datenpunkte (50 Bars). Bei Standard-Abfragen mit Interval "1d" entspricht das 50 Handelstagen; bei Intraday-Intervalle (z. B. 1h) entspricht SMA50 50 Stunden/Bars.
+- Dieses Verhalten ist bewusst gewählt (Konsistenz mit den angezeigten Chart-Bars). Wenn stattdessen stets "50 Handelstage" (unabhängig vom Chart-Interval) gewünscht ist, kann das durch Resampling auf Tagesdaten erreicht werden — diese Option ist jedoch nicht standardmäßig aktiviert.
+
+
 **Phase 2: Valuation Scores** (0-100 scale)
 - **Value Score**: Combined P/E, P/B, P/S analysis
 - **Quality Score**: Profitability metrics (ROE, ROA, margins)

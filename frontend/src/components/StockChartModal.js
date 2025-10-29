@@ -181,36 +181,83 @@ function StockChartModal({ stock, onClose, isEmbedded = false }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const priceChartRef = useRef(null);
+  const _timeframeKeyToPeriod = (key) => {
+    switch (key) {
+      case '7': return '7d';
+      case '30': return '1mo';
+      case '90': return '3mo';
+      case '180': return '6mo';
+      case '365': return '1y';
+      case 'max': return 'max';
+      default: return '3mo';
+    }
+  };
+
   const fetchStockData = useCallback(async (signal) => {
+    // Fetch chart data (including server-computed indicators) and map to the
+    // in-component `chartData` shape. Prefer server-provided indicator values
+    // when available, fall back to existing client-side computation.
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE}/stock-data/${stock.id}?limit=720`, {
-        signal
-      });
+      const period = _timeframeKeyToPeriod(timeframe);
+      // Request common indicators. Backend will ignore unknown switches.
+      const indicatorParams = new URLSearchParams();
+      // Request SMA 20 and 50 and RSI — server may return them or omit if unavailable
+      indicatorParams.append('indicators', 'sma_20');
+      indicatorParams.append('indicators', 'sma_50');
+      indicatorParams.append('indicators', 'rsi');
+
+      const url = `${API_BASE}/stock-data/${stock.id}/chart?period=${encodeURIComponent(period)}&interval=1d&${indicatorParams.toString()}`;
+  // Debug: log the exact URL we're requesting so we can verify what the
+  // browser actually fetches (helps diagnose caching / wrong-endpoint issues).
+  console.debug('[StockChartModal] fetching chart URL:', url);
+  const response = await fetch(url, { signal, cache: 'no-store' });
+
       if (!response.ok) {
         const detail = await response.text();
         throw new Error(detail || 'Konnte Kursdaten nicht laden');
       }
 
       const json = await response.json();
-      const parsed = (Array.isArray(json) ? json : [])
-        .filter((entry) => entry && entry.current_price !== null && entry.current_price !== undefined)
-        .map((entry) => ({
-          date: new Date(entry.timestamp),
-          price: Number(entry.current_price),
-          rsi: typeof entry.rsi === 'number' ? entry.rsi : null
-        }))
-        .filter((entry) => !Number.isNaN(entry.price) && entry.date instanceof Date && !Number.isNaN(entry.date.getTime()))
-        .sort((a, b) => a.date - b.date);
+
+      // Map backend response (dates, close, indicators) into the expected
+      // chartData array used throughout this component.
+      const dates = Array.isArray(json.dates) ? json.dates : [];
+      const closes = Array.isArray(json.close) ? json.close : [];
+      const indicatorsResp = json.indicators || {};
+
+      const parsed = [];
+      for (let i = 0; i < dates.length; i += 1) {
+        try {
+          const date = new Date(dates[i]);
+          const price = Number.isFinite(Number(closes[i])) ? Number(closes[i]) : null;
+
+          parsed.push({
+            date,
+            price,
+            // Attach server-side indicator values so we can prefer them later
+            rsi: Array.isArray(indicatorsResp.rsi) ? (Number.isFinite(Number(indicatorsResp.rsi[i])) ? Number(indicatorsResp.rsi[i]) : null) : null,
+            sma20: Array.isArray(indicatorsResp.sma_20) ? (Number.isFinite(Number(indicatorsResp.sma_20[i])) ? Number(indicatorsResp.sma_20[i]) : null) : null,
+            sma50: Array.isArray(indicatorsResp.sma_50) ? (Number.isFinite(Number(indicatorsResp.sma_50[i])) ? Number(indicatorsResp.sma_50[i]) : null) : null
+          });
+        } catch (e) {
+          // skip malformed entries
+        }
+      }
 
       if (signal?.aborted) {
         return;
       }
 
-      setData(parsed);
-      setHoverIndex(parsed.length ? parsed.length - 1 : null);
+      // Filter out invalid rows and sort by date
+      const filtered = parsed
+        .filter((entry) => entry && entry.price !== null && entry.date instanceof Date && !Number.isNaN(entry.date.getTime()))
+        .sort((a, b) => a.date - b.date);
+
+      setData(filtered);
+      setHoverIndex(filtered.length ? filtered.length - 1 : null);
     } catch (err) {
       if (signal?.aborted) {
         return;
@@ -222,7 +269,7 @@ function StockChartModal({ stock, onClose, isEmbedded = false }) {
         setLoading(false);
       }
     }
-  }, [stock.id]);
+  }, [stock.id, timeframe]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -339,17 +386,29 @@ function StockChartModal({ stock, onClose, isEmbedded = false }) {
     return `${pricePath} L${lastX.toFixed(2)},${baseY} L${firstX.toFixed(2)},${baseY} Z`;
   }, [chartData.length, getXForIndex, hasPriceData, pricePath]);
 
-  const sma20Values = useMemo(() => computeSMA(chartData, 20), [chartData]);
-  const sma50Values = useMemo(() => computeSMA(chartData, 50), [chartData]);
+  const sma20Values = useMemo(() => {
+    // Prefer server-provided SMA values when available
+    if (chartData.length && chartData.some((e) => e && typeof e.sma20 === 'number')) {
+      return chartData.map((e) => (e && typeof e.sma20 === 'number' ? e.sma20 : null));
+    }
+    return computeSMA(chartData, 20);
+  }, [chartData]);
+
+  const sma50Values = useMemo(() => {
+    if (chartData.length && chartData.some((e) => e && typeof e.sma50 === 'number')) {
+      return chartData.map((e) => (e && typeof e.sma50 === 'number' ? e.sma50 : null));
+    }
+    return computeSMA(chartData, 50);
+  }, [chartData]);
   const sma20Path = useMemo(() => buildPriceLinePath(sma20Values), [buildPriceLinePath, sma20Values]);
   const sma50Path = useMemo(() => buildPriceLinePath(sma50Values), [buildPriceLinePath, sma50Values]);
 
   const rsiValues = useMemo(() => {
-    const computed = computeRSI(chartData, 14);
-    if (computed.every((value) => value === null) && chartData.length) {
-      return chartData.map((entry) => (typeof entry.rsi === 'number' ? entry.rsi : null));
+    // Prefer server-provided RSI values when available
+    if (chartData.length && chartData.some((e) => e && typeof e.rsi === 'number')) {
+      return chartData.map((entry) => (entry && typeof entry.rsi === 'number' ? entry.rsi : null));
     }
-    return computed;
+    return computeRSI(chartData, 14);
   }, [chartData]);
 
   const hasRSIData = useMemo(() => rsiValues.some((value) => value !== null), [rsiValues]);

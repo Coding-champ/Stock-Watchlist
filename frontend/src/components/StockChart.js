@@ -156,20 +156,38 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         throw new Error('Failed to fetch chart data');
       }
       
-      const chartJson = await chartResponse.json();
+  const chartJson = await chartResponse.json();
       
-      // Fetch indicators if needed
+      // Fetch indicators separately as a fallback, but prefer server-provided indicators
       let indicatorsJson = null;
-      // Always fetch all indicators to avoid re-loading when toggling visibility
+      // Always fetch all indicators to avoid re-loading when toggling visibility (used as fallback)
       const indicatorsList = ['sma_50', 'sma_200', 'rsi', 'macd', 'bollinger', 'atr', 'vwap'];
       
-      const indicatorsResponse = await fetch(
+      let indicatorsResponse = await fetch(
         `${API_BASE}/stock-data/${stock.id}/technical-indicators?period=${period}&${indicatorsList.map(i => `indicators=${i}`).join('&')}`
       );
       
-      if (indicatorsResponse.ok) {
+      if (!indicatorsResponse.ok) {
+        // Retry once if the indicators endpoint failed (transient network/server issue)
+        try {
+          console.warn('Indicators endpoint failed, retrying once...', indicatorsResponse.status);
+          indicatorsResponse = await fetch(
+            `${API_BASE}/stock-data/${stock.id}/technical-indicators?period=${period}&${indicatorsList.map(i => `indicators=${i}`).join('&')}`
+          );
+        } catch (e) {
+          console.warn('Indicators retry threw error', e);
+        }
+      }
+
+      if (indicatorsResponse && indicatorsResponse.ok) {
         indicatorsJson = await indicatorsResponse.json();
       }
+
+  // Merge indicators: prefer chart payload indicators (they include warmup/alignment),
+  // but fall back to the separate indicators endpoint for any missing series.
+  const mergedFromApi = indicatorsJson && indicatorsJson.indicators ? indicatorsJson.indicators : {};
+  const chartIndicators = chartJson && chartJson.indicators ? chartJson.indicators : {};
+  const sourceIndicators = { ...mergedFromApi, ...chartIndicators };
       
       // Transform data for Recharts
       const transformedData = chartJson.dates.map((date, index) => ({
@@ -184,26 +202,30 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         low: chartJson.low[index],
         close: chartJson.close[index],
         volume: chartJson.volume ? chartJson.volume[index] : null,
-        sma50: indicatorsJson?.indicators?.sma_50?.[index],
-        sma200: indicatorsJson?.indicators?.sma_200?.[index],
-        rsi: indicatorsJson?.indicators?.rsi?.[index],
-        macd: indicatorsJson?.indicators?.macd?.macd?.[index],
-        macdSignal: indicatorsJson?.indicators?.macd?.signal?.[index],
-        macdHistogram: indicatorsJson?.indicators?.macd?.histogram?.[index],
-        bollingerUpper: indicatorsJson?.indicators?.bollinger?.upper?.[index],
-        bollingerMiddle: indicatorsJson?.indicators?.bollinger?.middle?.[index],
-        bollingerLower: indicatorsJson?.indicators?.bollinger?.lower?.[index],
-        bollingerPercentB: indicatorsJson?.indicators?.bollinger?.percent_b?.[index],
-        bollingerBandwidth: indicatorsJson?.indicators?.bollinger?.bandwidth?.[index],
-        atr: indicatorsJson?.indicators?.atr?.[index],
-        vwap: indicatorsJson?.indicators?.vwap?.[index]
+        sma50: sourceIndicators?.sma_50?.[index],
+        sma200: sourceIndicators?.sma_200?.[index],
+        rsi: sourceIndicators?.rsi?.[index],
+        macd: sourceIndicators?.macd?.macd?.[index] ?? sourceIndicators?.macd?.macd?.[index],
+        macdSignal: sourceIndicators?.macd?.signal?.[index] ?? sourceIndicators?.macd?.signal?.[index],
+        // support both 'hist' and 'histogram' keys returned by different codepaths
+        macdHistogram: sourceIndicators?.macd?.histogram?.[index] ?? sourceIndicators?.macd?.hist?.[index],
+        bollingerUpper: sourceIndicators?.bollinger?.upper?.[index],
+        bollingerMiddle: sourceIndicators?.bollinger?.middle?.[index] ?? sourceIndicators?.bollinger?.sma?.[index],
+        bollingerLower: sourceIndicators?.bollinger?.lower?.[index],
+        bollingerPercentB: sourceIndicators?.bollinger?.percent_b?.[index],
+        bollingerBandwidth: sourceIndicators?.bollinger?.bandwidth?.[index],
+        atr: sourceIndicators?.atr?.[index],
+        vwap: sourceIndicators?.vwap?.[index],
+        // prefer server-provided volume moving averages if present
+        volumeMA10: sourceIndicators?.volumeMA10?.[index],
+        volumeMA20: sourceIndicators?.volumeMA20?.[index]
       }));
 
       // If the technical-indicators endpoint didn't provide VWAP series,
       // compute a simple rolling VWAP (20-period) from close and volume
       // so the chart can still display a VWAP line when the backend omits it.
-      const hasVwapFromApi = !!(indicatorsJson && indicatorsJson.indicators && Array.isArray(indicatorsJson.indicators.vwap) && indicatorsJson.indicators.vwap.some(v => v !== null && v !== undefined));
-      if (!hasVwapFromApi) {
+  const hasVwapFromApi = !!(sourceIndicators && Array.isArray(sourceIndicators.vwap) && sourceIndicators.vwap.some(v => v !== null && v !== undefined));
+  if (!hasVwapFromApi) {
         const windowSize = 20;
         for (let i = 0; i < transformedData.length; i++) {
           let volSum = 0;
@@ -222,27 +244,34 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         }
       }
       
-      // Calculate 10-day Volume Moving Average
-      const volumeMA10 = transformedData.map((item, index) => {
-        if (index < 9) {
-          // Not enough data for 10-day average
-          return null;
-        }
-        
-        let sum = 0;
-        for (let i = 0; i < 10; i++) {
-          const vol = transformedData[index - i].volume;
-          if (vol) {
-            sum += vol;
+      // Calculate 10-day and 20-day Volume Moving Averages only if server didn't provide them
+      const needVolMA10 = !transformedData.some(d => d.volumeMA10 !== undefined && d.volumeMA10 !== null);
+      const needVolMA20 = !transformedData.some(d => d.volumeMA20 !== undefined && d.volumeMA20 !== null);
+
+      if (needVolMA10) {
+        const volumeMA10 = transformedData.map((item, index) => {
+          if (index < 9) return null;
+          let sum = 0;
+          for (let i = 0; i < 10; i++) {
+            const vol = transformedData[index - i].volume;
+            if (vol) sum += vol;
           }
-        }
-        return sum / 10;
-      });
-      
-      // Add volumeMA10 to transformed data
-      transformedData.forEach((item, index) => {
-        item.volumeMA10 = volumeMA10[index];
-      });
+          return sum / 10;
+        });
+        transformedData.forEach((item, index) => { if (item.volumeMA10 === undefined || item.volumeMA10 === null) item.volumeMA10 = volumeMA10[index]; });
+      }
+      if (needVolMA20) {
+        const volumeMA20 = transformedData.map((item, index) => {
+          if (index < 19) return null;
+          let sum = 0;
+          for (let i = 0; i < 20; i++) {
+            const vol = transformedData[index - i].volume;
+            if (vol) sum += vol;
+          }
+          return sum / 20;
+        });
+        transformedData.forEach((item, index) => { if (item.volumeMA20 === undefined || item.volumeMA20 === null) item.volumeMA20 = volumeMA20[index]; });
+      }
       
       setChartData(transformedData);
       // Notify parent about latest VWAP single-value so siblings can use the same source of truth
@@ -1766,7 +1795,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
               />
               <Tooltip 
                 formatter={(value, name) => {
-                  if (name === 'Volume MA (10)') {
+                  if (name === 'Volume MA (10)' || name === 'Volume MA (20)') {
                     return [`${(value / 1000000)?.toFixed(2) || '0'}M`, name];
                   }
                   return [`${(value / 1000000)?.toFixed(2) || '0'}M`, 'Volume'];
@@ -1789,6 +1818,14 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
                 strokeWidth={2}
                 dot={false}
                 name="Volume MA (10)"
+              />
+              <Line 
+                type="monotone"
+                dataKey="volumeMA20"
+                stroke="#6a1b9a"
+                strokeWidth={1.5}
+                dot={false}
+                name="Volume MA (20)"
               />
             </ComposedChart>
           </ResponsiveContainer>
