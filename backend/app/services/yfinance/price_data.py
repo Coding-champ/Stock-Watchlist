@@ -512,6 +512,18 @@ def get_chart_data(
                             'middle': bb['sma'].tolist(),
                             'lower': bb['lower'].tolist()
                         }
+                    elif name in ('atr', 'atr_14'):
+                        # Calculate ATR series (14) using High/Low/Close
+                        try:
+                            from backend.app.services.yfinance.indicators import _calculate_atr_series
+                            atr_series = _calculate_atr_series(hist['High'], hist['Low'], hist['Close'], 14)
+                            if atr_series is None:
+                                indicators_result['indicators']['atr'] = None
+                            else:
+                                # convert NaN to None and ensure floats
+                                indicators_result['indicators']['atr'] = [None if pd.isna(v) else float(v) for v in atr_series.tolist()]
+                        except Exception:
+                            indicators_result['indicators']['atr'] = None
                     else:
                         # fallback: try sma default 50
                         m = re.search(r"(\d+)", name)
@@ -666,6 +678,28 @@ def get_chart_data(
                 result['indicators'] = filtered_indicators
             else:
                 result['indicators'] = indicators_result.get('indicators', {})
+
+        # Inject per-point ATR into chart_data items so frontend can map d.atr
+        try:
+            atr_list = result.get('indicators', {}).get('atr')
+            if isinstance(atr_list, list) and len(atr_list) == len(chart_data):
+                for idx, item in enumerate(chart_data):
+                    try:
+                        val = atr_list[idx]
+                        item['atr'] = None if (val is None or (isinstance(val, float) and pd.isna(val))) else float(val)
+                    except Exception:
+                        item['atr'] = None
+            elif isinstance(atr_list, list) and len(atr_list) > 0:
+                # If lengths differ, still try to align by index where possible
+                for idx, item in enumerate(chart_data):
+                    try:
+                        val = atr_list[idx] if idx < len(atr_list) else None
+                        item['atr'] = None if (val is None or (isinstance(val, float) and pd.isna(val))) else float(val)
+                    except Exception:
+                        item['atr'] = None
+        except Exception:
+            # non-fatal: leave chart_data without atr entries
+            pass
         
         return _clean_for_json(result)
         
