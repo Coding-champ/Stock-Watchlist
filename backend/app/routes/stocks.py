@@ -743,10 +743,11 @@ def bulk_add_stocks(
     # Use new StockService
     stock_service = StockService(db)
     
-    # Get existing stocks in watchlist
+    # Get existing stocks in watchlist (StockService returns list of dicts)
     existing_entries = stock_service.get_stocks_in_watchlist(payload.watchlist_id)
-    existing_tickers = {stock.ticker_symbol.upper() for stock in existing_entries}
-    existing_isins = {stock.isin.upper() for stock in existing_entries if stock.isin}
+    # Normalize existing tickers/isins from returned dicts
+    existing_tickers = {(entry.get('ticker_symbol') or '').upper() for entry in existing_entries}
+    existing_isins = {(entry.get('isin') or '').upper() for entry in existing_entries if entry.get('isin')}
 
     batch_tickers = set()
     batch_isins = set()
