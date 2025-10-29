@@ -524,6 +524,35 @@ def get_chart_data(
                                 indicators_result['indicators']['atr'] = [None if pd.isna(v) else float(v) for v in atr_series.tolist()]
                         except Exception:
                             indicators_result['indicators']['atr'] = None
+                    elif 'stochastic' in name or 'stoch' in name:
+                        # Slow Stochastic: %K smoothed and %D = SMA of smoothed %K
+                        try:
+                            period = 14
+                            smooth_k = 3
+                            smooth_d = 3
+                            low = hist['Low']
+                            high = hist['High']
+                            close = hist['Close']
+
+                            lowest_low = low.rolling(window=period).min()
+                            highest_high = high.rolling(window=period).max()
+                            k_raw = 100 * ((close - lowest_low) / (highest_high - lowest_low))
+                            if smooth_k > 1:
+                                k_series = k_raw.rolling(window=smooth_k).mean()
+                            else:
+                                k_series = k_raw
+                            d_series = k_series.rolling(window=smooth_d).mean()
+
+                            # Convert NaN to None for JSON serialization
+                            k_list = [None if pd.isna(v) else float(v) for v in k_series.tolist()]
+                            d_list = [None if pd.isna(v) else float(v) for v in d_series.tolist()]
+
+                            indicators_result['indicators']['stochastic'] = {
+                                'k_percent': k_list,
+                                'd_percent': d_list
+                            }
+                        except Exception:
+                            indicators_result['indicators']['stochastic'] = None
                     else:
                         # fallback: try sma default 50
                         m = re.search(r"(\d+)", name)

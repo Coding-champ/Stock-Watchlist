@@ -10,6 +10,7 @@ import {
   Legend,
   ResponsiveContainer,
   ReferenceLine,
+  ReferenceArea,
   ComposedChart
 } from 'recharts';
 
@@ -49,7 +50,7 @@ export const MACDChart = ({ data, macd, signal }) => {
         borderRadius: '6px'
       }}>
         <div style={{ fontSize: '16px', fontWeight: '600', color: '#333' }}>
-          📊 MACD Indicator
+          MACD Indicator
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ fontSize: '14px', color: '#666' }}>
@@ -133,14 +134,16 @@ export const MACDChart = ({ data, macd, signal }) => {
  * Stochastic Oscillator Chart
  * Zeigt %K und %D Linien mit Overbought/Oversold Zonen
  */
-export const StochasticChart = ({ data, kPercent, dPercent }) => {
+export const StochasticChart = ({ data, kPercent, dPercent, ticks = null }) => {
   if (!data || data.length === 0) {
     return <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>Keine Daten verfügbar</div>;
   }
 
   // Prepare chart data
+  // Use the already-formatted `date` field from `StockChart` so labels match RSI/MACD exactly.
+  // StockChart formats `date` (and includes a 2-digit year for '1y'/'max'), so reuse it verbatim.
   const chartData = data.map((point) => ({
-    date: new Date(point.date).toLocaleDateString('de-DE', { month: 'short', day: 'numeric' }),
+    date: point.date,
     k: point.k_percent !== undefined ? point.k_percent : null,
     d: point.d_percent !== undefined ? point.d_percent : null
   }));
@@ -162,7 +165,7 @@ export const StochasticChart = ({ data, kPercent, dPercent }) => {
         borderRadius: '6px'
       }}>
         <div style={{ fontSize: '16px', fontWeight: '600', color: '#333' }}>
-          📉 Stochastic Oscillator
+          Stochastic Oscillator
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ fontSize: '14px', color: '#666' }}>
@@ -183,11 +186,29 @@ export const StochasticChart = ({ data, kPercent, dPercent }) => {
       
       <ResponsiveContainer width="100%" height={200}>
         <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+          <defs>
+            {/* Gradient for overbought area (red) */}
+            <linearGradient id="stochOverboughtGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#e74c3c" stopOpacity={0.12} />
+              <stop offset="100%" stopColor="#e74c3c" stopOpacity={0.03} />
+            </linearGradient>
+            {/* Gradient for oversold area (green) */}
+            <linearGradient id="stochOversoldGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#27ae60" stopOpacity={0.08} />
+              <stop offset="100%" stopColor="#27ae60" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
           <XAxis 
             dataKey="date" 
-            tick={{ fontSize: 11, fill: '#666' }}
+            tick={{ fontSize: 9, fill: '#666' }}
             tickLine={{ stroke: '#666' }}
+            height={60}
+            interval="preserveStartEnd"
+            minTickGap={40}
+            angle={-45}
+            textAnchor="end"
+            ticks={ticks}
           />
           <YAxis 
             domain={[0, 100]}
@@ -208,20 +229,24 @@ export const StochasticChart = ({ data, kPercent, dPercent }) => {
           />
           
           {/* Overbought Line */}
-          <ReferenceLine 
-            y={80} 
-            stroke="#ef4444" 
-            strokeDasharray="5 5" 
+          {/* Shaded Overbought Area */}
+          <ReferenceLine y={100} strokeOpacity={0} />
+          <ReferenceLine y={0} strokeOpacity={0} />
+          <ReferenceLine
+            y={80}
+            stroke="#ef4444"
+            strokeDasharray="3 3"
             label={{ value: 'Overbought', position: 'right', fontSize: 10, fill: '#ef4444' }}
           />
-          
-          {/* Oversold Line */}
-          <ReferenceLine 
-            y={20} 
-            stroke="#22c55e" 
-            strokeDasharray="5 5"
-            label={{ value: 'Oversold', position: 'right', fontSize: 10, fill: '#22c55e' }}
+          <ReferenceLine
+            y={20}
+            stroke="#27ae60"
+            strokeDasharray="3 3"
+            label={{ value: 'Oversold', position: 'right', fontSize: 10, fill: '#27ae60' }}
           />
+          {/* Shaded Overbought / Oversold areas using ReferenceArea with SVG gradients */}
+          <ReferenceArea y1={80} y2={100} fill="url(#stochOverboughtGradient)" strokeOpacity={0} />
+          <ReferenceArea y1={0} y2={20} fill="url(#stochOversoldGradient)" strokeOpacity={0} />
           
           {/* %K Line */}
           <Line 
@@ -241,7 +266,7 @@ export const StochasticChart = ({ data, kPercent, dPercent }) => {
             strokeWidth={2}
             name="%D"
             dot={false}
-            strokeDasharray="5 5"
+            strokeDasharray="3 3"
           />
         </LineChart>
       </ResponsiveContainer>

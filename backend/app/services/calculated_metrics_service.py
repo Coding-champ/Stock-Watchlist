@@ -1395,6 +1395,15 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
                 historical_prices['Close']
             )
             result['advanced_analysis'].update(stochastic_metrics)
+            # Backwards-compatible aliases used by frontend (CalculatedMetricsTab expects stochastic_k)
+            try:
+                if stochastic_metrics.get('k_percent') is not None:
+                    result['advanced_analysis']['stochastic_k'] = stochastic_metrics.get('k_percent')
+                if stochastic_metrics.get('d_percent') is not None:
+                    result['advanced_analysis']['stochastic_d'] = stochastic_metrics.get('d_percent')
+            except Exception:
+                # non-fatal: keep original keys
+                pass
         # ATR (Average True Range) - merge the dict into advanced_analysis
         if all(col in historical_prices.columns for col in ['High', 'Low', 'Close']):
             atr_metrics = calculate_atr(

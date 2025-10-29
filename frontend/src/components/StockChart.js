@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 import VolumeProfile from './VolumeProfile';
 import VolumeProfileOverlay from './VolumeProfileOverlay';
+import { StochasticChart } from './AdvancedCharts';
 import './StockChart.css';
 
 import API_BASE from '../config';
@@ -65,6 +66,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   const [showVolume, setShowVolume] = useState(true);
   const [showRSI, setShowRSI] = useState(false);
   const [showMACD, setShowMACD] = useState(false);
+  const [showStochastic, setShowStochastic] = useState(false);
   const [showBollinger, setShowBollinger] = useState(false);
   const [showATR, setShowATR] = useState(false);
   const [showVWAP, setShowVWAP] = useState(false);
@@ -100,6 +102,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   const [showVolumeProfile, setShowVolumeProfile] = useState(false);
   const [showVolumeProfileOverlay, setShowVolumeProfileOverlay] = useState(false);
   const [volumeProfileLevels, setVolumeProfileLevels] = useState(null);
+  const [xAxisTicks, setXAxisTicks] = useState(null);
 
   // Memoized callback for Volume Profile data loading
   const handleProfileLoad = useCallback((levels) => {
@@ -158,10 +161,11 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
       
   const chartJson = await chartResponse.json();
       
-      // Fetch indicators separately as a fallback, but prefer server-provided indicators
-      let indicatorsJson = null;
-      // Always fetch all indicators to avoid re-loading when toggling visibility (used as fallback)
-      const indicatorsList = ['sma_50', 'sma_200', 'rsi', 'macd', 'bollinger', 'atr', 'vwap'];
+  // Fetch indicators separately as a fallback, but prefer server-provided indicators
+  let indicatorsJson = null;
+  // Always fetch all indicators to avoid re-loading when toggling visibility (used as fallback)
+  // Include 'stochastic' so the frontend can render the Slow Stochastic subchart and Auswertung
+  const indicatorsList = ['sma_50', 'sma_200', 'rsi', 'macd', 'bollinger', 'atr', 'vwap', 'stochastic'];
       
       let indicatorsResponse = await fetch(
         `${API_BASE}/stock-data/${stock.id}/technical-indicators?period=${period}&${indicatorsList.map(i => `indicators=${i}`).join('&')}`
@@ -205,6 +209,9 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         sma50: sourceIndicators?.sma_50?.[index],
         sma200: sourceIndicators?.sma_200?.[index],
         rsi: sourceIndicators?.rsi?.[index],
+        // Stochastic series (k_percent and d_percent) if provided by backend
+        k_percent: sourceIndicators?.stochastic?.k_percent?.[index],
+        d_percent: sourceIndicators?.stochastic?.d_percent?.[index],
         macd: sourceIndicators?.macd?.macd?.[index] ?? sourceIndicators?.macd?.macd?.[index],
         macdSignal: sourceIndicators?.macd?.signal?.[index] ?? sourceIndicators?.macd?.signal?.[index],
         // support both 'hist' and 'histogram' keys returned by different codepaths
@@ -273,6 +280,19 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         transformedData.forEach((item, index) => { if (item.volumeMA20 === undefined || item.volumeMA20 === null) item.volumeMA20 = volumeMA20[index]; });
       }
       
+      // Compute shared X axis tick labels to keep RSI/MACD/Stochastic synchronized.
+      const computeTicks = (data, targetCount = 6) => {
+        if (!data || data.length === 0) return null;
+        const n = Math.min(targetCount, data.length);
+        const ticks = [];
+        for (let i = 0; i < n; i++) {
+          const idx = Math.round(i * (data.length - 1) / (n - 1));
+          ticks.push(data[idx].date);
+        }
+        return ticks;
+      };
+      const sharedTicks = computeTicks(transformedData, 6);
+      setXAxisTicks(sharedTicks);
       setChartData(transformedData);
       // Notify parent about latest VWAP single-value so siblings can use the same source of truth
       try {
@@ -1051,6 +1071,14 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
                 onChange={(e) => setShowRSI(e.target.checked)}
               />
               <span>RSI</span>
+            </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={showStochastic}
+                onChange={(e) => setShowStochastic(e.target.checked)}
+              />
+              <span>Stochastic</span>
             </label>
             <label className="checkbox-label">
               <input
@@ -1857,6 +1885,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
                 height={60}
                 interval="preserveStartEnd"
                 minTickGap={40}
+                ticks={xAxisTicks}
               />
               <YAxis 
                 domain={[0, 100]}
@@ -1898,6 +1927,18 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         </div>
       )}
 
+      {/* Stochastic Chart */}
+      {showStochastic && (() => {
+        const latestK = chartData && chartData.length ? chartData[chartData.length - 1].k_percent : null;
+        const latestD = chartData && chartData.length ? chartData[chartData.length - 1].d_percent : null;
+        return (
+          <div className="chart-section">
+            {/* Use the shared StochasticChart component */}
+            <StochasticChart data={chartData} kPercent={latestK} dPercent={latestD} ticks={xAxisTicks} />
+          </div>
+        );
+      })()}
+
       {/* MACD Chart */}
       {showMACD && (
         <div className="chart-section">
@@ -1911,6 +1952,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
                 height={60}
                 interval="preserveStartEnd"
                 minTickGap={40}
+                ticks={xAxisTicks}
               />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip 
