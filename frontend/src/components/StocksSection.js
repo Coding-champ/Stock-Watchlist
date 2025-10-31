@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import API_BASE from '../config';
 import { formatPrice } from '../utils/currencyUtils';
+import { parseCSV, exportCSV } from '../utils/csvUtils';
 import { createPortal } from 'react-dom';
 import StockTable from './StockTable';
 import StockModal from './StockModal';
@@ -116,6 +117,99 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
 
   const handleAddStock = () => {
     setShowAddModal(true);
+  };
+
+  const fileInputRef = useRef(null);
+
+  const handleExportCSV = () => {
+    if (!stocks || stocks.length === 0) {
+      showToast('Keine Aktien zum Exportieren vorhanden', 'info');
+      return;
+    }
+
+    const headers = ['Asset', 'Ticker', 'ISIN', 'Name', 'Branche', 'Sektor', 'Land'];
+
+    const rows = stocks.map((s) => {
+      const asset = s.asset_type || 'Aktie';
+      return [
+        asset,
+        s.ticker_symbol || s.ticker || '',
+        s.isin || '',
+        s.name || '',
+        s.industry || s.branche || '',
+        s.sector || '',
+        s.country || ''
+      ];
+    });
+
+    const csv = exportCSV(headers, rows);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const safeName = (watchlist && watchlist.name) ? watchlist.name.replace(/[^a-z0-9\-_ ]/gi, '') : 'watchlist';
+    link.download = `${safeName}-export.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportClick = () => {
+    if (fileInputRef.current) fileInputRef.current.click();
+  };
+
+  const handleFileSelected = async (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const { headers, rows } = parseCSV(text);
+      const idxIsin = headers.findIndex(h => h.includes('isin'));
+      const idxTicker = headers.findIndex(h => h.includes('ticker') || h.includes('symbol'));
+
+      const identifiers = rows.map(cols => {
+        let val = '';
+        if (idxIsin !== -1) val = cols[idxIsin] || '';
+        if (!val && idxTicker !== -1) val = cols[idxTicker] || '';
+        if (!val) val = cols[0] || '';
+        return String(val).trim().toUpperCase();
+      }).filter(i => i && i.length > 0);
+
+      if (identifiers.length === 0) {
+        showToast('Keine gültigen Ticker/ISINs in der Datei gefunden', 'warning');
+        event.target.value = '';
+        return;
+      }
+
+      showToast(`Importiere ${identifiers.length} Einträge...`, 'info');
+      const response = await fetch(`${API_BASE}/stocks/bulk-add`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ watchlist_id: watchlist.id, identifiers, identifier_type: 'auto' })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        if (data.created_count > 0) {
+          showToast(`${data.created_count} Aktien hinzugefügt`, 'success');
+          loadStocks();
+        }
+        if (data.exists_count > 0) {
+          showToast(`${data.exists_count} waren bereits vorhanden`, 'info');
+        }
+        if (data.failed_count > 0) {
+          showToast(`${data.failed_count} Einträge konnten nicht hinzugefügt werden`, 'warning');
+        }
+      } else {
+        const message = data.detail || 'Fehler beim Import';
+        showToast(message, 'error');
+      }
+    } catch (err) {
+      console.error('Error importing CSV:', err);
+      showToast('Fehler beim Lesen der Datei', 'error');
+    } finally {
+      if (event.target) event.target.value = '';
+    }
   };
 
   const uniqueSectors = useMemo(() => {
@@ -508,13 +602,35 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
           <p className="panel__subtitle">{watchlistSubtitle}</p>
         </div>
         <div className="panel__actions">
-          <button type="button" className="btn" onClick={handleAddStock}>
+          <button 
+            type="button" 
+            className="btn" 
+            onClick={handleAddStock}
+          >
             <span className="btn__icon" aria-hidden="true">＋</span>
             <span>Aktie hinzufügen</span>
           </button>
           <button
             type="button"
             className="btn btn--ghost"
+            onClick={handleExportCSV}
+            title="Exportiert die Aktien dieser Watchlist als CSV"
+          >
+            <span className="btn__icon" aria-hidden="true"></span>
+            <span>Export CSV</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={handleImportClick}
+            title="Importiere Aktien (CSV) in diese Watchlist"
+          >
+            <span className="btn__icon" aria-hidden="true"></span>
+            <span>Import CSV</span>
+          </button>
+          <button
+            type="button"
+            className="btn"
             onClick={handleUpdateAllMarketData}
             disabled={loading}
             title="Aktualisiert alle Marktdaten in dieser Watchlist"
@@ -631,6 +747,15 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
           onStockAdded={handleStockAdded}
         />
       )}
+
+      {/* Hidden file input for CSV import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        style={{ display: 'none' }}
+        onChange={handleFileSelected}
+      />
 
       {selectedStock && (
         <StockDetailModal

@@ -454,9 +454,12 @@ h1 {
 
 .panel__header {
   display: flex;
-  flex-wrap: wrap;
+  /* Prefer no wrapping on wide screens so actions stay on the same line.
+     On small screens a media query will stack items. */
+  flex-wrap: nowrap;
   justify-content: space-between;
   gap: 18px;
+  /* Align items to the top so action buttons align with the eyebrow/title */
   align-items: flex-start;
 }
 
@@ -464,6 +467,13 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* Allow title group to shrink so action buttons stay on the same line
+   instead of wrapping to the next row when the title/subtitle is long. */
+.panel__title-group {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .panel__title {
@@ -492,6 +502,12 @@ h1 {
   gap: 12px;
   align-items: center;
   justify-content: flex-end;
+}
+
+/* Ensure action buttons keep their width and don't wrap their internal content */
+.panel__actions {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .panel__toolbar {
