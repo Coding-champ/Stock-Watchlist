@@ -3,6 +3,8 @@ import CalculatedMetricsTab from './CalculatedMetricsTab';
 import AnalystTab from './AnalystTab';
 import SeasonalityTab from './SeasonalityTab';
 import StockChart from './StockChart';
+import FundamentalsTimeSeriesTab from './FundamentalsTimeSeriesTab';
+import SectorComparisonTab from './SectorComparisonTab';
 import AlertModal from './AlertModal';
 import { getUnitForAlertType, getAlertTypeLabel, getConditionLabel, formatNumber, formatPrice } from '../utils/currencyUtils';
 import { useAlerts } from '../hooks/useAlerts';
@@ -171,6 +173,18 @@ function StockDetailModal({ stock, onClose }) {
               onClick={() => setActiveTab('fundamentals')}
             >
               🔢 Fundamentaldaten
+            </button>
+            <button
+              className={`tab-button ${activeTab === 'fundamentals_ts' ? 'active' : ''}`}
+              onClick={() => setActiveTab('fundamentals_ts')}
+            >
+              Fundamentaldaten (Zeitreihe)
+            </button>
+            <button
+              className={`tab-button ${activeTab === 'sector_comparison' ? 'active' : ''}`}
+              onClick={() => setActiveTab('sector_comparison')}
+            >
+              Branchenvergleich
             </button>
             <button 
               className={`tab-button ${activeTab === 'analysis' ? 'active' : ''}`}
@@ -351,6 +365,20 @@ function StockDetailModal({ stock, onClose }) {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* FUNDAMENTALS TIME SERIES TAB */}
+            {activeTab === 'fundamentals_ts' && (
+              <div className="tab-panel">
+                <FundamentalsTimeSeriesTab stockId={stock.id} />
+              </div>
+            )}
+
+            {/* SECTOR / INDUSTRY COMPARISON TAB */}
+            {activeTab === 'sector_comparison' && (
+              <div className="tab-panel">
+                <SectorComparisonTab stockId={stock.id} />
               </div>
             )}
 

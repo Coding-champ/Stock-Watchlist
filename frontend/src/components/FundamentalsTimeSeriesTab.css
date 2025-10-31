@@ -1,0 +1,26 @@
+.fundamentals-timeseries-tab {
+  padding: 1rem;
+}
+.fundamentals-timeseries-tab .loading,
+.fundamentals-timeseries-tab .error,
+.fundamentals-timeseries-tab .no-data {
+  text-align: center;
+  color: #666;
+  padding: 1rem 0;
+}
+.fundamentals-timeseries-tab select {
+  padding: 6px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.mock-badge {
+  display: inline-block;
+  background: #ff9800;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}

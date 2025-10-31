@@ -400,6 +400,392 @@ def get_stock(
     return stock
 
 
+# ------------------------------------------------------------------
+# Fundamentals time-series endpoint (supports mock fallback)
+# ------------------------------------------------------------------
+@router.get("/{stock_id}/fundamentals/timeseries")
+def get_fundamentals_timeseries(
+    stock_id: int,
+    metric: str = Query("pe_ratio", description="Metric to return: pe_ratio, price_to_sales, ev_ebit, price_to_book"),
+    period: str = Query("3y", description="Period to return: 1y,3y,5y"),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns a time-series for a requested fundamental metric for the given stock.
+    If reliable fundamental or price data is not available, returns a mocked series.
+    """
+    import random
+    from dateutil.relativedelta import relativedelta
+    from datetime import datetime
+
+    stock = StockQueryService(db).get_stock_id_or_404(stock_id)
+    fund_service = FundamentalDataService(db)
+
+    try:
+        df = fund_service.get_fundamental_dataframe(stock_id)
+    except Exception as e:
+        df = None
+
+    series = []
+    used_mock = False
+
+    # Helper to create mocked monthly series
+    def _mock_series(base, months=36):
+        out = []
+        today = datetime.utcnow().date()
+        for i in range(months, 0, -1):
+            d = (today - relativedelta(months=i-1)).replace(day=1)
+            # add some smooth noise
+            val = round(base * (1 + (random.random() - 0.5) * 0.2), 2)
+            out.append({"date": d.strftime("%Y-%m-%d"), "value": val})
+        return out
+
+    # Try to compute real series for selected metrics using stored fundamentals and price data
+    if df is not None and not df.empty:
+        try:
+            rows = df.reset_index().to_dict(orient='records')
+            # We'll attempt to compute for each supported metric
+            for rec in sorted(rows, key=lambda r: r.get('period_end_date') or datetime.min):
+                period_end = rec.get('period_end_date')
+                if not period_end:
+                    continue
+
+                # Find latest price on or before period_end
+                price_rec = db.query(StockPriceDataModel).filter(
+                    StockPriceDataModel.stock_id == stock_id,
+                    StockPriceDataModel.date <= period_end
+                ).order_by(desc(StockPriceDataModel.date)).first()
+                if not price_rec:
+                    continue
+
+                price = float(price_rec.close) if price_rec.close is not None else None
+
+                # EPS (basic or diluted)
+                eps = rec.get('eps_basic') or rec.get('eps_diluted') or None
+                # Revenue and operating income
+                revenue = rec.get('revenue')
+                operating_income = rec.get('operating_income')
+
+                # Try to obtain shares outstanding (from extended cache)
+                shares_outstanding = None
+                try:
+                    cache = db.query(ExtendedStockDataCacheModel).filter(ExtendedStockDataCacheModel.stock_id == stock_id).first()
+                    if cache and cache.extended_data:
+                        shares_outstanding = cache.extended_data.get('sharesOutstanding') or cache.extended_data.get('shares_outstanding')
+                except Exception:
+                    shares_outstanding = None
+
+                # Compute requested metric value if possible
+                computed = None
+                if metric == 'pe_ratio' and eps and eps != 0 and price:
+                    try:
+                        computed = price / float(eps)
+                    except Exception:
+                        computed = None
+                elif metric == 'price_to_sales' and revenue and shares_outstanding and price:
+                    try:
+                        market_cap = price * float(shares_outstanding)
+                        computed = market_cap / float(revenue) if revenue else None
+                    except Exception:
+                        computed = None
+                elif metric == 'price_to_book' and rec.get('shareholders_equity') and shares_outstanding and price:
+                    try:
+                        market_cap = price * float(shares_outstanding)
+                        book_value = float(rec.get('shareholders_equity'))
+                        computed = market_cap / book_value if book_value else None
+                    except Exception:
+                        computed = None
+                elif metric == 'ev_ebit' and operating_income:
+                    try:
+                        # Try to get enterprise value from cache or compute: EV = market_cap + total_debt - total_cash
+                        ev = None
+                        cache = db.query(ExtendedStockDataCacheModel).filter(ExtendedStockDataCacheModel.stock_id == stock_id).first()
+                        if cache and cache.extended_data:
+                            ev = cache.extended_data.get('enterpriseValue') or cache.extended_data.get('enterprise_value')
+                        if ev is None and shares_outstanding and price:
+                            market_cap = price * float(shares_outstanding)
+                            total_debt = rec.get('total_liabilities') or 0
+                            # Try to get cash if present in cache
+                            total_cash = None
+                            if cache and cache.extended_data:
+                                total_cash = cache.extended_data.get('totalCash') or cache.extended_data.get('total_cash')
+                            if total_debt is not None:
+                                try:
+                                    ev = market_cap + float(total_debt) - (float(total_cash) if total_cash is not None else 0)
+                                except Exception:
+                                    ev = None
+                        if ev and operating_income and float(operating_income) != 0:
+                            computed = float(ev) / float(operating_income)
+                    except Exception:
+                        computed = None
+
+                if computed is not None and not (computed != computed):
+                    series.append({"date": period_end.strftime("%Y-%m-%d"), "value": round(computed, 2)})
+        except Exception:
+            series = []
+
+    # If we couldn't build a reliable series, return mock data
+    if not series:
+        used_mock = True
+        months = 12 if period == '1y' else (36 if period == '3y' else 60)
+        # Choose plausible bases per metric
+        base_map = {
+            'pe_ratio': 20.0,
+            'price_to_sales': 3.5,
+            'ev_ebit': 15.0,
+            'price_to_book': 4.0
+        }
+        base = base_map.get(metric, 10.0)
+        series = _mock_series(base=base, months=months)
+
+    return {"stock_id": stock_id, "ticker": stock.ticker_symbol, "metric": metric, "period": period, "used_mock": used_mock, "series": series}
+
+
+# ------------------------------------------------------------------
+# Sector/Industry peers endpoint (with mock fallback values)
+# ------------------------------------------------------------------
+@router.get("/{stock_id}/peers")
+def get_stock_peers(
+    stock_id: int,
+    metric: str = Query("market_cap", description="Metric to compare: market_cap, pe_ratio, price_to_sales"),
+    by: str = Query("sector", description="Group peers by 'sector' or 'industry'"),
+    limit: int = Query(10, description="Max number of peers to return"),
+    perf_period: str = Query("1y", description="Performance period to compute (e.g. 1y,3m,6m,1m)"),
+    perf_points: int = Query(12, description="Number of points to include in returned price series (sparkline)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns a list of peer stocks for the same sector or industry with a metric value.
+    If no reliable values are available, returns mocked values for the peers.
+    """
+    import random
+    stock = StockQueryService(db).get_stock_id_or_404(stock_id)
+
+    key_field = 'sector' if by != 'industry' else 'industry'
+    key_value = getattr(stock, key_field, None)
+    if not key_value:
+        return {"stock_id": stock_id, "ticker": stock.ticker_symbol, "peers": []}
+
+    # Query peers in same sector/industry
+    peers_q = db.query(StockModel).filter(getattr(StockModel, key_field) == key_value, StockModel.id != stock_id).limit(limit).all()
+    used_mock = False
+
+    # If no peers found in the same group, broaden the candidate set to all other stocks
+    if not peers_q:
+        # We'll try to compute metric values for all other stocks and pick the top 'limit' ones
+        candidates = db.query(StockModel).filter(StockModel.id != stock_id).all()
+        peers_candidates = candidates
+    else:
+        peers_candidates = peers_q
+
+    peers = []
+
+    for p in peers_candidates:
+        val = None
+        perf_pct = None
+        try:
+            # Try to compute using latest price and cache
+            cache = db.query(ExtendedStockDataCacheModel).filter(ExtendedStockDataCacheModel.stock_id == p.id).first()
+
+            # Get latest price
+            latest_price = db.query(StockPriceDataModel).filter(StockPriceDataModel.stock_id == p.id).order_by(desc(StockPriceDataModel.date)).first()
+            price = float(latest_price.close) if latest_price and latest_price.close is not None else None
+
+            shares_outstanding = None
+            if cache and cache.extended_data:
+                shares_outstanding = cache.extended_data.get('sharesOutstanding') or cache.extended_data.get('shares_outstanding')
+
+            if metric == 'market_cap':
+                # Prefer explicit market cap from cache (try multiple common keys)
+                if cache and cache.extended_data:
+                    ext = cache.extended_data
+                    val = ext.get('market_cap') if ext.get('market_cap') is not None else (
+                        ext.get('marketCap') if ext.get('marketCap') is not None else (
+                          ext.get('financial_ratios', {}).get('market_cap') if isinstance(ext.get('financial_ratios'), dict) else None
+                        )
+                    )
+                    # If the cached value is a numeric string, try to convert
+                    if isinstance(val, str):
+                        try:
+                            val = float(val)
+                        except Exception:
+                            pass
+                # Fallback to calculating from latest price and shares outstanding
+                if val is None and price and shares_outstanding:
+                    try:
+                        val = price * float(shares_outstanding)
+                    except Exception:
+                        val = None
+            elif metric == 'pe_ratio':
+                # Prefer cached financial ratios
+                if cache and cache.extended_data and cache.extended_data.get('financial_ratios') and cache.extended_data['financial_ratios'].get('pe_ratio'):
+                    val = cache.extended_data['financial_ratios'].get('pe_ratio')
+                else:
+                    # try compute from latest eps in fundamental table
+                    fund_service = FundamentalDataService(db)
+                    fund_df = fund_service.get_fundamental_dataframe(p.id)
+                    if fund_df is not None and not fund_df.empty and price:
+                        # use most recent EPS
+                        try:
+                            latest_rec = fund_df.reset_index().iloc[0]
+                            eps = latest_rec.get('eps_basic') or latest_rec.get('eps_diluted')
+                            if eps and float(eps) != 0:
+                                val = price / float(eps)
+                        except Exception:
+                            val = None
+            elif metric == 'price_to_sales':
+                if cache and cache.extended_data and cache.extended_data.get('financial_ratios') and cache.extended_data['financial_ratios'].get('price_to_sales'):
+                    val = cache.extended_data['financial_ratios'].get('price_to_sales')
+                elif price and shares_outstanding:
+                    # attempt market_cap / revenue
+                    fund_service = FundamentalDataService(db)
+                    fund_df = fund_service.get_fundamental_dataframe(p.id)
+                    if fund_df is not None and not fund_df.empty:
+                        try:
+                            latest_rec = fund_df.reset_index().iloc[0]
+                            revenue = latest_rec.get('revenue')
+                            if revenue and shares_outstanding:
+                                market_cap = price * float(shares_outstanding)
+                                val = market_cap / float(revenue)
+                        except Exception:
+                            val = None
+
+        except Exception:
+            val = None
+
+        if val is None:
+            # skip entries where we couldn't compute a value
+            continue
+
+        # Compute performance percentage for the requested perf_period (if possible)
+        try:
+            # interpret perf_period into a start date
+            from dateutil.relativedelta import relativedelta
+            from datetime import datetime
+            now = datetime.utcnow().date()
+            period = perf_period.lower()
+            if period.endswith('y'):
+                years = int(period[:-1]) if period[:-1].isdigit() else 1
+                start_date = now - relativedelta(years=years)
+            elif period.endswith('m'):
+                months = int(period[:-1]) if period[:-1].isdigit() else 1
+                start_date = now - relativedelta(months=months)
+            else:
+                # default fallback 1 year
+                start_date = now - relativedelta(years=1)
+
+            # find price at or just after start_date, fallback to just before
+            start_price_rec = db.query(StockPriceDataModel).filter(
+                StockPriceDataModel.stock_id == p.id,
+                StockPriceDataModel.date >= start_date
+            ).order_by(asc(StockPriceDataModel.date)).first()
+            if not start_price_rec:
+                start_price_rec = db.query(StockPriceDataModel).filter(
+                    StockPriceDataModel.stock_id == p.id,
+                    StockPriceDataModel.date <= start_date
+                ).order_by(desc(StockPriceDataModel.date)).first()
+
+            if start_price_rec and latest_price and start_price_rec.close not in (None, 0):
+                try:
+                    perf_pct = (float(latest_price.close) - float(start_price_rec.close)) / float(start_price_rec.close) * 100.0
+                    perf_pct = round(perf_pct, 2)
+                except Exception:
+                    perf_pct = None
+        except Exception:
+            perf_pct = None
+
+        # Build a compact price series (sparkline) of up to perf_points between start_date and latest
+        price_series = None
+        try:
+            if 'start_date' in locals() and latest_price:
+                price_rows = db.query(StockPriceDataModel).filter(
+                    StockPriceDataModel.stock_id == p.id,
+                    StockPriceDataModel.date >= start_date,
+                    StockPriceDataModel.date <= latest_price.date
+                ).order_by(asc(StockPriceDataModel.date)).all()
+
+                points = []
+                for pr in price_rows:
+                    if pr.close is None:
+                        continue
+                    points.append({"date": pr.date.strftime("%Y-%m-%d"), "close": float(pr.close)})
+
+                if points:
+                    # Decide sampling strategy: monthly closes for longer periods (>=3 months),
+                    # otherwise downsample daily points. Compute requested months from perf_period.
+                    try:
+                        months = None
+                        pp = perf_period.lower()
+                        if pp.endswith('y') and pp[:-1].isdigit():
+                            months = int(pp[:-1]) * 12
+                        elif pp.endswith('m') and pp[:-1].isdigit():
+                            months = int(pp[:-1])
+                        else:
+                            # default to 12 months
+                            months = 12
+
+                        if months >= 3:
+                            # Aggregate by month: pick last available price per month
+                            grouped = {}
+                            for pt in points:
+                                d = pt['date']
+                                # date in YYYY-MM-DD format
+                                y, m, _ = d.split('-')
+                                key = (int(y), int(m))
+                                # keep last occurrence (points are ordered asc)
+                                grouped[key] = pt
+                            # sort by year/month ascending
+                            sorted_months = sorted(grouped.keys())
+                            month_points = [grouped[k] for k in sorted_months]
+                            # Downsample months to perf_points if necessary
+                            if len(month_points) > perf_points and perf_points > 1:
+                                step = max(1, int(len(month_points) / perf_points))
+                                sampled = [month_points[i] for i in range(0, len(month_points), step)]
+                                price_series = sampled[:perf_points]
+                            else:
+                                price_series = month_points
+                        else:
+                            # short period: downsample daily points to perf_points
+                            if len(points) > perf_points and perf_points > 1:
+                                step = max(1, int(len(points) / perf_points))
+                                sampled = [points[i] for i in range(0, len(points), step)]
+                                price_series = sampled[:perf_points]
+                            else:
+                                price_series = points
+                    except Exception:
+                        # fallback to simple downsample
+                        if len(points) > perf_points and perf_points > 1:
+                            step = max(1, int(len(points) / perf_points))
+                            sampled = [points[i] for i in range(0, len(points), step)]
+                            price_series = sampled[:perf_points]
+                        else:
+                            price_series = points
+        except Exception:
+            price_series = None
+
+        peers.append({"name": p.name, "ticker": p.ticker_symbol, "value": val, "performance": perf_pct, "price_series": price_series})
+
+    # If we collected real peers, sort by value desc and limit
+    if peers:
+        peers = sorted(peers, key=lambda x: (x['value'] is None, -(x['value'] or 0)))[:limit]
+    else:
+        # No computable peers found -> fallback to mocked peers
+        used_mock = True
+        mock_names = [f"{stock.sector} Peer {i+1}" for i in range(limit)]
+        for i, name in enumerate(mock_names):
+            base = 50 if metric == 'market_cap' else (20 if metric == 'pe_ratio' else 5)
+            val = round(base * (1 + (i - (limit/2)) * 0.08), 2)
+            # create a small mocked price series (linear-ish) for visualization
+            mock_series = []
+            for j in range(perf_points):
+                # simulate older -> newer
+                price = max(0.1, val * (0.8 + (j / max(1, perf_points)) * 0.4))
+                mock_series.append({"date": (datetime.utcnow().date() - timedelta(days=(perf_points - j) * 30)).strftime("%Y-%m-%d"), "close": round(price, 2)})
+            peers.append({"name": name, "ticker": f"PEER{i+1}", "value": val, "performance": None, "price_series": mock_series})
+
+    return {"stock_id": stock_id, "ticker": stock.ticker_symbol, "by": by, "metric": metric, "used_mock": used_mock, "peers": peers}
+
+
 @router.post("/", response_model=schemas.Stock, status_code=201)
 def create_stock(
     stock: schemas.StockCreate, 
