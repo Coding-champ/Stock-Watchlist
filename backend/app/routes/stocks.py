@@ -1328,6 +1328,27 @@ def get_stock_fast_data(
     return fast_data
 
 
+@router.get("/{stock_id}/calendar")
+def get_stock_calendar(stock_id: int, db: Session = Depends(get_db)):
+    """
+    Get earnings calendar and related calendar info for a stock (via yfinance service)
+    """
+    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+
+    try:
+        cal = get_stock_calendar_and_earnings(stock.ticker_symbol)
+        if not cal:
+            raise HTTPException(status_code=400, detail="Could not fetch calendar/earnings data")
+        return cal
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in calendar endpoint for {stock.ticker_symbol}: {e}")
+        raise HTTPException(status_code=500, detail="Internal error fetching calendar data")
+
+
 @router.get("/{stock_id}/extended-data", response_model=schemas.ExtendedStockData)
 def get_stock_extended_data(
     stock_id: int, 

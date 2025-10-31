@@ -244,6 +244,42 @@ The React app will run on http://localhost:3000 and proxy API requests to the ba
 - `DELETE /stocks/{id}` - Delete stock
 - **`GET /stocks/{id}/with-calculated-metrics`** ⭐ - Get stock with complete analysis
 
+### Earnings / Calendar
+
+- `GET /stocks/{id}/calendar` - Get earnings/calendar information for a stock (yfinance-backed)
+
+Description:
+- Returns earnings-related fields for the requested stock id. The backend consolidates multiple yfinance sources (ticker.info, ticker.calendar and — when available — get_earnings_dates) and normalizes the output.
+
+Important response fields:
+- `ticker` - ticker symbol (string)
+- `next_earnings_date` - epoch seconds (UTC) for the next scheduled earnings report, or `null` if none found or considered implausible
+- `last_earnings_date` - epoch seconds (UTC) for a recent past earnings event (populated when the detected date is in the recent past and should be treated as "last" rather than "next")
+- `calendar` - when available, a calendar object/dict as returned by yfinance (may include `Earnings Date`, `Dividend Date`, etc.)
+- additional financial fields: `forward_eps`, `trailing_eps`, `earnings_growth`, `trailing_pe`, `forward_pe`, etc.
+
+Behavior & notes:
+- The service prefers explicit calendar `Earnings Date` entries when present. It will avoid treating `exDividendDate` as an earnings date (historical bug fixed).
+- The endpoint applies simple plausibility checks: past dates older than ~7 days are considered `last_earnings_date`; candidate `next_earnings_date` values further than 1 year in the future are discarded. Numeric timestamps returned by yfinance are normalized (milliseconds -> seconds) and ISO/date strings are parsed.
+- Timezone: the endpoint returns epoch seconds (UTC). The frontend may fetch `extended-data` to resolve the exchange/timezone for Before/After market timing indicators.
+- Data source: yfinance. yfinance may occasionally be out-of-sync with official exchange schedules; for production use consider reconciling with a secondary data source (Nasdaq/IEX/Finnhub) or caching strategy.
+
+Example response (truncated):
+
+```json
+{
+  "ticker": "MSFT",
+  "next_earnings_date": 1769554800,
+  "last_earnings_date": null,
+  "forward_eps": 14.95,
+  "trailing_eps": 14.04,
+  "earnings_growth": 0.127,
+  "calendar": {
+    "Earnings Date": ["2026-01-28"]
+  }
+}
+```
+
 ### Seasonality endpoint (series)
 
 - `GET /stocks/{id}/seasonality?years_back=<n>&include_series=true` - Returns monthly seasonality summary and, when `include_series=true` and the requested period is <= 10 years, an array of per-year monthly close series useful for plotting individual yearly lines.

@@ -77,9 +77,169 @@ def get_stock_calendar_and_earnings(ticker_symbol: str) -> Optional[Dict[str, An
             return None
         
         # Extract earnings-related data
+        # Determine next_earnings_date from multiple possible yfinance sources
+        def _extract_next_earnings_date(ticker_obj, info_dict):
+            # Try info fields first
+            candidates = []
+            if info_dict:
+                candidates.append(info_dict.get('earningsDate'))
+                candidates.append(info_dict.get('nextEarningsDate'))
+                candidates.append(info_dict.get('next_earnings_date'))
+
+            # Try ticker.calendar (pandas DataFrame) if available
+            try:
+                cal = getattr(ticker_obj, 'calendar', None)
+                if cal is not None:
+                    # calendar may be a DataFrame or a dict with values containing datetimes
+                    try:
+                        # If it's a pandas DataFrame, grab the first cell
+                        if hasattr(cal, 'iat') and getattr(cal, 'shape', (0, 0))[1] >= 1:
+                            val = cal.iat[0, 0]
+                            candidates.append(val)
+                        # If it's a dict (some yfinance versions), look for 'Earnings Date' key
+                        elif isinstance(cal, dict):
+                            # 'Earnings Date' may be a list of dates
+                            ed = cal.get('Earnings Date') or cal.get('earningsDate')
+                            if ed:
+                                # if list-like, take first element
+                                try:
+                                    if isinstance(ed, (list, tuple)) and len(ed) > 0:
+                                        candidates.append(ed[0])
+                                    else:
+                                        candidates.append(ed)
+                                except Exception:
+                                    candidates.append(ed)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            # Try get_earnings_dates if available (recent yfinance)
+            try:
+                if hasattr(ticker_obj, 'get_earnings_dates'):
+                    ed_df = ticker_obj.get_earnings_dates(limit=5)
+                    # ed_df may be a DataFrame with 'Earnings Date' column or index
+                    try:
+                        if hasattr(ed_df, 'iloc') and len(ed_df) > 0:
+                            # attempt to get first datetime-like value
+                            first_row = ed_df.iloc[0]
+                            # try known column names
+                            for col in ['Earnings Date', 'earningsDate', 'date']:
+                                if col in ed_df.columns:
+                                    candidates.append(first_row[col])
+                                    break
+                            else:
+                                # fallback: use first value in the row
+                                for v in first_row.values:
+                                    candidates.append(v)
+                                    break
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            # Normalize candidate to epoch seconds if possible
+            for c in candidates:
+                if c is None:
+                    continue
+                # If pandas Timestamp
+                try:
+                    import pandas as pd
+                    if isinstance(c, pd.Timestamp):
+                        return int(c.to_datetime64().astype('int64') // 10**9)
+                except Exception:
+                    pass
+
+                # If datetime
+                try:
+                    from datetime import datetime, date
+                    if isinstance(c, datetime):
+                        return int(c.timestamp())
+                    if isinstance(c, date):
+                        return int(datetime(c.year, c.month, c.day).timestamp())
+                except Exception:
+                    pass
+
+                # If numeric epoch
+                try:
+                    n = float(c)
+                    if n > 0:
+                        # normalize milliseconds -> seconds
+                        if n > 1e12:
+                            n = n / 1000.0
+                        return int(n)
+                except Exception:
+                    pass
+
+                # If string parseable
+                try:
+                    from dateutil import parser as _p
+                    dt = _p.parse(str(c))
+                    return int(dt.timestamp())
+                except Exception:
+                    pass
+
+            return None
+
+        next_ed = _extract_next_earnings_date(ticker, info)
+
+        # Plausibility checks for the extracted next_earnings_date
+        from datetime import datetime, timedelta
+        now_ts = int(datetime.utcnow().timestamp())
+        last_earnings_date = None
+        # If the extracted date equals the ex-dividend date, prefer calendar earnings when available
+        try:
+            ex_div = info.get('exDividendDate')
+            if ex_div:
+                try:
+                    ex_div_n = float(ex_div)
+                    if ex_div_n > 1e12:
+                        ex_div_n = int(ex_div_n / 1000.0)
+                    else:
+                        ex_div_n = int(ex_div_n)
+                except Exception:
+                    ex_div_n = None
+            else:
+                ex_div_n = None
+        except Exception:
+            ex_div_n = None
+
+        # If next_ed is in the distant past, treat it as last_earnings_date
+        if next_ed is not None:
+            # Normalize large ms->s already handled in extractor; assume seconds here
+            if next_ed < (now_ts - 7 * 24 * 3600):
+                last_earnings_date = next_ed
+                next_ed = None
+            # If the date is unreasonably far in the future (>1 year), drop it
+            elif next_ed > (now_ts + 365 * 24 * 3600):
+                next_ed = None
+            # If it exactly matches ex-dividend date and calendar contained explicit Earnings Date, prefer calendar
+            elif ex_div_n is not None and next_ed == ex_div_n:
+                # try to prefer calendar's earnings date if present
+                try:
+                    cal = getattr(ticker, 'calendar', None)
+                    if isinstance(cal, dict):
+                        ed = cal.get('Earnings Date') or cal.get('earningsDate')
+                        if ed:
+                            if isinstance(ed, (list, tuple)) and len(ed) > 0:
+                                # convert date to epoch
+                                import pandas as pd
+                                v = ed[0]
+                                if isinstance(v, pd.Timestamp):
+                                    next_ed = int(v.to_datetime64().astype('int64') // 10**9)
+                                else:
+                                    try:
+                                        from dateutil import parser as _p
+                                        next_ed = int(_p.parse(str(v)).timestamp())
+                                    except Exception:
+                                        pass
+                except Exception:
+                    pass
+
         earnings_data = {
             'ticker': ticker_symbol,
-            'next_earnings_date': info.get('exDividendDate'),
+            'next_earnings_date': next_ed,
+            'last_earnings_date': last_earnings_date,
             'earnings_growth': info.get('earningsGrowth'),
             'revenue_growth': info.get('revenueGrowth'),
             'earnings_quarterly_growth': info.get('earningsQuarterlyGrowth'),
@@ -117,7 +277,7 @@ def get_stock_calendar_and_earnings(ticker_symbol: str) -> Optional[Dict[str, An
         }
         
         return _clean_for_json(earnings_data)
-        
+    
     except Exception as e:
         logger.error(f"Error fetching calendar and earnings for {ticker_symbol}: {str(e)}")
         return None

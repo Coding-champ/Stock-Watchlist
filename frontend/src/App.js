@@ -5,6 +5,7 @@ import StocksSection from './components/StocksSection';
 import AlertDashboard from './components/AlertDashboard';
 import { useAlerts } from './hooks/useAlerts';
 import ScreenerView from './components/screener/ScreenerView';
+import EarningsView from './components/earnings/EarningsView';
 
 import API_BASE from './config';
 
@@ -194,6 +195,13 @@ function App() {
             Screener
           </button>
           <button
+            className={`topnav__item ${activeView === 'earnings' ? 'is-active' : ''}`}
+            onClick={() => setActiveView('earnings')}
+            type="button"
+          >
+            Earnings
+          </button>
+          <button
             className="topnav__item"
             onClick={() => setShowAlertDashboard(true)}
             type="button"
@@ -235,6 +243,35 @@ function App() {
             </aside>
             <main className="layout__content">
               <ScreenerView />
+            </main>
+          </div>
+        )}
+
+        {activeView === 'earnings' && (
+          <div className={`layout ${sidebarCollapsed ? 'layout--sidebar-collapsed' : ''}`}>
+            <aside className={`layout__sidebar ${sidebarCollapsed ? 'layout__sidebar--collapsed' : ''}`}>
+              <button
+                type="button"
+                className="sidebar-toggle"
+                aria-label={sidebarCollapsed ? 'Sidebar ausklappen' : 'Sidebar einklappen'}
+                onClick={() => setSidebarCollapsed((s) => !s)}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" fill="currentColor" />
+                </svg>
+              </button>
+              <WatchlistSection
+                watchlists={watchlists}
+                currentWatchlist={currentWatchlist}
+                onWatchlistSelect={handleWatchlistSelectAndCollapse}
+                onWatchlistsChange={loadWatchlists}
+                onShowToast={showToast}
+                collapsed={sidebarCollapsed}
+                onToggleCollapsed={() => setSidebarCollapsed((s) => !s)}
+              />
+            </aside>
+            <main className="layout__content">
+              <EarningsView />
             </main>
           </div>
         )}
