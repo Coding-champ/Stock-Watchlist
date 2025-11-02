@@ -1018,11 +1018,32 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
 
   // Early returns AFTER all hooks
   if (loading) {
+    // Render a skeleton-styled placeholder instead of the global spinner.
+    // Uses the central `.skeleton` helper for shimmer effect.
     return (
       <div className="stock-chart-container">
-        <div className="chart-loading">
-          <div className="loading-spinner"></div>
-          <p>Lade Chart-Daten...</p>
+        <div className="chart-controls" aria-hidden style={{ opacity: 0.9 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div className="skeleton" style={{ width: 120, height: 36, borderRadius: 10 }} />
+            <div className="skeleton" style={{ width: 80, height: 36, borderRadius: 10 }} />
+            <div className="skeleton" style={{ width: 160, height: 36, borderRadius: 10 }} />
+          </div>
+        </div>
+
+        <div className="chart-section" style={{ position: 'relative' }}>
+          <div style={{ padding: 16 }}>
+            <div className="skeleton" style={{ width: '48%', height: 18, borderRadius: 6, marginBottom: 12 }} />
+            <div className="skeleton" style={{ width: '100%', height: 360, borderRadius: 10 }} />
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, padding: 16 }}>
+            <div className="skeleton" style={{ flex: 1, height: 120, borderRadius: 8 }} />
+            <div className="skeleton" style={{ width: 220, height: 120, borderRadius: 8 }} />
+          </div>
+
+          <div className="chart-info" style={{ padding: 12 }}>
+            <div className="skeleton" style={{ width: 200, height: 12, borderRadius: 6 }} />
+          </div>
         </div>
       </div>
     );
