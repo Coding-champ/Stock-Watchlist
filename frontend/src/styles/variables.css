@@ -1,0 +1,26 @@
+/* Design tokens and CSS variables */
+:root {
+  --brand-primary: #7c3aed;
+  --brand-primary-dark: #5b21b6;
+  --brand-primary-light: #c084fc;
+  --brand-secondary: #6366f1;
+  --brand-border: rgba(124, 58, 237, 0.18);
+  --brand-border-strong: rgba(91, 33, 182, 0.38);
+  --brand-surface: #ffffff;
+  --brand-surface-muted: #f6f3ff;
+  --brand-surface-soft: rgba(255, 255, 255, 0.72);
+  --shadow-soft: 0 18px 40px rgba(15, 23, 42, 0.1);
+  --shadow-strong: 0 28px 60px rgba(79, 70, 229, 0.16);
+  --shadow-purple-soft: 0 14px 34px rgba(79, 70, 229, 0.12);
+  --shadow-muted: 0 8px 20px rgba(79, 70, 229, 0.08);
+  --overlay-ghost: rgba(255, 255, 255, 0.7);
+  --motion-long: 420ms;
+  --motion-medium: 260ms;
+  --motion-short: 200ms;
+  --sidebar-toggle-icon: var(--brand-primary);
+  --sidebar-toggle-icon-hover: var(--brand-primary-dark);
+  --text-main: #1f2937;
+  --text-muted: #6b7280;
+  --radius-large: 24px;
+  --radius-medium: 18px;
+}
