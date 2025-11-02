@@ -1,13 +1,13 @@
 @import './styles/variables.css';
 @import './styles/components/buttons.css';
 @import './styles/components/toasts.css';
+@import './styles/components/panels.css';
 
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
-
 
 
 /* Hint to the browser which properties will change on animated elements */
@@ -34,7 +34,6 @@ body {
   font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background: radial-gradient(115% 115% at 10% 0%, #f5f3ff 0%, #eef2ff 45%, #ffffff 100%);
   color: var(--text-main);
-  /* increase page padding for more breathing room */
   padding: 64px 48px 80px;
   min-height: 100vh;
   line-height: 1.6;
@@ -154,7 +153,6 @@ h1 {
 }
 
 /* When collapsed, increase the horizontal gap so the main content has breathing room */
-
 .layout--sidebar-collapsed {
   gap: 10px;
 }
@@ -202,7 +200,7 @@ h1 {
 .sidebar-toggle {
   position: absolute;
   top: 12px;
-  right: 12px; /* fully inside the sidebar */
+  right: 12px;
   width: 32px;
   height: 32px;
   border-radius: 10px;
@@ -670,17 +668,6 @@ h1 {
 
 .form-group {
   margin-bottom: 18px;
-}
-
-.panel {
-  background: var(--brand-surface-soft);
-  border-radius: var(--radius-large);
-  /* increase panel padding for more internal spacing */
-  padding: 36px;
-  border: 1px solid var(--brand-border);
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(10px);
-  transition: box-shadow var(--motion-medium) ease, transform var(--motion-short) ease, margin var(--motion-short) ease;
 }
 
 input,

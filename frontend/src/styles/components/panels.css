@@ -1,0 +1,104 @@
+/* Centralized panel styles */
+.panel {
+  background: var(--brand-surface-soft);
+  border-radius: var(--radius-large);
+  /* increase panel padding for more internal spacing */
+  padding: 36px;
+  border: 1px solid var(--brand-border);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(10px);
+  transition: box-shadow var(--motion-medium) ease, transform var(--motion-short) ease, margin var(--motion-short) ease;
+}
+
+.panel:hover {
+  box-shadow: var(--shadow-strong);
+  transform: translateY(-2px);
+}
+
+.panel--watchlists {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.panel--stocks {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.panel__header {
+  display: flex;
+  /* Prefer no wrapping on wide screens so actions stay on the same line.
+     On small screens a media query will stack items. */
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  gap: 18px;
+  /* Align items to the top so action buttons align with the eyebrow/title */
+  align-items: flex-start;
+}
+
+.panel__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Allow title group to shrink so action buttons stay on the same line
+     instead of wrapping to the next row when the title/subtitle is long. */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.panel__title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #2e1065;
+}
+
+.panel__eyebrow {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-weight: 600;
+  color: rgba(91, 33, 182, 0.85);
+}
+
+.panel__subtitle {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+.panel__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  /* Ensure action buttons keep their width and don't wrap their internal content */
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.panel__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.panel__toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.panel__toolbar-row .search-field {
+  flex: 1;
+  min-width: 260px;
+}
+
+.panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* End of panel styles */
