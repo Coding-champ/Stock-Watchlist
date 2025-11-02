@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import '../../styles/skeletons.css';
 import API_BASE from '../../config';
 
 const EarningsView = () => {
@@ -35,12 +36,12 @@ const EarningsView = () => {
           const s = item.s;
           if (!r || r.status !== 200) {
             try {
-              // try to read json even for non-200 to give more info
-              const dataErr = await r.json().catch(() => null);
-              continue;
-            } catch (e) {
-              continue;
-            }
+                // try to read json even for non-200 to give more info
+                await r.json().catch(() => null);
+                continue;
+              } catch (e) {
+                continue;
+              }
           }
           const data = await r.json();
 
@@ -203,7 +204,7 @@ const EarningsView = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [groupByDate]);
 
   // Grouped view calculation
   const grouped = useMemo(() => {

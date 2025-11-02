@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import '../styles/skeletons.css';
 import API_BASE from '../config';
 
 const getInitials = (name = '') => {

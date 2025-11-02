@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import '../styles/skeletons.css';
 import { useAlerts } from '../hooks/useAlerts';
 import API_BASE from '../config';
 import { getCurrencyForStock } from '../utils/currencyUtils';

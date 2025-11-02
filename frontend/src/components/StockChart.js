@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import '../styles/skeletons.css';
 import {
   LineChart,
   Line,
@@ -435,7 +436,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
       // make sure to clear in-flight markers on error to allow retries
       indicatorNames.forEach(n => inFlightIndicatorsRef.current.delete(n));
     }
-  }, [API_BASE, stock.id, period]);
+  }, [stock.id, period]);
 
   // Refs to track latest indicators state and in-flight fetches to avoid races/loops
   const indicatorsRef = useRef(indicators);

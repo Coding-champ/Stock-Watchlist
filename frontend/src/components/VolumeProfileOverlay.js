@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './VolumeProfileOverlay.css';
+import '../styles/skeletons.css';
 
 import API_BASE from '../config';
 import { formatPrice } from '../utils/currencyUtils';

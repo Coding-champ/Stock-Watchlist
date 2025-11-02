@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import './FundamentalsTimeSeriesTab.css';
+import '../styles/skeletons.css';
 import API_BASE from '../config';
 import { formatNumber } from '../utils/currencyUtils';
 import { metricLabel } from '../utils/metricLabels';

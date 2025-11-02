@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import CalculatedMetricsTab from './CalculatedMetricsTab';
 import AnalystTab from './AnalystTab';
+import '../styles/skeletons.css';
 import SeasonalityTab from './SeasonalityTab';
 import StockChart from './StockChart';
 import FundamentalsTimeSeriesTab from './FundamentalsTimeSeriesTab';

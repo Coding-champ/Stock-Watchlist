@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import './SectorComparisonTab.css';
+import '../styles/skeletons.css';
 import API_BASE from '../config';
 import { metricLabel } from '../utils/metricLabels';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, LineChart, Line } from 'recharts';

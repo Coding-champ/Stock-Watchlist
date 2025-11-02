@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import API_BASE from '../../config';
+import '../../styles/skeletons.css';
 
 const ScreenerView = () => {
   const [facets, setFacets] = useState({ countries: [], sectors: [], industries: [] });

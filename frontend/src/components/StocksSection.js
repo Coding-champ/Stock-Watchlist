@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import API_BASE from '../config';
+import '../styles/skeletons.css';
 import { formatPrice } from '../utils/currencyUtils';
 import { parseCSV, exportCSV } from '../utils/csvUtils';
 import { createPortal } from 'react-dom';
@@ -15,6 +16,7 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
   const [selectedStock, setSelectedStock] = useState(null);
   const [loading, setLoading] = useState(false);
   const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [tableFadeVisible, setTableFadeVisible] = useState(false);
   const [sectorFilter, setSectorFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
   const [observationReasonFilter, setObservationReasonFilter] = useState('');
@@ -108,6 +110,17 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
       loadStocks();
     }
   }, [watchlist, loadStocks]);
+
+  // Trigger a small fade-in when the table content becomes available.
+  useEffect(() => {
+    if (stocks.length > 0) {
+      // reset then enable to ensure transition triggers
+      setTableFadeVisible(false);
+      const t = setTimeout(() => setTableFadeVisible(true), 20);
+      return () => clearTimeout(t);
+    }
+    setTableFadeVisible(false);
+  }, [stocks.length]);
 
   useEffect(() => () => {
     if (toastTimeoutRef.current) {
@@ -568,6 +581,8 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
     ? watchlist.description
     : 'Beobachte Kursverläufe, Gewinner und Risiken in Echtzeit.';
 
+  
+
   const toastMarkup = !onShowToast && toast && typeof document !== 'undefined'
     ? createPortal(
         (
@@ -597,6 +612,7 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
         className="panel panel--stocks"
         aria-label={`Aktien in ${watchlist.name}`}
       >
+  
       <div className="panel__header">
         <div className="panel__title-group">
           <span className="panel__eyebrow">Aktien</span>
@@ -721,23 +737,36 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
       </div>
 
       <div className="panel__body">
-        {loading ? (
-          <div className="loading loading--inline">
-            <div className="spinner"></div>
+        {loading && stocks.length === 0 ? (
+          <div className="skeleton-table" aria-busy="true">
+            <table className="stock-table">
+              <tbody>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="skeleton-row">
+                    <td><span className="skeleton" style={{ width: 48, height: 16 }} /></td>
+                    <td><span className="skeleton" style={{ width: 140, height: 16 }} /></td>
+                    <td><span className="skeleton" style={{ width: 80, height: 16 }} /></td>
+                    <td><span className="skeleton" style={{ width: 80, height: 16 }} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : (
-          <StockTable
-            stocks={filteredStocks}
-            watchlists={watchlists}
-            currentWatchlistId={watchlist.id}
-            onStockClick={handleStockClick}
-            onDeleteStock={handleDeleteStock}
-            onMoveStock={handleMoveStock}
-            onCopyStock={handleCopyStock}
-            onUpdateMarketData={handleUpdateMarketData}
-            performanceFilter={performanceFilter}
-            onShowToast={showToast}
-          />
+          <div className={`fade-in ${tableFadeVisible ? 'visible' : ''}`}>
+            <StockTable
+              stocks={filteredStocks}
+              watchlists={watchlists}
+              currentWatchlistId={watchlist.id}
+              onStockClick={handleStockClick}
+              onDeleteStock={handleDeleteStock}
+              onMoveStock={handleMoveStock}
+              onCopyStock={handleCopyStock}
+              onUpdateMarketData={handleUpdateMarketData}
+              performanceFilter={performanceFilter}
+              onShowToast={showToast}
+            />
+          </div>
         )}
       </div>
 

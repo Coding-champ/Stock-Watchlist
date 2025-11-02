@@ -14,6 +14,7 @@ import {
   Legend
 } from 'recharts';
 import './SeasonalityTab.css';
+import '../styles/skeletons.css';
 
 function SeasonalityTab({ stockId }) {
   const [seasonality, setSeasonality] = useState([]);

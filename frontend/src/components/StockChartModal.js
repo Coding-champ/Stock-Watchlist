@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import API_BASE from '../config';
 
+import '../styles/skeletons.css';
+
 const TIMEFRAME_OPTIONS = [
   { key: '7', label: '7T', limit: 7 },
   { key: '30', label: '30T', limit: 30 },

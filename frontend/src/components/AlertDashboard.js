@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import '../styles/skeletons.css';
 import { getAlertTypeLabel, getConditionLabel, getUnitForAlertType, formatNumber } from '../utils/currencyUtils';
 import { useAlerts } from '../hooks/useAlerts';
 import API_BASE from '../config';

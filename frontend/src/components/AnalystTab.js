@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import './AnalystTab.css';
+import '../styles/skeletons.css';
 
 function AnalystTab({ stockId }) {
   const [analystData, setAnalystData] = useState(null);

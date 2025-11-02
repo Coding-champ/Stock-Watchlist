@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import MetricTooltip from './MetricTooltip';
 import './CalculatedMetrics.css';
+import '../styles/skeletons.css';
 
 import API_BASE from '../config';
 import { formatPrice } from '../utils/currencyUtils';

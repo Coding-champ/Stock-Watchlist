@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import './VolumeProfile.css';
+import '../styles/skeletons.css';
 
 import API_BASE from '../config';
 import { formatPrice } from '../utils/currencyUtils';
