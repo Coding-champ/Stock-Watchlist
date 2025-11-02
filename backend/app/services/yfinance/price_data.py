@@ -480,6 +480,7 @@ def get_chart_data(
                 calculate_rsi,
                 calculate_macd,
                 calculate_bollinger_bands,
+                calculate_ichimoku,
             )
             import re
 
@@ -512,6 +513,22 @@ def get_chart_data(
                             'middle': bb['sma'].tolist(),
                             'lower': bb['lower'].tolist()
                         }
+                    elif name == 'ichimoku':
+                        try:
+                            ich = calculate_ichimoku(hist['High'], hist['Low'], hist['Close'])
+                            # convert NaN to None and ensure floats for JSON
+                            def _to_list(series):
+                                return [None if pd.isna(v) else float(v) for v in series.tolist()]
+
+                            indicators_result['indicators']['ichimoku'] = {
+                                'conversion': _to_list(ich['conversion']),
+                                'base': _to_list(ich['base']),
+                                'span_a': _to_list(ich['span_a']),
+                                'span_b': _to_list(ich['span_b']),
+                                'chikou': _to_list(ich['chikou'])
+                            }
+                        except Exception:
+                            indicators_result['indicators']['ichimoku'] = None
                     elif name in ('atr', 'atr_14'):
                         # Calculate ATR series (14) using High/Low/Close
                         try:

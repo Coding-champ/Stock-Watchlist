@@ -65,6 +65,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   const [showSMA50, setShowSMA50] = useState(true);
   const [showSMA200, setShowSMA200] = useState(true);
   const [showVolume, setShowVolume] = useState(true);
+  const [showIchimoku, setShowIchimoku] = useState(false);
   const [showRSI, setShowRSI] = useState(false);
   const [showMACD, setShowMACD] = useState(false);
   const [showStochastic, setShowStochastic] = useState(false);
@@ -91,15 +92,15 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
     '261.8': false
   });
   const [fibonacciData, setFibonacciData] = useState(null);
-  
-  // Bollinger Bands signal data
+
+  // Bollinger Bands signal (display + meta info)
   const [bollingerSignal, setBollingerSignal] = useState(null);
-  
-  // Support/Resistance toggles
+
+  // Support/Resistance toggles and cached levels
   const [showSupportResistance, setShowSupportResistance] = useState(false);
   const [supportResistanceData, setSupportResistanceData] = useState(null);
 
-  // Volume Profile toggles
+  // Volume Profile toggles / shared X axis ticks for synchronized subcharts
   const [showVolumeProfile, setShowVolumeProfile] = useState(false);
   const [showVolumeProfileOverlay, setShowVolumeProfileOverlay] = useState(false);
   const [volumeProfileLevels, setVolumeProfileLevels] = useState(null);
@@ -218,6 +219,13 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         // prefer server-provided volume moving averages if present
         volumeMA10: sourceIndicators?.volumeMA10?.[index],
         volumeMA20: sourceIndicators?.volumeMA20?.[index]
+        ,
+        // Ichimoku series (if provided by backend)
+        ichimoku_conversion: sourceIndicators?.ichimoku?.conversion?.[index],
+        ichimoku_base: sourceIndicators?.ichimoku?.base?.[index],
+        ichimoku_span_a: sourceIndicators?.ichimoku?.span_a?.[index],
+        ichimoku_span_b: sourceIndicators?.ichimoku?.span_b?.[index],
+        ichimoku_chikou: sourceIndicators?.ichimoku?.chikou?.[index]
       }));
 
       // If the technical-indicators endpoint didn't provide VWAP series,
@@ -420,6 +428,13 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
             } else if (key === 'stochastic') {
               copy.k_percent = val.k_percent?.[idx] ?? copy.k_percent;
               copy.d_percent = val.d_percent?.[idx] ?? copy.d_percent;
+            } else if (key === 'ichimoku') {
+              // Map ichimoku sub-series into chart row fields
+              copy.ichimoku_conversion = val.conversion?.[idx] ?? copy.ichimoku_conversion;
+              copy.ichimoku_base = val.base?.[idx] ?? copy.ichimoku_base;
+              copy.ichimoku_span_a = val.span_a?.[idx] ?? copy.ichimoku_span_a;
+              copy.ichimoku_span_b = val.span_b?.[idx] ?? copy.ichimoku_span_b;
+              copy.ichimoku_chikou = val.chikou?.[idx] ?? copy.ichimoku_chikou;
             } else {
               copy[key] = Array.isArray(val) ? val[idx] : val;
             }
@@ -454,6 +469,12 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
       fetchIndicators(['rsi']);
     }
   }, [showRSI, fetchIndicators]);
+
+  useEffect(() => {
+    if (showIchimoku && !(indicatorsRef.current && ('ichimoku' in indicatorsRef.current)) && !inFlightIndicatorsRef.current.has('ichimoku')) {
+      fetchIndicators(['ichimoku']);
+    }
+  }, [showIchimoku, fetchIndicators]);
 
   useEffect(() => {
     if (showMACD && !(indicatorsRef.current && ('macd' in indicatorsRef.current)) && !inFlightIndicatorsRef.current.has('macd')) {
@@ -620,6 +641,24 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
             {' '}
             <span className="tooltip-value">{formatPrice(data.vwap, stock)}</span>
           </p>
+        )}
+        {showIchimoku && ( (data.ichimoku_conversion !== undefined && data.ichimoku_conversion !== null) || (data.ichimoku_base !== undefined && data.ichimoku_base !== null)) && (
+          <>
+            {data.ichimoku_conversion !== undefined && data.ichimoku_conversion !== null && (
+              <p>
+                <span className="tooltip-label" style={{ color: '#1f77b4' }}>Ichimoku Tenkan (Conv):</span>
+                {' '}
+                <span className="tooltip-value">{formatPrice(data.ichimoku_conversion, stock)}</span>
+              </p>
+            )}
+            {data.ichimoku_base !== undefined && data.ichimoku_base !== null && (
+              <p>
+                <span className="tooltip-label" style={{ color: '#ff7f0e' }}>Ichimoku Kijun (Base):</span>
+                {' '}
+                <span className="tooltip-value">{formatPrice(data.ichimoku_base, stock)}</span>
+              </p>
+            )}
+          </>
         )}
       </div>
     );
@@ -1238,6 +1277,14 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
             <label className="checkbox-label">
               <input
                 type="checkbox"
+                checked={showIchimoku}
+                onChange={(e) => setShowIchimoku(e.target.checked)}
+              />
+              <span>Ichimoku Cloud</span>
+            </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
                 checked={showCrossovers}
                 onChange={(e) => setShowCrossovers(e.target.checked)}
               />
@@ -1692,6 +1739,73 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
                   strokeDasharray="5 5"
                 />
               )}
+
+              {/* Ichimoku Cloud */}
+              {showIchimoku && (
+                <>
+                  <Area
+                    type="monotone"
+                    dataKey="ichimoku_span_a"
+                    stroke="none"
+                    fill="#2ca02c"
+                    fillOpacity={0.10}
+                    dot={false}
+                    name="Ichimoku Span A"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="ichimoku_span_b"
+                    stroke="none"
+                    fill="#d62728"
+                    fillOpacity={0.08}
+                    dot={false}
+                    name="Ichimoku Span B"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="ichimoku_conversion"
+                    stroke="#1f77b4"
+                    strokeWidth={1.5}
+                    dot={false}
+                    name="Ichimoku Conversion"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="ichimoku_base"
+                    stroke="#ff7f0e"
+                    strokeWidth={1.5}
+                    dot={false}
+                    name="Ichimoku Base"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="ichimoku_span_a"
+                    stroke="#2ca02c"
+                    strokeWidth={1}
+                    dot={false}
+                    name="Ichimoku Span A (line)"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="ichimoku_span_b"
+                    stroke="#d62728"
+                    strokeWidth={1}
+                    dot={false}
+                    name="Ichimoku Span B (line)"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="ichimoku_chikou"
+                    stroke="#7f7f7f"
+                    strokeWidth={1}
+                    dot={false}
+                    strokeDasharray="4 4"
+                    name="Ichimoku Chikou"
+                  />
+                </>
+              )}
+
+              {/* Ichimoku Cloud (rendered above) */}
               
               {/* Fibonacci Levels */}
               {renderFibonacciLevels()}

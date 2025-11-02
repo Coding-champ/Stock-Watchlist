@@ -45,3 +45,58 @@ def calculate_bollinger_bands(series: Union[pd.Series, list], window: int = 20, 
         'upper': upper_band,
         'lower': lower_band
     })
+
+
+def calculate_ichimoku(
+    high: Union[pd.Series, list],
+    low: Union[pd.Series, list],
+    close: Union[pd.Series, list],
+    conversion: int = 9,
+    base: int = 26,
+    span_b: int = 52,
+    displacement: int = 26
+) -> pd.DataFrame:
+    """
+    Berechnet die Ichimoku-Komponenten.
+
+    Returns DataFrame with columns:
+      - conversion (Tenkan-sen)
+      - base (Kijun-sen)
+      - span_a (Senkou Span A) -- shifted forward by `displacement`
+      - span_b (Senkou Span B) -- shifted forward by `displacement`
+      - chikou (Chikou Span)  -- close shifted backward by `displacement`
+
+    All series are aligned to the original index (NaN where not available).
+    """
+    high_s = pd.Series(high)
+    low_s = pd.Series(low)
+    close_s = pd.Series(close)
+
+    # Tenkan-sen (Conversion Line): (9-period high + 9-period low) / 2
+    conv_high = high_s.rolling(window=conversion, min_periods=conversion).max()
+    conv_low = low_s.rolling(window=conversion, min_periods=conversion).min()
+    conversion_line = (conv_high + conv_low) / 2
+
+    # Kijun-sen (Base Line): (26-period high + 26-period low) / 2
+    base_high = high_s.rolling(window=base, min_periods=base).max()
+    base_low = low_s.rolling(window=base, min_periods=base).min()
+    base_line = (base_high + base_low) / 2
+
+    # Senkou Span A: (Conversion + Base) / 2 -> shifted forward by displacement
+    span_a = ((conversion_line + base_line) / 2).shift(periods=displacement)
+
+    # Senkou Span B: (52-period high + 52-period low) / 2 -> shifted forward
+    spanb_high = high_s.rolling(window=span_b, min_periods=span_b).max()
+    spanb_low = low_s.rolling(window=span_b, min_periods=span_b).min()
+    span_b_line = ((spanb_high + spanb_low) / 2).shift(periods=displacement)
+
+    # Chikou Span: close shifted backward by displacement (plotted to the left)
+    chikou = close_s.shift(periods=-displacement)
+
+    return pd.DataFrame({
+        'conversion': conversion_line,
+        'base': base_line,
+        'span_a': span_a,
+        'span_b': span_b_line,
+        'chikou': chikou
+    })
