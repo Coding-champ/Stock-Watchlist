@@ -14,6 +14,7 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [bulkUpdating, setBulkUpdating] = useState(false);
   const [sectorFilter, setSectorFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
   const [observationReasonFilter, setObservationReasonFilter] = useState('');
@@ -497,8 +498,9 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
       showToast('Keine Aktien zum Aktualisieren vorhanden', 'info');
       return;
     }
-
-    setLoading(true);
+    // Don't toggle the global loading spinner here - update individual cards
+    // and use a bulkUpdating flag to disable the button while running.
+    setBulkUpdating(true);
     showToast(`Aktualisiere ${stocks.length} Aktien...`, 'info');
 
     let successCount = 0;
@@ -559,7 +561,7 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
       showToast(`${successCount} erfolgreich, ${failCount} fehlgeschlagen`, 'warning');
     }
 
-    setLoading(false);
+    setBulkUpdating(false);
   };
 
   const watchlistSubtitle = watchlist.description
@@ -632,7 +634,7 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
             type="button"
             className="btn"
             onClick={handleUpdateAllMarketData}
-            disabled={loading}
+            disabled={loading || bulkUpdating}
             title="Aktualisiert alle Marktdaten in dieser Watchlist"
           >
             <span className="btn__icon" aria-hidden="true">⟳</span>
