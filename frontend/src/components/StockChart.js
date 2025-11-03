@@ -1261,6 +1261,14 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
             <label className="checkbox-label">
               <input
                 type="checkbox"
+                checked={showIchimoku}
+                onChange={(e) => setShowIchimoku(e.target.checked)}
+              />
+              <span>Ichimoku Cloud</span>
+            </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
                 checked={showATR}
                 onChange={(e) => setShowATR(e.target.checked)}
               />
@@ -1273,14 +1281,6 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
                 onChange={(e) => setShowVWAP(e.target.checked)}
               />
               <span>VWAP</span>
-            </label>
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={showIchimoku}
-                onChange={(e) => setShowIchimoku(e.target.checked)}
-              />
-              <span>Ichimoku Cloud</span>
             </label>
             <label className="checkbox-label">
               <input
