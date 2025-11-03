@@ -46,12 +46,143 @@ function StockTable({
   const fetchedSparklineIdsRef = useRef(new Set());
   const [alertModalStock, setAlertModalStock] = useState(null);
   const [editObservationsStock, setEditObservationsStock] = useState(null);
+  
+  // Multi-selection state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedStockIds, setSelectedStockIds] = useState(new Set());
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferAction, setTransferAction] = useState(null); // 'move' or 'copy'
+  const [selectedTargetWatchlist, setSelectedTargetWatchlist] = useState(null);
+  const [isTransferring, setIsTransferring] = useState(false);
 
   const notify = (message, appearance = 'info') => {
     if (typeof onShowToast === 'function') {
       onShowToast(message, appearance);
     } else if (message) {
       window.alert(message);
+    }
+  };
+
+  // Multi-selection handlers
+  const toggleSelectionMode = () => {
+    setSelectionMode(!selectionMode);
+    setSelectedStockIds(new Set());
+  };
+
+  const toggleStockSelection = (stockId) => {
+    setSelectedStockIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(stockId)) {
+        newSet.delete(stockId);
+      } else {
+        newSet.add(stockId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllStocks = () => {
+    const allIds = new Set(stocks.map(s => s.id));
+    setSelectedStockIds(allIds);
+  };
+
+  const clearSelection = () => {
+    setSelectedStockIds(new Set());
+  };
+
+  const confirmDeleteSelectedStocks = () => {
+    if (selectedStockIds.size === 0) return;
+    setShowDeleteConfirmation(true);
+  };
+
+  const deleteSelectedStocks = async () => {
+    if (selectedStockIds.size === 0) return;
+
+    setIsDeleting(true);
+    const count = selectedStockIds.size;
+
+    try {
+      // Delete stocks sequentially - skip individual toasts
+      for (const stockId of Array.from(selectedStockIds)) {
+        await onDeleteStock(stockId, true); // true = skipToast
+      }
+
+      // Clear selection and close modal first
+      setSelectedStockIds(new Set());
+      setSelectionMode(false);
+      setShowDeleteConfirmation(false);
+      
+      // Reload the stocks list
+      if (onStocksReload) {
+        await onStocksReload();
+      }
+      
+      // Show single success message
+      notify(count === 1 ? 'Aktie erfolgreich entfernt' : `${count} Aktien erfolgreich entfernt`, 'success');
+    } catch (error) {
+      console.error('Delete error:', error);
+      notify('Fehler beim Löschen der Aktien', 'error');
+      setShowDeleteConfirmation(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Transfer (move/copy) handlers
+  const openTransferModal = (action) => {
+    if (selectedStockIds.size === 0) return;
+    setTransferAction(action);
+    setShowTransferModal(true);
+    // Pre-select first available watchlist
+    const availableWatchlists = watchlists.filter(wl => wl.id !== currentWatchlistId);
+    if (availableWatchlists.length > 0) {
+      setSelectedTargetWatchlist(availableWatchlists[0].id);
+    }
+  };
+
+  const confirmTransfer = async () => {
+    if (selectedStockIds.size === 0 || !selectedTargetWatchlist) return;
+
+    setIsTransferring(true);
+    const count = selectedStockIds.size;
+    const actionLabel = transferAction === 'move' ? 'verschoben' : 'kopiert';
+
+    try {
+      // Transfer stocks sequentially
+      for (const stockId of Array.from(selectedStockIds)) {
+        if (transferAction === 'move') {
+          await onMoveStock(stockId, selectedTargetWatchlist);
+        } else {
+          await onCopyStock(stockId, selectedTargetWatchlist);
+        }
+      }
+
+      // Clear selection and close modal
+      setSelectedStockIds(new Set());
+      setSelectionMode(false);
+      setShowTransferModal(false);
+      setTransferAction(null);
+      
+      // Reload the stocks list
+      if (onStocksReload) {
+        await onStocksReload();
+      }
+      
+      // Show success message
+      notify(
+        count === 1 
+          ? `Aktie erfolgreich ${actionLabel}` 
+          : `${count} Aktien erfolgreich ${actionLabel}`, 
+        'success'
+      );
+    } catch (error) {
+      console.error('Transfer error:', error);
+      notify(`Fehler beim ${transferAction === 'move' ? 'Verschieben' : 'Kopieren'} der Aktien`, 'error');
+      setShowTransferModal(false);
+    } finally {
+      setIsTransferring(false);
     }
   };
 
@@ -562,6 +693,69 @@ function StockTable({
         </div>
       </div>
 
+      {/* Multi-selection toolbar */}
+      {selectionMode && (
+        <div className="stock-selection-toolbar">
+          <div className="stock-selection-toolbar__info">
+            <span className="stock-selection-toolbar__count">
+              {selectedStockIds.size} von {stocks.length} ausgewählt
+            </span>
+          </div>
+          <div className="stock-selection-toolbar__actions">
+            <button
+              type="button"
+              className="btn btn--ghost btn--small"
+              onClick={selectAllStocks}
+            >
+              Alle auswählen
+            </button>
+            <button
+              type="button"
+              className="btn btn--ghost btn--small"
+              onClick={clearSelection}
+              disabled={selectedStockIds.size === 0}
+            >
+              Auswahl aufheben
+            </button>
+            <button
+              type="button"
+              className="btn btn--primary btn--small"
+              onClick={() => openTransferModal('move')}
+              disabled={selectedStockIds.size === 0 || watchlists.filter(wl => wl.id !== currentWatchlistId).length === 0}
+            >
+              Verschieben
+            </button>
+            <button
+              type="button"
+              className="btn btn--primary btn--small"
+              onClick={() => openTransferModal('copy')}
+              disabled={selectedStockIds.size === 0 || watchlists.filter(wl => wl.id !== currentWatchlistId).length === 0}
+            >
+              Kopieren
+            </button>
+            <button
+              type="button"
+              className="btn btn--danger btn--small"
+              onClick={confirmDeleteSelectedStocks}
+              disabled={selectedStockIds.size === 0 || isDeleting}
+            >
+              {isDeleting 
+                ? 'Wird gelöscht...' 
+                : selectedStockIds.size > 0 
+                  ? `${selectedStockIds.size} Löschen` 
+                  : 'Löschen'}
+            </button>
+            <button
+              type="button"
+              className="btn btn--secondary btn--small"
+              onClick={toggleSelectionMode}
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="stock-table__header">
         <div>
           <button
@@ -610,21 +804,47 @@ function StockTable({
           return (
             <div
               key={stock.id}
-              className={`stock-card ${openMenuId === stock.id ? 'stock-card--menu-open' : ''}`}
+              className={`stock-card ${openMenuId === stock.id ? 'stock-card--menu-open' : ''} ${selectionMode ? 'stock-card--selectable' : ''} ${selectedStockIds.has(stock.id) ? 'stock-card--selected' : ''}`}
               onClick={() => {
-                setOpenMenuId(null);
-                onStockClick(stock);
+                if (selectionMode) {
+                  toggleStockSelection(stock.id);
+                } else {
+                  setOpenMenuId(null);
+                  onStockClick(stock);
+                }
               }}
               role="button"
               tabIndex={0}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault();
-                  setOpenMenuId(null);
-                  onStockClick(stock);
+                  if (selectionMode) {
+                    toggleStockSelection(stock.id);
+                  } else {
+                    setOpenMenuId(null);
+                    onStockClick(stock);
+                  }
                 }
               }}
             >
+              {/* Checkbox for multi-selection */}
+              {selectionMode && (
+                <div 
+                  className="stock-card__checkbox"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleStockSelection(stock.id);
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedStockIds.has(stock.id)}
+                    onChange={() => toggleStockSelection(stock.id)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              )}
+              
               <div className="stock-card__identity">
                 <div className="stock-avatar" aria-hidden="true">
                   {getInitials(stock)}
@@ -741,24 +961,26 @@ function StockTable({
               </div>
 
               <div className="stock-card__actions" onClick={(e) => e.stopPropagation()}>
-                <div
-                  className="action-menu"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <button
-                    type="button"
-                    className="action-menu__trigger"
-                    data-stock-id={stock.id}
-                    aria-haspopup="menu"
-                    aria-expanded={openMenuId === stock.id}
-                    aria-label="Weitere Aktionen"
-                    title="Weitere Aktionen"
-                    onClick={(event) => toggleMenu(event, stock.id)}
+                {!selectionMode && (
+                  <div
+                    className="action-menu"
+                    onClick={(event) => event.stopPropagation()}
                   >
-                    ⋮
-                  </button>
-                  {/* menu is rendered via portal to avoid being clipped by overflow: hidden ancestors */}
-                </div>
+                    <button
+                      type="button"
+                      className="action-menu__trigger"
+                      data-stock-id={stock.id}
+                      aria-haspopup="menu"
+                      aria-expanded={openMenuId === stock.id}
+                      aria-label="Weitere Aktionen"
+                      title="Weitere Aktionen"
+                      onClick={(event) => toggleMenu(event, stock.id)}
+                    >
+                      ⋮
+                    </button>
+                    {/* menu is rendered via portal to avoid being clipped by overflow: hidden ancestors */}
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -926,7 +1148,9 @@ function StockTable({
                   onClick={(event) => {
                     event.stopPropagation();
                     setOpenMenuId(null);
-                    onDeleteStock(stock.id);
+                    // Activate selection mode and pre-select this stock
+                    setSelectionMode(true);
+                    setSelectedStockIds(new Set([stock.id]));
                   }}
                 >
                   <span>Löschen</span>
@@ -963,6 +1187,108 @@ function StockTable({
           }}
           onShowToast={notify}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirmation && (
+        <div className="modal modal--overlay" onClick={() => setShowDeleteConfirmation(false)}>
+          <div className="modal-content modal-content--small" onClick={(e) => e.stopPropagation()}>
+            <span className="close" onClick={() => setShowDeleteConfirmation(false)}>&times;</span>
+            <h2>Aktien löschen?</h2>
+            <p className="modal-subtitle">
+              {selectedStockIds.size === 1 
+                ? 'Möchten Sie diese Aktie wirklich aus der Watchlist entfernen?'
+                : `Möchten Sie wirklich ${selectedStockIds.size} Aktien aus der Watchlist entfernen?`
+              }
+            </p>
+            <p style={{ color: '#6b7280', fontSize: '0.9rem', marginTop: '12px' }}>
+              Diese Aktion kann nicht rückgängig gemacht werden.
+            </p>
+
+            <div className="modal-actions modal-actions--right" style={{ marginTop: '24px' }}>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                onClick={() => setShowDeleteConfirmation(false)}
+                disabled={isDeleting}
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                className="btn btn--danger"
+                onClick={deleteSelectedStocks}
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Wird gelöscht...' : 'Löschen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer (Move/Copy) Modal */}
+      {showTransferModal && (
+        <div className="modal modal--overlay" onClick={() => setShowTransferModal(false)}>
+          <div className="modal-content modal-content--small" onClick={(e) => e.stopPropagation()}>
+            <span className="close" onClick={() => setShowTransferModal(false)}>&times;</span>
+            <h2>
+              {transferAction === 'move' ? 'Aktien verschieben' : 'Aktien kopieren'}
+            </h2>
+            <p className="modal-subtitle">
+              {selectedStockIds.size === 1 
+                ? `Diese Aktie in eine andere Watchlist ${transferAction === 'move' ? 'verschieben' : 'kopieren'}:`
+                : `${selectedStockIds.size} Aktien in eine andere Watchlist ${transferAction === 'move' ? 'verschieben' : 'kopieren'}:`
+              }
+            </p>
+
+            <div className="form-group" style={{ marginTop: '20px' }}>
+              <label htmlFor="target-watchlist">Ziel-Watchlist</label>
+              <select
+                id="target-watchlist"
+                value={selectedTargetWatchlist || ''}
+                onChange={(e) => setSelectedTargetWatchlist(Number(e.target.value))}
+                disabled={isTransferring}
+              >
+                {watchlists
+                  .filter(wl => wl.id !== currentWatchlistId)
+                  .map(wl => (
+                    <option key={wl.id} value={wl.id}>
+                      {wl.name}
+                    </option>
+                  ))
+                }
+              </select>
+            </div>
+
+            {transferAction === 'move' && (
+              <p style={{ color: '#6b7280', fontSize: '0.9rem', marginTop: '12px' }}>
+                Die Aktien werden aus der aktuellen Watchlist entfernt.
+              </p>
+            )}
+
+            <div className="modal-actions modal-actions--right" style={{ marginTop: '24px' }}>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                onClick={() => setShowTransferModal(false)}
+                disabled={isTransferring}
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={confirmTransfer}
+                disabled={isTransferring || !selectedTargetWatchlist}
+              >
+                {isTransferring 
+                  ? `Wird ${transferAction === 'move' ? 'verschoben' : 'kopiert'}...` 
+                  : transferAction === 'move' ? 'Verschieben' : 'Kopieren'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

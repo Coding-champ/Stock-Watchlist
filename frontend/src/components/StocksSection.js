@@ -269,19 +269,17 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
     setSelectedStock(stock);
   };
 
-  const handleDeleteStock = async (stockId) => {
-    if (!window.confirm('Möchten Sie diese Aktie wirklich löschen?')) {
-      return;
-    }
-
+  const handleDeleteStock = async (stockId, skipToast = false) => {
     try {
-      const response = await fetch(`${API_BASE}/stocks/${stockId}`, {
+      const response = await fetch(`${API_BASE}/stocks/${stockId}?watchlist_id=${watchlist.id}`, {
         method: 'DELETE'
       });
 
       if (response.ok) {
         loadStocks();
-        showToast('Aktie gelöscht', 'success');
+        if (!skipToast) {
+          showToast('Aktie gelöscht', 'success');
+        }
       } else {
         let message = 'Fehler beim Löschen der Aktie';
         try {
@@ -292,17 +290,23 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
         } catch (parseError) {
           console.warn('Delete stock: konnte Fehlermeldung nicht parsen', parseError);
         }
-        showToast(message, 'error');
+        if (!skipToast) {
+          showToast(message, 'error');
+        }
+        throw new Error(message);
       }
     } catch (error) {
       console.error('Error deleting stock:', error);
-      showToast('Fehler beim Löschen der Aktie', 'error');
+      if (!skipToast) {
+        showToast('Fehler beim Löschen der Aktie', 'error');
+      }
+      throw error;
     }
   };
 
   const handleMoveStock = async (stockId, targetWatchlistId) => {
     try {
-      const response = await fetch(`${API_BASE}/stocks/${stockId}/move`, {
+      const response = await fetch(`${API_BASE}/stocks/${stockId}/move?source_watchlist_id=${watchlist.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ target_watchlist_id: targetWatchlistId })
@@ -349,7 +353,7 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
 
   const handleCopyStock = async (stockId, targetWatchlistId) => {
     try {
-      const response = await fetch(`${API_BASE}/stocks/${stockId}/copy`, {
+      const response = await fetch(`${API_BASE}/stocks/${stockId}/copy?source_watchlist_id=${watchlist.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ target_watchlist_id: targetWatchlistId })
