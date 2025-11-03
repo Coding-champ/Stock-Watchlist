@@ -763,6 +763,7 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
               onMoveStock={handleMoveStock}
               onCopyStock={handleCopyStock}
               onUpdateMarketData={handleUpdateMarketData}
+              onStocksReload={loadStocks}
               performanceFilter={performanceFilter}
               onShowToast={showToast}
             />

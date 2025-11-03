@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import AlertModal from './AlertModal';
+import EditObservationsModal from './EditObservationsModal';
 import { getLocalizedQuoteType } from '../utils/quoteTypeLabel';
 
 import API_BASE from '../config';
@@ -29,6 +30,7 @@ function StockTable({
   onMoveStock,
   onCopyStock,
   onUpdateMarketData,
+  onStocksReload,
   onShowChart,
   performanceFilter = 'all',
   onShowToast
@@ -43,6 +45,7 @@ function StockTable({
   const fetchedExtendedIdsRef = useRef(new Set());
   const fetchedSparklineIdsRef = useRef(new Set());
   const [alertModalStock, setAlertModalStock] = useState(null);
+  const [editObservationsStock, setEditObservationsStock] = useState(null);
 
   const notify = (message, appearance = 'info') => {
     if (typeof onShowToast === 'function') {
@@ -833,6 +836,18 @@ function StockTable({
                   onClick={(event) => {
                     event.stopPropagation();
                     setOpenMenuId(null);
+                    setEditObservationsStock(stock);
+                  }}
+                >
+                  <span>Beobachtungen bearbeiten</span>
+                </button>
+                <button
+                  type="button"
+                  className="action-menu__item"
+                  role="menuitem"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setOpenMenuId(null);
                     if (onUpdateMarketData) {
                       onUpdateMarketData(stock.id);
                     }
@@ -931,6 +946,22 @@ function StockTable({
           onAlertSaved={() => {
             notify(`Alarm erstellt · Für ${alertModalStock.ticker_symbol}`, 'success');
           }}
+        />
+      )}
+
+      {/* Edit Observations Modal */}
+      {editObservationsStock && (
+        <EditObservationsModal
+          stock={editObservationsStock}
+          watchlistId={currentWatchlistId}
+          onClose={() => setEditObservationsStock(null)}
+          onSaved={() => {
+            // Reload stocks list after successful save
+            if (onStocksReload) {
+              onStocksReload();
+            }
+          }}
+          onShowToast={notify}
         />
       )}
     </div>

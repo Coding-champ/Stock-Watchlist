@@ -58,6 +58,7 @@ class StockCreateByTicker(BaseModel):
 
 
 class StockUpdate(BaseModel):
+    # Master data fields
     isin: Optional[str] = None
     wkn: Optional[str] = None
     ticker_symbol: Optional[str] = None
@@ -66,6 +67,12 @@ class StockUpdate(BaseModel):
     industry: Optional[str] = None
     sector: Optional[str] = None
     business_summary: Optional[str] = None
+    # Watchlist-specific fields
+    observation_reasons: Optional[List[str]] = None
+    observation_notes: Optional[str] = None
+    exchange: Optional[str] = None
+    currency: Optional[str] = None
+    position: Optional[int] = None
 
 
 class StockMove(BaseModel):
