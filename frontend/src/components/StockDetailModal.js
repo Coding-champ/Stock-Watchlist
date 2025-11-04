@@ -17,6 +17,9 @@ function StockDetailModal({ stock, onClose }) {
   const [chartLatestVwap, setChartLatestVwap] = useState(null);
   const { alerts, loadAlerts, toggleAlert, deleteAlert } = useAlerts(stock.id);
   const [extendedData, setExtendedData] = useState(null);
+  const [irWebsite, setIrWebsite] = useState(null);
+  const [copiedUrl, setCopiedUrl] = useState(false);
+  const [refreshStatus, setRefreshStatus] = useState(null); // null | 'loading' | 'success' | 'error'
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('chart'); // 'chart', 'fundamentals', 'analysis', 'investment', 'company'
   const [alertModalConfig, setAlertModalConfig] = useState(null); // { mode: 'create' | 'edit', alert: null | Alert }
@@ -26,6 +29,9 @@ function StockDetailModal({ stock, onClose }) {
       const response = await fetch(`${API_BASE}/stocks/${stock.id}/detailed`);
       const data = await response.json();
       setExtendedData(data.extended_data);
+      // try top-level ir_website from API response, fallback to common keys inside extended_data
+      const website = data.ir_website || data.extended_data?.website || data.extended_data?.info_full?.website || data.extended_data?.business_summary?.website || null;
+      setIrWebsite(website);
     } catch (error) {
       console.error('Error loading extended stock data:', error);
     } finally {
@@ -103,12 +109,14 @@ function StockDetailModal({ stock, onClose }) {
 
   const formatLargeNumber = (value) => {
     if (value === null || value === undefined) return '-';
-    if (typeof value === 'number') {
+    // accept numeric strings as well as numbers
+    const numVal = (typeof value === 'number') ? value : (Number(String(value).replace(/[,\s]/g, '')));
+    if (typeof numVal === 'number' && !Number.isNaN(numVal)) {
       if (value >= 1e12) return (value / 1e12).toFixed(2) + 'T';
       if (value >= 1e9) return (value / 1e9).toFixed(2) + 'B';
       if (value >= 1e6) return (value / 1e6).toFixed(2) + 'M';
       if (value >= 1e3) return (value / 1e3).toFixed(2) + 'K';
-      return value.toFixed(2);
+      return numVal.toFixed(2);
     }
     return '-';
   };
@@ -119,7 +127,13 @@ function StockDetailModal({ stock, onClose }) {
   
   const formatDate = (timestamp) => {
     if (!timestamp) return '-';
-    return new Date(timestamp * 1000).toLocaleDateString('de-DE');
+    // timestamp may be epoch seconds or an ISO string
+    try {
+      if (typeof timestamp === 'number') return new Date(timestamp * 1000).toLocaleDateString('de-DE');
+      return new Date(timestamp).toLocaleDateString('de-DE');
+    } catch (e) {
+      return '-';
+    }
   };
 
   if (loading) {
@@ -434,6 +448,38 @@ function StockDetailModal({ stock, onClose }) {
                       <strong>Institutionsanteil</strong>
                       {formatPercentFromDecimal(extendedData?.risk_metrics?.held_percent_institutions)}
                     </div>
+                    <div className="detail-item" title="Anzahl der leerverkauften Aktien (ungefähr)">
+                      <strong>Short Interest</strong>
+                      {formatLargeNumber(extendedData?.risk_metrics?.short_interest)}
+                    </div>
+                    <div className="detail-item" title="Short Ratio: durchschnittliche Anzahl Tage, um Short-Positionen bei aktuellem Volumen zu decken">
+                      <strong>Short Ratio</strong>
+                      {(() => {
+                        const sr = extendedData?.risk_metrics?.short_ratio;
+                        if (sr === null || sr === undefined) return '-';
+                        const num = Number(sr);
+                        if (Number.isNaN(num)) return '-';
+                        // highlight unusually high short ratios (e.g., > 5 days)
+                        const isHigh = num > 5;
+                        return (
+                          <span style={isHigh ? { color: '#c62828', fontWeight: 600 } : {}}>
+                            {formatNumber(num, 2)}{isHigh ? ' ⚠️' : ''}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    <div className="detail-item" title="Prozentualer Anteil der leerverkauften Aktien (als Prozent)">
+                      <strong>Short %</strong>
+                      {(() => {
+                        const sp = extendedData?.risk_metrics?.short_percent;
+                        if (sp === null || sp === undefined) return '-';
+                        const num = Number(sp);
+                        if (Number.isNaN(num)) return '-';
+                        // Backend normalizes to decimal (e.g. 0.12). Be defensive: if value > 1 assume it's a whole-percent and convert.
+                        const decimal = Math.abs(num) > 1 ? num / 100.0 : num;
+                        return formatPercentFromDecimal(decimal);
+                      })()}
+                    </div>
                   </div>
                 </div>
 
@@ -615,6 +661,59 @@ function StockDetailModal({ stock, onClose }) {
                     <div className="detail-item">
                       <strong>Branche</strong>
                       {stock.industry || '-'}
+                    </div>
+                    {irWebsite ? (
+                      <div className="detail-item">
+                        <strong>Investor Relations</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <a href={irWebsite} target="_blank" rel="noreferrer">{irWebsite}</a>
+                          <button
+                            className="btn btn-sm"
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              try {
+                                await navigator.clipboard.writeText(irWebsite);
+                                setCopiedUrl(true);
+                                setTimeout(() => setCopiedUrl(false), 2000);
+                              } catch (err) {
+                                console.error('Copy failed', err);
+                              }
+                            }}
+                            aria-label="IR-URL kopieren"
+                            title="Kopieren"
+                          >
+                            📋
+                          </button>
+                          {copiedUrl && <span style={{ color: '#2e7d32', fontSize: '0.9em' }}>Kopiert</span>}
+                        </div>
+                      </div>
+                    ) : null}
+                    <div style={{ marginTop: '8px' }}>
+                      <button
+                        className="btn btn-sm btn-outline"
+                        onClick={async () => {
+                          setRefreshStatus('loading');
+                          try {
+                            const resp = await fetch(`${API_BASE}/stocks/${stock.id}/extended-data?force_refresh=true`);
+                            if (!resp.ok) throw new Error(`Status ${resp.status}`);
+                            const json = await resp.json();
+                            // The extended-data endpoint returns the ExtendedStockData object directly
+                            setExtendedData(json);
+                            const website = json?.website || json?.info_full?.website || null;
+                            setIrWebsite(website);
+                            setRefreshStatus('success');
+                            setTimeout(() => setRefreshStatus(null), 2000);
+                          } catch (e) {
+                            console.error('Failed to refresh extended data', e);
+                            setRefreshStatus('error');
+                            setTimeout(() => setRefreshStatus(null), 2000);
+                          }
+                        }}
+                      >
+                        {refreshStatus === 'loading' ? 'Aktualisiere …' : 'Erweiterte Daten aktualisieren'}
+                      </button>
+                      {refreshStatus === 'success' && <span style={{ color: '#2e7d32', marginLeft: '8px' }}>Aktualisiert</span>}
+                      {refreshStatus === 'error' && <span style={{ color: '#c62828', marginLeft: '8px' }}>Fehler</span>}
                     </div>
                   </div>
                 </div>

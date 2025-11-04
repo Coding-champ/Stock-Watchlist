@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 from typing import Optional, Dict, Any, List
 import logging
+from datetime import datetime
 
 # Import technical indicators from dedicated service
 from backend.app.services.technical_indicators_service import (
@@ -382,6 +383,55 @@ def get_extended_stock_data(ticker_symbol: str) -> Optional[Dict[str, Any]]:
             if len(returns) >= 30:
                 volatility_30d = returns.tail(30).std() * (252 ** 0.5)  # Annualized
         
+        def _safe_int(v):
+            try:
+                if v is None:
+                    return None
+                return int(v)
+            except Exception:
+                try:
+                    return int(float(v))
+                except Exception:
+                    return None
+
+        def _safe_float(v):
+            try:
+                if v is None:
+                    return None
+                return float(v)
+            except Exception:
+                return None
+
+        def _parse_percent(v):
+            """Normalize percent-like inputs to fractional float (e.g. '12%' or '12' -> 0.12)."""
+            if v is None:
+                return None
+            # Strings like '12%'
+            if isinstance(v, str):
+                s = v.strip()
+                if s.endswith('%'):
+                    try:
+                        return float(s[:-1].strip()) / 100.0
+                    except Exception:
+                        return None
+                try:
+                    f = float(s)
+                except Exception:
+                    return None
+                # If the number looks like a whole-percentage (e.g. '12'), convert to fraction
+                if f > 1 and f <= 100:
+                    return f / 100.0
+                return f
+
+            # Numeric types
+            try:
+                f = float(v)
+            except Exception:
+                return None
+            if f > 1 and f <= 100:
+                return f / 100.0
+            return f
+
         return {
             # Business Summary (info only)
             'business_summary': info.get('longBusinessSummary', ''),
@@ -425,12 +475,17 @@ def get_extended_stock_data(ticker_symbol: str) -> Optional[Dict[str, Any]]:
             
             # Volatility & Risk (mix of info and calculated)
             'risk_metrics': {
-                'beta': info.get('beta'),
-                'volatility_30d': volatility_30d,
-                'shares_outstanding': info.get('sharesOutstanding'),
-                'float_shares': info.get('floatShares'),
-                'held_percent_insiders': info.get('heldPercentInsiders'),
-                'held_percent_institutions': info.get('heldPercentInstitutions')
+                'beta': _safe_float(info.get('beta')),
+                'volatility_30d': _safe_float(volatility_30d),
+                'shares_outstanding': _safe_int(info.get('sharesOutstanding')),
+                'float_shares': _safe_int(info.get('floatShares')),
+                # short interest fields from yfinance.info when available
+                'short_interest': _safe_int(info.get('sharesShort') or info.get('sharesShortPriorMonth')),
+                'short_ratio': _safe_float(info.get('shortRatio')),
+                # sometimes shortPercent is returned as percentage (e.g. 0.12) or string '12%'
+                'short_percent': _parse_percent(info.get('shortPercent')),
+                'held_percent_insiders': _safe_float(info.get('heldPercentInsiders')),
+                'held_percent_institutions': _safe_float(info.get('heldPercentInstitutions'))
             }
         }
         

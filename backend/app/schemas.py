@@ -301,6 +301,10 @@ class RiskMetrics(BaseModel):
     volatility_30d: Optional[float] = None
     shares_outstanding: Optional[int] = None
     float_shares: Optional[int] = None
+    # Short interest fields
+    short_interest: Optional[int] = None  # number of shares short
+    short_ratio: Optional[float] = None   # days to cover
+    short_percent: Optional[float] = None # percent of float shorted
     held_percent_insiders: Optional[float] = None
     held_percent_institutions: Optional[float] = None
 
@@ -412,6 +416,8 @@ class Stock(StockBase):
     updated_at: datetime
     stock_data: Optional[List[StockData]] = []  # DEPRECATED - kept for backwards compatibility
     latest_data: Optional[StockData] = None  # Populated from stock_price_data and stock_fundamental_data
+    # Optional link to investor-relations / company website (populated from extended yfinance data when available)
+    ir_website: Optional[str] = None
 
     class Config:
         from_attributes = True

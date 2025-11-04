@@ -32,127 +32,24 @@ from backend.app.services.stock_service import StockService
 from backend.app.services.historical_price_service import HistoricalPriceService
 from backend.app.services.fundamental_data_service import FundamentalDataService
 from backend.app.services.stock_query_service import StockQueryService
+from backend.app.utils.url_utils import normalize_website_url
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
 
-# Analysten-Endpunkt mit Fehlerbehandlung
 @router.get("/{stock_id}/analyst-ratings")
 def get_stock_analyst_ratings(stock_id: int, db: Session = Depends(get_db)):
-    import logging
+    """Return analyst overview/ratings for the given stock."""
     logger = logging.getLogger("analyst_debug")
     try:
-        stock = get_stock(stock_id=stock_id, db=db)
-        if not stock:
-            logger.error(f"Stock not found for id {stock_id}")
-            return {"error": "Stock not found", "price_targets": {}, "recommendations": {}}
-        ticker_symbol = stock.ticker_symbol
-        logger.info(f"Fetching analyst data for ticker: {ticker_symbol}")
-        import yfinance as yf
-        ticker = yf.Ticker(ticker_symbol)
-        info = ticker.info
-        recommendations = ticker.recommendations
-        analyst_price_targets = getattr(ticker, 'analyst_price_targets', None)
-        logger.info(f"yfinance.info: {info}")
-        logger.info(f"yfinance.recommendations: {recommendations}")
-        logger.info(f"yfinance.analyst_price_targets: {analyst_price_targets}")
-        overview = get_complete_analyst_overview(ticker_symbol)
-        logger.info(f"Overview returned: {overview}")
-        return overview
-    except Exception as e:
-        import traceback
-        logger.error(f"Exception in analyst endpoint: {e}\n{traceback.format_exc()}")
-        return {"error": str(e), "trace": traceback.format_exc(), "price_targets": {}, "recommendations": {}}
-
-
-# Saisonalität-Endpunkt mit Fehlerbehandlung
-@router.get("/{stock_id}/seasonality")
-def get_stock_seasonality(stock_id: int, years_back: int = None, include_series: bool = Query(False), db: Session = Depends(get_db)):
-    import logging
-    logger = logging.getLogger("seasonality_debug")
-    try:
-        # Get ticker_symbol from stock_id
         stock = StockQueryService(db).get_stock_id_or_404(stock_id)
-        ticker_symbol = stock.ticker_symbol
-        logger.info(f"Resolved ticker_symbol for stock_id {stock_id}: {ticker_symbol}")
-        prices_df = get_historical_prices(ticker_symbol, period="max")
-        logger.info(f"Historical prices for ticker {ticker_symbol}: {prices_df}")
-        if prices_df is None or prices_df.empty:
-            logger.warning(f"No historical prices found for ticker {ticker_symbol}")
-            return []
-        df = prices_df
-        logger.info(f"DataFrame head: {df.head()}")
-        seasonality = get_all_seasonalities(df)
-        logger.info(f"Seasonality result keys: {list(seasonality.keys())}")
-        if years_back:
-            key = f"{years_back}y"
-            result_df = seasonality.get(key, seasonality['all'])
-            logger.info(f"Seasonality for {key}: {result_df}")
-        else:
-            result_df = seasonality['all']
-            logger.info(f"Seasonality for all: {result_df}")
-
-        # If requested, build per-year monthly closes series (up to 10 years)
-        if include_series:
-            try:
-                # monthly_prices: last close per month (month-end)
-                monthly_prices = prices_df['Close'].resample('M').last()
-                # Determine available years (descending recent first)
-                available_years = sorted(set(monthly_prices.index.year), reverse=True)
-                # Decide how many years to include: prefer years_back if provided, else up to 10
-                max_years = min(10, int(years_back) if years_back else 10)
-                years_to_use = available_years[:max_years]
-
-                series_list = []
-                # We'll compute per-month OHLC for each year (open, high, low, close)
-                # Resample to monthly OHLC from the full prices DataFrame
-                monthly_ohlc = prices_df.resample('M').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last'})
-                for y in years_to_use:
-                    monthly_data = []
-                    monthly_closes = []
-                    for m in range(1, 13):
-                        matches = monthly_ohlc[(monthly_ohlc.index.year == y) & (monthly_ohlc.index.month == m)]
-                        if not matches.empty:
-                            row = matches.iloc[-1]
-                            o = None if pd.isna(row['Open']) else float(row['Open'])
-                            h = None if pd.isna(row['High']) else float(row['High'])
-                            l = None if pd.isna(row['Low']) else float(row['Low'])
-                            c = None if pd.isna(row['Close']) else float(row['Close'])
-                            monthly_data.append({"open": o, "high": h, "low": l, "close": c})
-                            monthly_closes.append(c)
-                        else:
-                            monthly_data.append({"open": None, "high": None, "low": None, "close": None})
-                            monthly_closes.append(None)
-                    series_list.append({"year": int(y), "monthly_ohlc": monthly_data, "monthly_closes": monthly_closes})
-                # Additionally, provide daily OHLC for the current year for detailed charts
-                try:
-                    current_year = datetime.now().year
-                    daily = prices_df[(prices_df.index.year == current_year)][['Open', 'High', 'Low', 'Close']]
-                    daily_list = []
-                    if not daily.empty:
-                        for idx, row in daily.iterrows():
-                            daily_list.append({
-                                'date': str(idx.date()),
-                                'open': None if pd.isna(row['Open']) else float(row['Open']),
-                                'high': None if pd.isna(row['High']) else float(row['High']),
-                                'low': None if pd.isna(row['Low']) else float(row['Low']),
-                                'close': None if pd.isna(row['Close']) else float(row['Close'])
-                            })
-                    else:
-                        daily_list = []
-                except Exception as e:
-                    logger.warning(f"Failed to build daily series for current year: {e}")
-                    daily_list = []
-            except Exception as e:
-                logger.warning(f"Failed to build series for seasonality: {e}")
-                series_list = []
-
-            return {"seasonality": result_df.to_dict(orient="records"), "series": series_list, "current_year_daily_ohlc": daily_list}
-
-        return result_df.to_dict(orient="records")
+        # Delegate to service which may aggregate multiple sources
+        overview = get_complete_analyst_overview(stock.ticker_symbol)
+        return overview or {"ticker": stock.ticker_symbol, "analyst_overview": {}}
+    except HTTPException:
+        raise
     except Exception as e:
-        import traceback
-        logger.error(f"Exception in seasonality endpoint: {e}\n{traceback.format_exc()}")
-        return {"error": str(e), "trace": traceback.format_exc(), "data": []}
+        logger.error(f"Error fetching analyst ratings for stock_id={stock_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal error fetching analyst ratings")
 
 logger = logging.getLogger(__name__)
 
@@ -359,13 +256,53 @@ def get_stocks(
                 query = query.order_by(order_func(getattr(StockModel, sort_by)))
         
         stocks = query.offset(skip).limit(limit).all()
-        
-        # Attach latest stock data to each stock
-        for stock in stocks:
-            latest_data = _get_latest_stock_data(db, stock.id)
 
-            stock.latest_data = latest_data
-        
+        # Attach latest stock data to each stock
+        for s in stocks:
+            s.latest_data = _get_latest_stock_data(db, s.id)
+
+        # Batch-fetch cache entries to avoid N+1 queries
+        try:
+            stock_ids = [s.id for s in stocks]
+            cache_map = {}
+            if stock_ids:
+                cache_entries = db.query(ExtendedStockDataCacheModel).filter(ExtendedStockDataCacheModel.stock_id.in_(stock_ids)).all()
+                # Map stock_id -> extended_data dict (if present)
+                for c in cache_entries:
+                    try:
+                        if c and getattr(c, 'extended_data', None):
+                            cache_map[c.stock_id] = c.extended_data
+                    except Exception:
+                        continue
+
+            for s in stocks:
+                try:
+                    ext = cache_map.get(s.id)
+                    if ext:
+                        ir = ext.get('irWebsite') or ext.get('ir_website') or ext.get('website') or (ext.get('info_full') or {}).get('website')
+                        ir = normalize_website_url(ir)
+                        if ir:
+                            setattr(s, 'ir_website', ir)
+                except Exception:
+                    # don't fail the whole list if one entry is bad
+                    continue
+        except Exception:
+            # best-effort: if batching fails, fall back to per-stock logic (kept minimal)
+            try:
+                for s in stocks:
+                    try:
+                        cache_entry = db.query(ExtendedStockDataCacheModel).filter(ExtendedStockDataCacheModel.stock_id == s.id).first()
+                        if cache_entry and cache_entry.extended_data:
+                            ext = cache_entry.extended_data
+                            ir = ext.get('irWebsite') or ext.get('ir_website') or ext.get('website') or (ext.get('info_full') or {}).get('website')
+                            ir = normalize_website_url(ir)
+                            if ir:
+                                setattr(s, 'ir_website', ir)
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+
         return stocks
 
 
@@ -398,7 +335,18 @@ def get_stock(
     latest_data = _get_latest_stock_data(db, stock_id)
     
     stock.latest_data = latest_data
-    
+    # Try to attach investor-relations / website link from extended cache if present
+    try:
+        cache_entry = db.query(ExtendedStockDataCacheModel).filter(ExtendedStockDataCacheModel.stock_id == stock_id).first()
+        if cache_entry and cache_entry.extended_data:
+            ext = cache_entry.extended_data
+            ir_website = ext.get('irWebsite') or ext.get('ir_website') or ext.get('website') or (ext.get('info_full') or {}).get('website')
+            ir_website = normalize_website_url(ir_website)
+            if ir_website:
+                setattr(stock, 'ir_website', ir_website)
+    except Exception:
+        pass
+
     return stock
 
 
@@ -1382,7 +1330,35 @@ def get_stock_extended_data(
         )
     
     extended_data = cached_data['extended_data']
-    
+    # Merge top-level short-interest keys into risk_metrics dict for schema compatibility
+    def _to_int_safe(v):
+        if v is None:
+            return None
+        try:
+            return int(float(v))
+        except Exception:
+            return None
+
+    def _to_float_safe(v):
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except Exception:
+            return None
+
+    risk_metrics_data = dict(extended_data.get('risk_metrics', {}) or {})
+    # Common keys that may appear at top-level in yfinance dumps
+    ss = _to_int_safe(extended_data.get('sharesShort'))
+    sr = _to_float_safe(extended_data.get('shortRatio'))
+    sp = _to_float_safe(extended_data.get('shortPercent'))
+    if ss is not None:
+        risk_metrics_data.setdefault('short_interest', ss)
+    if sr is not None:
+        risk_metrics_data.setdefault('short_ratio', sr)
+    if sp is not None:
+        risk_metrics_data.setdefault('short_percent', sp)
+
     return schemas.ExtendedStockData(
         business_summary=extended_data.get('business_summary'),
         financial_ratios=schemas.FinancialRatios(**extended_data.get('financial_ratios', {})),
@@ -1390,7 +1366,7 @@ def get_stock_extended_data(
         dividend_info=schemas.DividendInfo(**extended_data.get('dividend_info', {})),
         price_data=schemas.PriceData(**extended_data.get('price_data', {})),
         volume_data=schemas.VolumeData(**extended_data.get('volume_data', {})),
-        risk_metrics=schemas.RiskMetrics(**extended_data.get('risk_metrics', {}))
+        risk_metrics=schemas.RiskMetrics(**risk_metrics_data)
     )
 
 
@@ -1496,6 +1472,34 @@ def get_stock_detailed(
     # Create extended data object if available
     extended_data_obj = None
     if extended_data:
+        # Safely coerce possible top-level short-interest keys into risk_metrics
+        def _to_int_safe(v):
+            if v is None:
+                return None
+            try:
+                return int(float(v))
+            except Exception:
+                return None
+
+        def _to_float_safe(v):
+            if v is None:
+                return None
+            try:
+                return float(v)
+            except Exception:
+                return None
+
+        risk_metrics_data = dict(extended_data.get('risk_metrics', {}) or {})
+        ss = _to_int_safe(extended_data.get('sharesShort'))
+        sr = _to_float_safe(extended_data.get('shortRatio'))
+        sp = _to_float_safe(extended_data.get('shortPercent'))
+        if ss is not None:
+            risk_metrics_data.setdefault('short_interest', ss)
+        if sr is not None:
+            risk_metrics_data.setdefault('short_ratio', sr)
+        if sp is not None:
+            risk_metrics_data.setdefault('short_percent', sp)
+
         extended_data_obj = schemas.ExtendedStockData(
             business_summary=extended_data.get('business_summary'),
             financial_ratios=schemas.FinancialRatios(**extended_data.get('financial_ratios', {})),
@@ -1503,7 +1507,7 @@ def get_stock_detailed(
             dividend_info=schemas.DividendInfo(**extended_data.get('dividend_info', {})),
             price_data=schemas.PriceData(**extended_data.get('price_data', {})),
             volume_data=schemas.VolumeData(**extended_data.get('volume_data', {})),
-            risk_metrics=schemas.RiskMetrics(**extended_data.get('risk_metrics', {}))
+            risk_metrics=schemas.RiskMetrics(**risk_metrics_data)
         )
     
     # Create response object
@@ -1515,6 +1519,8 @@ def get_stock_detailed(
         "country": stock.country,
         "industry": stock.industry,
         "sector": stock.sector,
+        # ir_website will be populated from extended_data if present
+        "ir_website": None,
         "watchlist_id": stock.watchlist_id,
         "position": stock.position,
         "observation_reasons": stock.observation_reasons,
@@ -1527,7 +1533,27 @@ def get_stock_detailed(
         "latest_data": _get_latest_stock_data(db, stock.id),
         "extended_data": extended_data_obj
     }
-    
+    # Try to populate ir_website from extended_data (multiple possible keys)
+    try:
+        ir_website = None
+        if extended_data and isinstance(extended_data, dict):
+            ir_website = extended_data.get('irWebsite') or extended_data.get('ir_website') or extended_data.get('website') or (extended_data.get('info_full') or {}).get('website')
+            ir_website = normalize_website_url(ir_website)
+        # fallback to cache attached to stock model if available
+        if not ir_website:
+            try:
+                cache_entry = getattr(stock, 'extended_cache', None)
+                if cache_entry and getattr(cache_entry, 'extended_data', None):
+                    ext = cache_entry.extended_data
+                    ir_website = ext.get('irWebsite') or ext.get('ir_website') or ext.get('website') or (ext.get('info_full') or {}).get('website')
+                    ir_website = normalize_website_url(ir_website)
+            except Exception:
+                ir_website = ir_website
+        stock_dict['ir_website'] = ir_website
+    except Exception:
+        # don't fail response if website extraction fails
+        pass
+
     return schemas.StockWithExtendedData(**stock_dict)
 
 
@@ -1663,6 +1689,34 @@ def get_stock_with_calculated_metrics(
     # Create extended data object
     extended_data_obj = None
     if extended_data:
+        # Safely coerce possible top-level short-interest keys into risk_metrics
+        def _to_int_safe(v):
+            if v is None:
+                return None
+            try:
+                return int(float(v))
+            except Exception:
+                return None
+
+        def _to_float_safe(v):
+            if v is None:
+                return None
+            try:
+                return float(v)
+            except Exception:
+                return None
+
+        risk_metrics_data = dict(extended_data.get('risk_metrics', {}) or {})
+        ss = _to_int_safe(extended_data.get('sharesShort'))
+        sr = _to_float_safe(extended_data.get('shortRatio'))
+        sp = _to_float_safe(extended_data.get('shortPercent'))
+        if ss is not None:
+            risk_metrics_data.setdefault('short_interest', ss)
+        if sr is not None:
+            risk_metrics_data.setdefault('short_ratio', sr)
+        if sp is not None:
+            risk_metrics_data.setdefault('short_percent', sp)
+
         extended_data_obj = schemas.ExtendedStockData(
             business_summary=extended_data.get('business_summary'),
             financial_ratios=schemas.FinancialRatios(**extended_data.get('financial_ratios', {})),
@@ -1670,7 +1724,7 @@ def get_stock_with_calculated_metrics(
             dividend_info=schemas.DividendInfo(**extended_data.get('dividend_info', {})),
             price_data=schemas.PriceData(**extended_data.get('price_data', {})),
             volume_data=schemas.VolumeData(**extended_data.get('volume_data', {})),
-            risk_metrics=schemas.RiskMetrics(**extended_data.get('risk_metrics', {}))
+            risk_metrics=schemas.RiskMetrics(**risk_metrics_data)
         )
     
     # Calculate metrics
@@ -1736,6 +1790,25 @@ def get_stock_with_calculated_metrics(
         "extended_data": extended_data_obj,
         "calculated_metrics": calculated_metrics
     }
+    # Try to populate ir_website for this combined endpoint as well
+    try:
+        ir_website = None
+        if extended_data and isinstance(extended_data, dict):
+            ir_website = extended_data.get('irWebsite') or extended_data.get('ir_website') or extended_data.get('website') or (extended_data.get('info_full') or {}).get('website')
+            ir_website = normalize_website_url(ir_website)
+        if not ir_website:
+            try:
+                cache_entry = db.query(ExtendedStockDataCacheModel).filter(ExtendedStockDataCacheModel.stock_id == stock_id).first()
+                if cache_entry and cache_entry.extended_data:
+                    ext = cache_entry.extended_data
+                    ir_website = ext.get('irWebsite') or ext.get('ir_website') or ext.get('website') or (ext.get('info_full') or {}).get('website')
+                    ir_website = normalize_website_url(ir_website)
+            except Exception:
+                ir_website = ir_website
+        if ir_website:
+            stock_dict['ir_website'] = ir_website
+    except Exception:
+        pass
     
     return schemas.StockWithCalculatedMetrics(**stock_dict)
 
