@@ -208,16 +208,15 @@ def get_calculated_metrics(
                     stock_data[sub_key] = sub_value
             else:
                 stock_data[key] = value
-        # Get historical prices
-        historical_prices = get_historical_prices(stock.ticker_symbol, period)
+        # Get historical prices - use longer period for SMA_200 calculation
+        # Need at least 200 days + requested period for proper crossover detection
+        data_period = "5y" if period in ["1y", "6mo", "3mo", "1mo"] else period
+        historical_prices = get_historical_prices(stock.ticker_symbol, data_period)
         import pandas as pd
         if historical_prices is None:
             historical_prices = pd.DataFrame()
         elif isinstance(historical_prices, dict):
             historical_prices = pd.DataFrame(historical_prices)
-        # Logging Typ und Vorschau von historical_prices
-        logger.info(f"historical_prices type: {type(historical_prices)}")
-        logger.info(f"historical_prices preview: {str(historical_prices)[:500]}")
         # Calculate all metrics
         metrics_dict = calculated_metrics_service.calculate_all_metrics(
             stock_data,
@@ -268,7 +267,14 @@ def get_divergence_analysis(
         period_days = lookback_days + 30  # Add buffer for calculations
         period = f"{period_days}d" if period_days < 365 else "1y"
         
-        chart_data = chart_service.get_chart_data(stock_id=stock_id, period=period, interval="1d")
+        chart_data = chart_service.get_chart_data(
+            stock_id=stock_id, 
+            period=period, 
+            interval="1d",
+            include_volume=False,
+            start=None,
+            end=None
+        )
         
         if not chart_data or not chart_data.get('close'):
             raise HTTPException(

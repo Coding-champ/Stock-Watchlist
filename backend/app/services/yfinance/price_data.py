@@ -616,7 +616,7 @@ def get_chart_data(
         highs = [item['high'] for item in chart_data]
         lows = [item['low'] for item in chart_data]
         closes = [item['close'] for item in chart_data]
-        volumes = [item['volume'] for item in chart_data]
+        volumes = [item.get('volume') for item in chart_data]  # Use .get() for safety
         # Compute aggregate average volume stats from the filtered data
         try:
             avg_volume = int(pd.Series([v for v in volumes if v is not None]).mean()) if any(v is not None for v in volumes) else None

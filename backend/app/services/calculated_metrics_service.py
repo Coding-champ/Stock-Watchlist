@@ -186,15 +186,27 @@ def detect_sma_crossovers(historical_prices: pd.DataFrame,
         'all_crossovers': []
     }
     
-    import logging
-    logging.info(f"[detect_sma_crossovers] historical_prices type: {type(historical_prices)}")
-    assert historical_prices is None or isinstance(historical_prices, pd.DataFrame), f"historical_prices is not a DataFrame: {type(historical_prices)}"
-    if historical_prices is None or historical_prices.empty or 'Close' not in historical_prices.columns:
+    if historical_prices is None or historical_prices.empty:
+        return result
+    
+    # Check for 'Close' column (case-insensitive)
+    close_col = None
+    for col in historical_prices.columns:
+        if col.lower() == 'close':
+            close_col = col
+            break
+    
+    if close_col is None:
+        logging.warning(f"[detect_sma_crossovers] No 'Close' column found. Available columns: {list(historical_prices.columns)}")
         return result
     
     try:
         # Kopie erstellen um Original nicht zu verändern
         df = historical_prices.copy()
+        
+        # Ensure we use the correct column name
+        if close_col != 'Close':
+            df['Close'] = df[close_col]
         
         # SMAs berechnen
         df[f'SMA{sma_short}'] = df['Close'].rolling(window=sma_short).mean()
@@ -258,6 +270,14 @@ def detect_sma_crossovers(historical_prices: pd.DataFrame,
             try:
                 crossover_date = pd.to_datetime(last_crossover['date'])
                 last_date = df.index[-1]
+                # Handle timezone-aware/naive datetime comparison
+                if hasattr(last_date, 'tz') and last_date.tz is not None:
+                    # last_date is tz-aware, make crossover_date tz-aware too
+                    if crossover_date.tz is None:
+                        crossover_date = crossover_date.tz_localize('UTC').tz_convert(last_date.tz)
+                elif crossover_date.tz is not None:
+                    # crossover_date is tz-aware, convert to tz-naive
+                    crossover_date = crossover_date.tz_localize(None)
                 days_diff = (last_date - crossover_date).days
                 result['days_since_crossover'] = days_diff
             except Exception as e:
@@ -1307,11 +1327,6 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
     )
     
     # SMA Crossover Detection (Golden Cross / Death Cross)
-    import logging
-    logging.info(f"[calculate_all_metrics] historical_prices type: {type(historical_prices)}")
-    assert historical_prices is None or isinstance(historical_prices, pd.DataFrame), f"historical_prices is not a DataFrame: {type(historical_prices)}"
-    logging.info(f"[calculate_all_metrics] before .empty check 1, type: {type(historical_prices)}")
-    assert historical_prices is None or isinstance(historical_prices, pd.DataFrame), f"historical_prices is not a DataFrame: {type(historical_prices)}"
     if historical_prices is not None and not historical_prices.empty:
         crossover_data = detect_sma_crossovers(
             historical_prices,
@@ -1376,8 +1391,6 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
 
     # ========== ADVANCED ANALYSIS ==========
 
-    logging.info(f"[calculate_all_metrics] before .empty check 2, type: {type(historical_prices)}")
-    assert historical_prices is None or isinstance(historical_prices, pd.DataFrame), f"historical_prices is not a DataFrame: {type(historical_prices)}"
     if historical_prices is not None and not historical_prices.empty:
         # MACD - merge the dict into advanced_analysis
         if 'Close' in historical_prices.columns:

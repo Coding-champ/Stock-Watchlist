@@ -1,20 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import API_BASE from '../config';
-
-const OBSERVATION_REASON_OPTIONS = [
-  { value: 'chart_technical', label: 'Charttechnische Indikatoren' },
-  { value: 'fundamentals', label: 'Fundamentaldaten' },
-  { value: 'industry', label: 'Branchendaten' },
-  { value: 'economics', label: 'Wirtschaftsdaten' }
-];
+import ObservationFields from './ObservationFields';
 
 function EditObservationsModal({ stock, watchlistId, onClose, onSaved, onShowToast }) {
   const [observationReasons, setObservationReasons] = useState([]);
   const [observationNotes, setObservationNotes] = useState('');
   const [saving, setSaving] = useState(false);
-  const [showReasonsDropdown, setShowReasonsDropdown] = useState(false);
-  const dropdownRef = useRef(null);
-
   // Initialisierung mit den aktuellen Werten
   useEffect(() => {
     if (stock) {
@@ -22,23 +13,6 @@ function EditObservationsModal({ stock, watchlistId, onClose, onSaved, onShowToa
       setObservationNotes(stock.observation_notes || '');
     }
   }, [stock]);
-
-  // Dropdown schließen bei Klick außerhalb
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowReasonsDropdown(false);
-      }
-    };
-
-    if (showReasonsDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showReasonsDropdown]);
 
   const handleObservationReasonsChange = (value) => {
     if (observationReasons.includes(value)) {
@@ -116,78 +90,15 @@ function EditObservationsModal({ stock, watchlistId, onClose, onSaved, onShowToa
         <p className="modal-subtitle">{stock.name} ({stock.ticker_symbol})</p>
 
         <form onSubmit={handleSave}>
-          {/* Beobachtungsgründe */}
-          <div className="form-group observation-section__reasons">
-            <label htmlFor="observation-reasons-edit">
-              Beobachtungsgründe
-            </label>
-            
-            <div className="custom-dropdown" ref={dropdownRef}>
-              <button
-                type="button"
-                className="dropdown-trigger"
-                onClick={() => setShowReasonsDropdown(!showReasonsDropdown)}
-              >
-                {observationReasons.length > 0 
-                  ? `${observationReasons.length} ausgewählt` 
-                  : 'Kategorien auswählen'}
-                <span className="dropdown-arrow">▼</span>
-              </button>
-              
-              {showReasonsDropdown && (
-                <div className="dropdown-menu">
-                  {OBSERVATION_REASON_OPTIONS.map((option) => (
-                    <label key={option.value} className="dropdown-item">
-                      <input
-                        type="checkbox"
-                        checked={observationReasons.includes(option.value)}
-                        onChange={() => handleObservationReasonsChange(option.value)}
-                      />
-                      <span>{option.label}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            {/* Ausgewählte Kategorien anzeigen */}
-            {observationReasons.length > 0 && (
-              <div className="selected-tags">
-                {observationReasons.map((reason) => {
-                  const option = OBSERVATION_REASON_OPTIONS.find(opt => opt.value === reason);
-                  return option ? (
-                    <span key={reason} className="tag">
-                      {option.label}
-                      <button
-                        type="button"
-                        className="tag-remove"
-                        onClick={() => handleObservationReasonsChange(reason)}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ) : null;
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Bemerkungen */}
-          <div className="form-group observation-section__notes">
-            <label htmlFor="observation-notes-edit">
-              Bemerkungen
-            </label>
-            <textarea
-              id="observation-notes-edit"
-              placeholder="z.B. Beobachte starkes Momentum nach dem Earnings Call, Setup läuft gut..."
-              value={observationNotes}
-              onChange={(e) => setObservationNotes(e.target.value)}
-              rows={4}
-            />
-            <small className="form-hint">
-              Notiere hier deine persönlichen Einschätzungen, Setups oder wichtige Beobachtungen zu dieser Aktie.
-            </small>
-          </div>
+          <ObservationFields
+            reasons={observationReasons}
+            setReasons={setObservationReasons}
+            notes={observationNotes}
+            setNotes={setObservationNotes}
+            reasonsLabel="Beobachtungsgründe"
+            notesLabel="Bemerkungen"
+            notesPlaceholder="z.B. Beobachte starkes Momentum nach dem Earnings Call, Setup läuft gut..."
+          />
 
           {/* Buttons */}
           <div className="modal-actions">

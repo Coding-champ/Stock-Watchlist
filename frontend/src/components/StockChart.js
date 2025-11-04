@@ -72,7 +72,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   const [showBollinger, setShowBollinger] = useState(false);
   const [showATR, setShowATR] = useState(false);
   const [showVWAP, setShowVWAP] = useState(false);
-  const [showCrossovers, setShowCrossovers] = useState(true);
+  const [showCrossovers, setShowCrossovers] = useState(false);
   const [showDivergences, setShowDivergences] = useState(true);
   
   // Fibonacci toggles
@@ -825,7 +825,9 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
 
   // Render Golden Cross / Death Cross markers
   const renderCrossoverMarkers = () => {
-    if (!showCrossovers || !crossoverData || !crossoverData.all_crossovers || !chartData) return null;
+    if (!showCrossovers || !crossoverData || !crossoverData.all_crossovers || !chartData) {
+      return null;
+    }
     
     return crossoverData.all_crossovers.map((crossover, index) => {
       // Find the matching date in chartData

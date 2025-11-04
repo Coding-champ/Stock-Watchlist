@@ -11,6 +11,7 @@ import { getUnitForAlertType, getAlertTypeLabel, getConditionLabel, formatNumber
 import { useAlerts } from '../hooks/useAlerts';
 
 import API_BASE from '../config';
+import { OBSERVATION_REASON_OPTIONS } from './ObservationFields';
 
 function StockDetailModal({ stock, onClose }) {
   const [chartLatestVwap, setChartLatestVwap] = useState(null);
@@ -464,11 +465,14 @@ function StockDetailModal({ stock, onClose }) {
                   <div className="data-section">
                     <h3>💡 Beobachtungsgründe</h3>
                     <div className="observation-reasons">
-                      {stock.observation_reasons.map((reason, index) => (
-                        <div key={index} className="reason-tag">
-                          {reason}
-                        </div>
-                      ))}
+                      {stock.observation_reasons.map((reason, index) => {
+                        const label = OBSERVATION_REASON_OPTIONS.find(opt => opt.value === reason)?.label || reason;
+                        return (
+                          <div key={index} className="reason-tag">
+                            {label}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

@@ -158,7 +158,9 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_OBSERVATION_REASONS = {
     "chart_technical",
+    "earnings",
     "fundamentals",
+    "company",
     "industry",
     "economics",
 }

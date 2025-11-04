@@ -1,14 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import '../styles/skeletons.css';
 import API_BASE from '../config';
 import { formatPrice } from '../utils/currencyUtils';
-
-const OBSERVATION_REASON_OPTIONS = [
-  { value: 'chart_technical', label: 'Charttechnische Indikatoren' },
-  { value: 'fundamentals', label: 'Fundamentaldaten' },
-  { value: 'industry', label: 'Branchendaten' },
-  { value: 'economics', label: 'Wirtschaftsdaten' }
-];
+import ObservationFields from './ObservationFields';
 
 const createInitialManualForm = () => ({
   isin: '',
@@ -32,25 +26,6 @@ function StockModal({ watchlistId, onClose, onStockAdded, onShowToast }) {
   const [observationReasons, setObservationReasons] = useState([]);
   const [observationNotes, setObservationNotes] = useState('');
   const [showReasonsDropdown, setShowReasonsDropdown] = useState(false);
-  
-  const dropdownRef = useRef(null);
-
-  // Dropdown schließen bei Klick außerhalb
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowReasonsDropdown(false);
-      }
-    };
-
-    if (showReasonsDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showReasonsDropdown]);
 
   const handleModeChange = (nextMode) => {
     setMode(nextMode);
@@ -92,81 +67,17 @@ function StockModal({ watchlistId, onClose, onStockAdded, onShowToast }) {
     setObservationNotes(event.target.value);
   };
 
-  const renderObservationFields = (suffix) => {
-    const notesId = `observation-notes-${suffix}`;
-    const reasonsSelectId = `observation-reasons-${suffix}`;
-
-    return (
-      <div className="observation-section">
-        <div className="form-group observation-section__reasons">
-          <label htmlFor={reasonsSelectId}>Warum beobachtest du diese Aktie?</label>
-          
-          {/* Custom Dropdown mit Checkboxen */}
-          <div className="custom-dropdown-container" ref={dropdownRef}>
-            <button
-              type="button"
-              className={`custom-dropdown-toggle ${showReasonsDropdown ? 'open' : ''}`}
-              onClick={() => setShowReasonsDropdown(!showReasonsDropdown)}
-            >
-              <span className="dropdown-text">
-                {observationReasons.length === 0 
-                  ? 'Kategorien auswählen...'
-                  : `${observationReasons.length} ausgewählt`}
-              </span>
-              <span className="dropdown-arrow">{showReasonsDropdown ? '▲' : '▼'}</span>
-            </button>
-            
-            {showReasonsDropdown && (
-              <div className="custom-dropdown-menu">
-                {OBSERVATION_REASON_OPTIONS.map((option) => (
-                  <label key={option.value} className="dropdown-item">
-                    <input
-                      type="checkbox"
-                      checked={observationReasons.includes(option.value)}
-                      onChange={() => handleObservationReasonsChange(option.value)}
-                    />
-                    <span>{option.label}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-          
-          {/* Ausgewählte Kategorien anzeigen */}
-          {observationReasons.length > 0 && (
-            <div className="selected-tags">
-              {observationReasons.map((reason) => {
-                const option = OBSERVATION_REASON_OPTIONS.find(opt => opt.value === reason);
-                return option ? (
-                  <span key={reason} className="tag">
-                    {option.label}
-                    <button
-                      type="button"
-                      className="tag-remove"
-                      onClick={() => handleObservationReasonsChange(reason)}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ) : null;
-              })}
-            </div>
-          )}
-        </div>
-        
-        <div className="form-group observation-section__notes">
-          <label htmlFor={notesId}>Kurze Notiz (optional)</label>
-          <textarea
-            id={notesId}
-            value={observationNotes}
-            onChange={handleObservationNotesChange}
-            placeholder="Optional – ergänze dir einen Gedanken oder ein Setup"
-            rows={3}
-          />
-        </div>
-      </div>
-    );
-  };
+  const renderObservationFields = (suffix) => (
+    <ObservationFields
+      reasons={observationReasons}
+      setReasons={setObservationReasons}
+      notes={observationNotes}
+      setNotes={setObservationNotes}
+      reasonsLabel="Warum beobachtest du diese Aktie?"
+      notesLabel="Kurze Notiz (optional)"
+      notesPlaceholder="Optional – ergänze dir einen Gedanken oder ein Setup"
+    />
+  );
 
   // Suche nach Aktie via yfinance
   const searchStock = async () => {

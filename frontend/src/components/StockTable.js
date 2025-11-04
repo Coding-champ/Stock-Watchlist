@@ -16,7 +16,9 @@ const PERFORMANCE_SORT_KEYS = {
 
 const OBSERVATION_REASON_LABELS = {
   chart_technical: 'Charttechnische Indikatoren',
+  earnings: 'Earnings Berichte',
   fundamentals: 'Fundamentaldaten',
+  company: 'Unternehmensdaten',
   industry: 'Branchendaten',
   economics: 'Wirtschaftsdaten'
 };
