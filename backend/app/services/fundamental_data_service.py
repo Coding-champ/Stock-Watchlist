@@ -14,6 +14,9 @@ import logging
 from backend.app.models import Stock, StockFundamentalData
 from backend.app.services.stock_query_service import StockQueryService
 
+# Import unified time series utilities
+from backend.app.utils.time_series_utils import format_period_string as util_format_period
+
 logger = logging.getLogger(__name__)
 
 
@@ -242,22 +245,9 @@ class FundamentalDataService:
     def _format_period_string(self, period_date) -> str:
         """
         Format period date to string like "FY2025Q3"
-        
-        Args:
-            period_date: Pandas Timestamp or datetime
-        
-        Returns:
-            Formatted period string
+        DEPRECATED: Use utils.time_series_utils.format_period_string
         """
-        try:
-            if hasattr(period_date, 'year'):
-                year = period_date.year
-                month = period_date.month
-                quarter = (month - 1) // 3 + 1
-                return f"FY{year}Q{quarter}"
-            return str(period_date)
-        except:
-            return str(period_date)
+        return util_format_period(period_date)
     
     def get_fundamental_data(
         self, 

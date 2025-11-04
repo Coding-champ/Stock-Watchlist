@@ -18,6 +18,9 @@ from backend.app.services.technical_indicators_service import (
     analyze_technical_indicators_with_divergence
 )
 
+# Import unified signal interpretation utilities
+from backend.app.utils.signal_interpretation import interpret_rsi, interpret_macd
+
 logger = logging.getLogger(__name__)
 
 
@@ -1631,28 +1634,18 @@ def calculate_chart_metrics_for_display(ticker_symbol: str, period: str = "1y") 
         return {'error': str(e)}
 
 
+# DEPRECATED: Use interpret_rsi from backend.app.utils.signal_interpretation instead
+# Kept for backwards compatibility - will be removed in future version
 def _interpret_rsi(rsi: float) -> str:
-    """Interpret RSI value"""
-    if rsi >= 70:
-        return 'overbought'
-    elif rsi <= 30:
-        return 'oversold'
-    elif rsi >= 60:
-        return 'bullish'
-    elif rsi <= 40:
-        return 'bearish'
-    else:
-        return 'neutral'
+    """Interpret RSI value - DEPRECATED: Use utils.signal_interpretation.interpret_rsi"""
+    return interpret_rsi(rsi)
 
 
+# DEPRECATED: Use interpret_macd from backend.app.utils.signal_interpretation instead
+# Kept for backwards compatibility - will be removed in future version
 def _interpret_macd(histogram: float) -> str:
-    """Interpret MACD histogram"""
-    if histogram > 0:
-        return 'bullish'
-    elif histogram < 0:
-        return 'bearish'
-    else:
-        return 'neutral'
+    """Interpret MACD histogram - DEPRECATED: Use utils.signal_interpretation.interpret_macd"""
+    return interpret_macd(histogram)
 
 
 def _compare_price_to_sma(price: Optional[float], sma: Optional[float]) -> Dict[str, Any]:

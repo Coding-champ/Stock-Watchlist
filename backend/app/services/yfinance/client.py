@@ -8,6 +8,9 @@ import numpy as np
 from typing import Optional, Dict, Any, List
 import logging
 
+# Import unified JSON serialization utilities
+from backend.app.utils.json_serialization import clean_for_json
+
 logger = logging.getLogger(__name__)
 
 
@@ -244,21 +247,11 @@ class StockInfo:
         }
 
 
+# DEPRECATED: Use clean_for_json from backend.app.utils.json_serialization instead
+# Kept for backwards compatibility - will be removed in future version
 def _clean_for_json(data):
     """
     Clean data for JSON serialization by converting numpy types to Python types
+    DEPRECATED: Use utils.json_serialization.clean_for_json
     """
-    if isinstance(data, dict):
-        return {key: _clean_for_json(value) for key, value in data.items()}
-    elif isinstance(data, list):
-        return [_clean_for_json(item) for item in data]
-    elif isinstance(data, np.integer):
-        return int(data)
-    elif isinstance(data, np.floating):
-        return float(data)
-    elif isinstance(data, np.ndarray):
-        return data.tolist()
-    elif pd.isna(data):
-        return None
-    else:
-        return data
+    return clean_for_json(data)

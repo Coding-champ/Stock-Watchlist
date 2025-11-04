@@ -5,11 +5,18 @@ Price data and chart functions
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
+from typing import Dict, Any, Optional, List
 import logging
 
 from .client import _get_extended_period, _clean_for_json
+
+# Import unified time series utilities
+from backend.app.utils.time_series_utils import (
+    calculate_period_cutoff_date as util_calc_cutoff,
+    filter_indicators_by_dates as util_filter_indicators,
+    estimate_required_warmup_bars as util_warmup_bars
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,99 +24,25 @@ logger = logging.getLogger(__name__)
 def _calculate_period_cutoff_date(end_date: pd.Timestamp, period: str) -> pd.Timestamp:
     """
     Calculate the cutoff date for filtering data to the requested period.
-    
-    Args:
-        end_date: The end date of the data
-        period: The requested period (e.g., '1y', '3y', '5y')
-        
-    Returns:
-        The cutoff date (start of the requested period)
+    DEPRECATED: Use utils.time_series_utils.calculate_period_cutoff_date
     """
-    period_map = {
-        '1d': timedelta(days=1),
-        '5d': timedelta(days=5),
-        '1mo': timedelta(days=30),
-        '2mo': timedelta(days=60),
-        '3mo': timedelta(days=90),
-        '6mo': timedelta(days=180),
-        '1y': timedelta(days=365),
-        '2y': timedelta(days=730),
-        '3y': timedelta(days=1095),
-        '5y': timedelta(days=1825),
-        '10y': timedelta(days=3650),
-    }
-    
-    delta = period_map.get(period)
-    if delta:
-        cutoff = end_date - delta
-        return cutoff
-    
-    # For 'ytd', calculate from start of current year
-    if period == 'ytd':
-        return pd.Timestamp(datetime(end_date.year, 1, 1))
-    
-    # For 'max' or unknown periods, return None (no filtering)
-    return None
+    return util_calc_cutoff(end_date, period)
 
 
 def _filter_indicators_by_dates(indicators_result: Dict[str, Any], target_dates: List[str]) -> Dict[str, Any]:
     """
     Filter indicator data to match the target date range.
-    
-    Args:
-        indicators_result: Dictionary with 'dates' and 'indicators' keys
-        target_dates: List of target dates to filter to (ISO format strings)
-        
-    Returns:
-        Filtered indicators dictionary
+    DEPRECATED: Use utils.time_series_utils.filter_indicators_by_dates
     """
-    if not indicators_result or not indicators_result.get('dates'):
-        return {}
-    
-    source_dates = indicators_result['dates']
-    indicators = indicators_result.get('indicators', {})
-    
-    # Convert target dates to set for faster lookup
-    target_dates_set = set(target_dates)
-    
-    # Find matching indices
-    matching_indices = [
-        i for i, date in enumerate(source_dates)
-        if date in target_dates_set
-    ]
-    
-    if not matching_indices:
-        return indicators  # Return all if no matches (safety fallback)
-    
-    # Filter each indicator
-    filtered_indicators = {}
-    for indicator_name, indicator_data in indicators.items():
-        if isinstance(indicator_data, list):
-            # Simple list indicator (e.g., sma_50, sma_200, rsi)
-            filtered_indicators[indicator_name] = [
-                indicator_data[i] if i < len(indicator_data) else None
-                for i in matching_indices
-            ]
-        elif isinstance(indicator_data, dict):
-            # Complex indicator with multiple series (e.g., macd, bollinger)
-            filtered_dict = {}
-            for key, values in indicator_data.items():
-                if isinstance(values, list):
-                    filtered_dict[key] = [
-                        values[i] if i < len(values) else None
-                        for i in matching_indices
-                    ]
-                else:
-                    filtered_dict[key] = values
-            filtered_indicators[indicator_name] = filtered_dict
-        else:
-            # Non-list data, keep as is
-            filtered_indicators[indicator_name] = indicator_data
-    
-    return filtered_indicators
+    return util_filter_indicators(indicators_result, target_dates)
 
 
 def _estimate_required_warmup_bars(indicators: Optional[List[str]]) -> Optional[int]:
+    """
+    Estimate the number of additional bars needed for accurate indicator calculation
+    DEPRECATED: Use utils.time_series_utils.estimate_required_warmup_bars
+    """
+    return util_warmup_bars(indicators)
     """
     Estimate required warmup bars (history) given a list of indicators.
     Returns the maximum window length needed by the requested indicators.

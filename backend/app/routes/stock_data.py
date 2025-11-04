@@ -22,25 +22,22 @@ import pandas as pd
 import logging
 import math
 
+# Import unified JSON serialization utilities
+from backend.app.utils.json_serialization import clean_json_floats as util_clean_json_floats
+
 router = APIRouter(prefix="/stock-data", tags=["stock-data"])
 logger = logging.getLogger(__name__)
 
 
+# DEPRECATED: Moved to utils.json_serialization
+# Kept for backwards compatibility - will be removed in future version
 def clean_json_floats(obj):
     """
     Recursively clean NaN and Infinity values from nested dictionaries/lists
     for JSON serialization.
+    DEPRECATED: Use utils.json_serialization.clean_json_floats
     """
-    if isinstance(obj, dict):
-        return {k: clean_json_floats(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [clean_json_floats(item) for item in obj]
-    elif isinstance(obj, float):
-        if math.isnan(obj) or math.isinf(obj):
-            return None
-        return obj
-    else:
-        return obj
+    return util_clean_json_floats(obj)
 
 
 @router.get("/{stock_id}", response_model=List[schemas.StockData])

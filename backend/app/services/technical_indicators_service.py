@@ -17,6 +17,9 @@ from backend.app.services.indicators_core import (
     calculate_sma as core_calculate_sma
 )
 
+# Import unified signal interpretation utilities
+from backend.app.utils.signal_interpretation import interpret_rsi, interpret_macd
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,31 +54,24 @@ def calculate_rsi(close_prices: pd.Series, period: int = 14) -> Dict[str, Option
             current_rsi = rsi_series.iloc[-1]
             if pd.notna(current_rsi):
                 result['value'] = float(current_rsi)
-                result['signal'] = _interpret_rsi(current_rsi)
+                result['signal'] = interpret_rsi(current_rsi)
                 result['series'] = rsi_series.tolist()
         elif isinstance(rsi_series, list) and len(rsi_series) > 0:
             current_rsi = rsi_series[-1]
             if current_rsi is not None:
                 result['value'] = float(current_rsi)
-                result['signal'] = _interpret_rsi(current_rsi)
+                result['signal'] = interpret_rsi(current_rsi)
                 result['series'] = rsi_series
     except Exception as e:
         logger.error(f"Error calculating RSI: {e}")
     return result
 
 
+# DEPRECATED: Use interpret_rsi from backend.app.utils.signal_interpretation instead
+# Kept for backwards compatibility - will be removed in future version
 def _interpret_rsi(rsi: float) -> str:
-    """Interpret RSI value"""
-    if rsi >= 70:
-        return 'overbought'
-    elif rsi <= 30:
-        return 'oversold'
-    elif rsi >= 60:
-        return 'bullish'
-    elif rsi <= 40:
-        return 'bearish'
-    else:
-        return 'neutral'
+    """Interpret RSI value - DEPRECATED: Use utils.signal_interpretation.interpret_rsi"""
+    return interpret_rsi(rsi)
 
 
 def calculate_rsi_series(close_prices: pd.Series, period: int = 14) -> Optional[pd.Series]:
@@ -164,14 +160,11 @@ def calculate_macd(close_prices: pd.Series,
     return result
 
 
+# DEPRECATED: Use interpret_macd from backend.app.utils.signal_interpretation instead
+# Kept for backwards compatibility - will be removed in future version
 def _interpret_macd(histogram: float) -> str:
-    """Interpret MACD histogram"""
-    if histogram > 0:
-        return 'bullish'
-    elif histogram < 0:
-        return 'bearish'
-    else:
-        return 'neutral'
+    """Interpret MACD histogram - DEPRECATED: Use utils.signal_interpretation.interpret_macd"""
+    return interpret_macd(histogram)
 
 
 # ============================================================================
