@@ -47,6 +47,23 @@ def _build_query_parts(filters: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any
         clauses.append("LOWER(s.industry) = :industry")
         params["industry"] = industry.lower()
 
+    # Filter by observation reason (from stocks_in_watchlist.observation_reasons JSON array)
+    if (obs := filters.get("observation_reason")):
+        # Use Postgres JSONB extraction when available for accurate matching, otherwise fall back to text matching
+        dialect = getattr(engine, 'dialect', None)
+        dialect_name = getattr(dialect, 'name', None)
+        if dialect_name == 'postgresql':
+            clauses.append(
+                "EXISTS (SELECT 1 FROM stocks_in_watchlist si, jsonb_array_elements_text(si.observation_reasons::jsonb) reason WHERE si.stock_id = s.id AND reason = :observation_reason)"
+            )
+            params["observation_reason"] = obs
+        else:
+            # Generic fallback: match reason inside JSON/text representation (case-insensitive)
+            clauses.append(
+                "EXISTS (SELECT 1 FROM stocks_in_watchlist si WHERE si.stock_id = s.id AND LOWER(CAST(si.observation_reasons AS TEXT)) LIKE :_obs_like)"
+            )
+            params["_obs_like"] = f"%{str(obs).lower()}%"
+
     # Beta range from extended cache JSON
     if (bmin := filters.get("beta_min")) is not None:
         clauses.append("( (e.extended_data->>'beta')::numeric >= :beta_min )")
@@ -190,8 +207,38 @@ def get_filter_facets() -> Dict[str, List[str]]:
         countries = [r[0] for r in conn.execute(sql).all()]
         sectors = [r[0] for r in conn.execute(sql2).all()]
         industries = [r[0] for r in conn.execute(sql3).all()]
+        # Collect observation reasons in Python to avoid DB-specific JSON functions
+        observation_reasons = []
+        try:
+            # Don't filter by string '[]' here since JSON/driver representations vary across DBs
+            rows = conn.execute(text("SELECT observation_reasons FROM stocks_in_watchlist WHERE observation_reasons IS NOT NULL"))
+            reasons_set = set()
+            import json
+            for r in rows.fetchall():
+                val = r[0]
+                if val is None:
+                    continue
+                # val may already be a Python list (DB driver) or a JSON string
+                if isinstance(val, (list, tuple)):
+                    for item in val:
+                        if item:
+                            reasons_set.add(str(item))
+                else:
+                    try:
+                        parsed = json.loads(val)
+                        if isinstance(parsed, (list, tuple)):
+                            for item in parsed:
+                                if item:
+                                    reasons_set.add(str(item))
+                    except Exception:
+                        # If not JSON, treat whole value as single reason
+                        reasons_set.add(str(val))
+            observation_reasons = sorted(reasons_set)
+        except Exception:
+            observation_reasons = []
     return {
         "countries": countries,
         "sectors": sectors,
         "industries": industries,
+        "observation_reasons": observation_reasons,
     }

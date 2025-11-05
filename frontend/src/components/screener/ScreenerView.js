@@ -3,12 +3,13 @@ import API_BASE from '../../config';
 import '../../styles/skeletons.css';
 
 const ScreenerView = () => {
-  const [facets, setFacets] = useState({ countries: [], sectors: [], industries: [] });
+  const [facets, setFacets] = useState({ countries: [], sectors: [], industries: [], observation_reasons: [] });
   const [filters, setFilters] = useState({
     q: '',
     country: '',
     sector: '',
     industry: '',
+    observation_reason: '',
     // technical
     price_vs_sma50: '', // above|below
     price_vs_sma200: '', // above|below
@@ -64,6 +65,7 @@ const ScreenerView = () => {
     setIf('country', filters.country);
     setIf('sector', filters.sector);
     setIf('industry', filters.industry);
+  setIf('observation_reason', filters.observation_reason);
     // technical
     setIf('price_vs_sma50', filters.price_vs_sma50);
     setIf('price_vs_sma200', filters.price_vs_sma200);
@@ -142,7 +144,7 @@ const ScreenerView = () => {
 
   const clearFilters = () => {
     setFilters({
-      q: '', country: '', sector: '', industry: '',
+      q: '', country: '', sector: '', industry: '', observation_reason: '',
       price_vs_sma50: '', price_vs_sma200: '', beta_min: '', beta_max: '',
       profit_margin_min: '', roe_min: '', current_ratio_min: '', quick_ratio_min: '',
       operating_cashflow_min: '', free_cashflow_min: '', shareholders_equity_min: '',
@@ -187,6 +189,10 @@ const ScreenerView = () => {
             <select value={filters.industry} onChange={(e) => { setPage(1); setFilters({ ...filters, industry: e.target.value }); }}>
               <option value="">Industrie</option>
               {facets.industries.map((i) => (<option key={i} value={i}>{i}</option>))}
+            </select>
+            <select value={filters.observation_reason} onChange={(e) => { setPage(1); setFilters({ ...filters, observation_reason: e.target.value }); }}>
+              <option value="">Beobachtung (Reason)</option>
+              {facets.observation_reasons.map((r) => (<option key={r} value={r}>{r}</option>))}
             </select>
           </div>
           <div className="panel__toolbar-row">

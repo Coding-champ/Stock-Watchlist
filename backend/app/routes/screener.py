@@ -28,6 +28,8 @@ def run(
     total_assets_min: Optional[float] = None,
     debt_to_equity_max: Optional[float] = None,
     total_liabilities_max: Optional[float] = None,
+    # Observation reasons (from watchlist entries)
+    observation_reason: Optional[str] = None,
     page: int = 1,
     page_size: int = 25,
     sort: str = "ticker_symbol",
@@ -53,6 +55,7 @@ def run(
             "total_assets_min": total_assets_min,
             "debt_to_equity_max": debt_to_equity_max,
             "total_liabilities_max": total_liabilities_max,
+            "observation_reason": observation_reason,
         }.items() if v is not None and v != ""
     }
     return run_screener(filters, page=page, page_size=page_size, sort=sort, order=order)
