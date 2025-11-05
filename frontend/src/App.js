@@ -98,6 +98,8 @@ function App() {
 
   const handleWatchlistSelect = (watchlist) => {
     setCurrentWatchlist(watchlist);
+    // Always navigate to the watchlist view when a list is selected
+    setActiveView('watchlist');
     if (watchlist?.name) {
       showToast(`Watchlist geöffnet · ${watchlist.name}`, 'info');
     }
@@ -110,6 +112,8 @@ function App() {
     handleWatchlistSelect(watchlist);
     // Collapse sidebar on select
     setSidebarCollapsed(true);
+    // Ensure we navigate to the watchlist view so the stocks panel is shown
+    setActiveView('watchlist');
   };
 
   return (
