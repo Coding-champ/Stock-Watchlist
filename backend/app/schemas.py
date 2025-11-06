@@ -262,6 +262,14 @@ class FinancialRatios(BaseModel):
     return_on_equity: Optional[float] = None
     return_on_assets: Optional[float] = None
     market_cap: Optional[float] = None
+    enterprise_value: Optional[float] = None
+    gross_margins: Optional[float] = None
+    ebitda_margins: Optional[float] = None
+    earnings_growth: Optional[float] = None
+    earnings_quarterly_growth: Optional[float] = None
+    revenue_growth: Optional[float] = None
+    # Earnings per share (trailing / TTM). Exposed from yfinance under several keys.
+    eps: Optional[float] = None
 
 
 class CashflowData(BaseModel):
@@ -278,6 +286,8 @@ class DividendInfo(BaseModel):
     payout_ratio: Optional[float] = None
     five_year_avg_dividend_yield: Optional[float] = None
     ex_dividend_date: Optional[int] = None
+    last_dividend_value: Optional[float] = None
+    last_dividend_date: Optional[int] = None
 
 
 class PriceData(BaseModel):
@@ -288,6 +298,8 @@ class PriceData(BaseModel):
     fifty_two_week_low: Optional[float] = None
     fifty_day_average: Optional[float] = None
     two_hundred_day_average: Optional[float] = None
+    all_time_high: Optional[float] = None
+    all_time_low: Optional[float] = None
 
 
 class VolumeData(BaseModel):
@@ -301,7 +313,6 @@ class RiskMetrics(BaseModel):
     volatility_30d: Optional[float] = None
     shares_outstanding: Optional[int] = None
     float_shares: Optional[int] = None
-    # Short interest fields
     short_interest: Optional[int] = None  # number of shares short
     short_ratio: Optional[float] = None   # days to cover
     short_percent: Optional[float] = None # percent of float shorted
@@ -309,7 +320,7 @@ class RiskMetrics(BaseModel):
     held_percent_institutions: Optional[float] = None
 
 
-# New schemas for additional yfinance data
+# Schemas for additional yfinance data
 class DividendHistory(BaseModel):
     date: str
     amount: float
@@ -396,6 +407,10 @@ class ExtendedStockData(BaseModel):
     price_data: Optional[PriceData] = None
     volume_data: Optional[VolumeData] = None
     risk_metrics: Optional[RiskMetrics] = None
+    book_value: Optional[float] = None
+    enterprise_value: Optional[float] = None
+    website: Optional[str] = None
+    ir_website: Optional[str] = None
     historical_data: Optional[HistoricalData] = None
     calendar_data: Optional[CalendarData] = None
     analyst_data: Optional[AnalystData] = None
@@ -416,8 +431,6 @@ class Stock(StockBase):
     updated_at: datetime
     stock_data: Optional[List[StockData]] = []  # DEPRECATED - kept for backwards compatibility
     latest_data: Optional[StockData] = None  # Populated from stock_price_data and stock_fundamental_data
-    # Optional link to investor-relations / company website (populated from extended yfinance data when available)
-    ir_website: Optional[str] = None
 
     class Config:
         from_attributes = True

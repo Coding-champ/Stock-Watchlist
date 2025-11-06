@@ -17,9 +17,8 @@ function StockDetailModal({ stock, onClose }) {
   const [chartLatestVwap, setChartLatestVwap] = useState(null);
   const { alerts, loadAlerts, toggleAlert, deleteAlert } = useAlerts(stock.id);
   const [extendedData, setExtendedData] = useState(null);
+  const [latestFundamentals, setLatestFundamentals] = useState(null);
   const [irWebsite, setIrWebsite] = useState(null);
-  const [copiedUrl, setCopiedUrl] = useState(false);
-  const [refreshStatus, setRefreshStatus] = useState(null); // null | 'loading' | 'success' | 'error'
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('chart'); // 'chart', 'fundamentals', 'analysis', 'investment', 'company'
   const [alertModalConfig, setAlertModalConfig] = useState(null); // { mode: 'create' | 'edit', alert: null | Alert }
@@ -32,6 +31,18 @@ function StockDetailModal({ stock, onClose }) {
       // try top-level ir_website from API response, fallback to common keys inside extended_data
       const website = data.ir_website || data.extended_data?.website || data.extended_data?.info_full?.website || data.extended_data?.business_summary?.website || null;
       setIrWebsite(website);
+      // Also try to fetch latest fundamentals (single most recent period) to populate Bilanz / GuV / Cashflow sections
+      try {
+        const fRes = await fetch(`${API_BASE}/stocks/${stock.id}/fundamentals?periods=1`);
+        if (fRes.ok) {
+          const fJson = await fRes.json();
+          if (fJson && Array.isArray(fJson.data) && fJson.data.length > 0) {
+            setLatestFundamentals(fJson.data[0]);
+          }
+        }
+      } catch (e) {
+        // non-fatal: ignore
+      }
     } catch (error) {
       console.error('Error loading extended stock data:', error);
     } finally {
@@ -273,12 +284,20 @@ function StockDetailModal({ stock, onClose }) {
                       {formatPrice(extendedData?.price_data?.fifty_two_week_low, stock)}
                     </div>
                     <div className="detail-item">
-                      <strong>50-Tage Ø</strong>
+                      <strong>50-Tage SMA</strong>
                       {formatPrice(extendedData?.price_data?.fifty_day_average, stock)}
                     </div>
                     <div className="detail-item">
-                      <strong>200-Tage Ø</strong>
+                      <strong>200-Tage SMA</strong>
                       {formatPrice(extendedData?.price_data?.two_hundred_day_average, stock)}
+                    </div>
+                    <div className="detail-item">
+                      <strong>All-Time High</strong>
+                      {formatPrice(extendedData?.price_data?.all_time_high, stock)}
+                    </div>
+                    <div className="detail-item">
+                      <strong>All-Time Low</strong>
+                      {formatPrice(extendedData?.price_data?.all_time_low, stock)}
                     </div>
                   </div>
                 </div>
@@ -292,12 +311,16 @@ function StockDetailModal({ stock, onClose }) {
                       {formatLargeNumber(extendedData?.financial_ratios?.market_cap)}
                     </div>
                     <div className="detail-item">
-                      <strong>KGV (P/E)</strong>
-                      {formatNumber(extendedData?.financial_ratios?.pe_ratio)}
+                      <strong>Enterprise Value</strong>
+                      {formatLargeNumber(extendedData?.enterprise_value ?? extendedData?.financial_ratios?.enterprise_value)}
                     </div>
                     <div className="detail-item">
                       <strong>PEG-Ratio</strong>
                       {formatNumber(extendedData?.financial_ratios?.peg_ratio)}
+                    </div>
+                    <div className="detail-item">
+                      <strong>Kurs-Gewinn (P/E)</strong>
+                      {formatNumber(extendedData?.financial_ratios?.pe_ratio)}
                     </div>
                     <div className="detail-item">
                       <strong>Kurs-Buchwert (P/B)</strong>
@@ -308,6 +331,102 @@ function StockDetailModal({ stock, onClose }) {
                       {formatNumber(extendedData?.financial_ratios?.price_to_sales)}
                     </div>
                     <div className="detail-item">
+                      <strong>EPS (TTM)</strong>
+                      {formatNumber(latestFundamentals?.eps_basic ?? extendedData?.financial_ratios?.eps)}
+                    </div>
+                    <div className="detail-item">
+                      <strong>Buchwert je Aktie</strong>
+                      {formatNumber(latestFundamentals?.book_value ?? extendedData?.book_value)}
+                    </div>
+                    <div className="detail-item">
+                      <strong>Gewinnwachstum</strong>
+                      {formatPercentFromDecimal(latestFundamentals?.earnings_growth ?? extendedData?.financial_ratios?.earnings_growth ?? extendedData?.earnings_growth)}
+                    </div>
+                    <div className="detail-item">
+                      <strong>Umsatzwachstum</strong>
+                      {formatPercentFromDecimal(latestFundamentals?.revenue_growth ?? extendedData?.financial_ratios?.revenue_growth ?? extendedData?.revenue_growth)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Income Statement (GuV) */}
+                <div className="data-section">
+                  <h3>📈 GuV (Ergebnisrechnung)</h3>
+                  <div className="detail-grid">
+                    <div className="detail-item">
+                      <strong>Umsatz</strong>
+                      {formatLargeNumber(latestFundamentals?.revenue ?? extendedData?.financial_ratios?.total_revenue ?? extendedData?.total_revenue)}
+                    </div>
+                    <div className="detail-item">
+                      <strong>Bruttogewinn</strong>
+                      {formatLargeNumber(latestFundamentals?.gross_profit ?? extendedData?.gross_profits ?? extendedData?.financial_ratios?.gross_profit)}
+                    </div>
+                    <div className="detail-item">
+                      <strong>EBITDA</strong>
+                      {formatLargeNumber(latestFundamentals?.ebitda ?? extendedData?.ebitda)}
+                    </div>
+                    <div className="detail-item">
+                      <strong>Nettogewinn</strong>
+                      {formatLargeNumber(latestFundamentals?.earnings ?? extendedData?.net_income_to_common)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Balance Sheet (Bilanz) */}
+                <div className="data-section">
+                  <h3>🏦 Bilanz</h3>
+                  <div className="detail-grid">
+                    <div className="detail-item">
+                      <strong>Gesamtkapital</strong>
+                      {formatLargeNumber(latestFundamentals?.total_assets ?? extendedData?.balance_sheet?.total_assets ?? extendedData?.total_assets)}
+                    </div>
+                    <div className="detail-item">
+                      <strong>Eigenkapital</strong>
+                      {formatLargeNumber(latestFundamentals?.shareholders_equity ?? extendedData?.balance_sheet?.shareholders_equity ?? extendedData?.shareholders_equity)}
+                    </div>
+                    <div className="detail-item">
+                      <strong>Gesamtverschuldung</strong>
+                      {formatLargeNumber(latestFundamentals?.total_liabilities ?? latestFundamentals?.total_debt ?? extendedData?.cashflow_data?.total_debt)}
+                    </div>
+                    <div className="detail-item">
+                      <strong>Liquide Mittel</strong>
+                      {formatLargeNumber(latestFundamentals?.total_cash ?? extendedData?.cashflow_data?.total_cash)}
+                    </div>
+                    <div className="detail-item">
+                      <strong>Gesamtkapitalrendite (ROA)</strong>
+                      {formatPercentFromDecimal(extendedData?.financial_ratios?.return_on_assets)}
+                    </div>
+                    <div className="detail-item">
+                      <strong>Eigenkapitalrendite (ROE)</strong>
+                      {formatPercentFromDecimal(extendedData?.financial_ratios?.return_on_equity)}
+                    </div>
+                    <div className="detail-item">
+                      <strong>Verschuldungsgrad</strong>
+                      {formatNumber(latestFundamentals?.debt_to_equity ?? extendedData?.cashflow_data?.debt_to_equity)}
+                    </div>   
+                  </div>
+                </div>
+
+                {/* Cashflow Section */}
+                <div className="data-section">
+                  <h3>💰 Cashflow</h3>
+                  <div className="detail-grid">
+                    <div className="detail-item">
+                      <strong>Operativer Cashflow</strong>
+                      {formatLargeNumber(latestFundamentals?.operating_cashflow ?? extendedData?.cashflow_data?.operating_cashflow)}
+                    </div>
+                    <div className="detail-item">
+                      <strong>Freier Cashflow</strong>
+                      {formatLargeNumber(latestFundamentals?.free_cashflow ?? extendedData?.cashflow_data?.free_cashflow)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Margins */}
+                <div className="data-section">
+                  <h3> Margen (Rentabilität)</h3>
+                  <div className="detail-grid">
+                    <div className="detail-item">
                       <strong>Gewinnmarge</strong>
                       {formatPercentFromDecimal(extendedData?.financial_ratios?.profit_margins)}
                     </div>
@@ -316,39 +435,12 @@ function StockDetailModal({ stock, onClose }) {
                       {formatPercentFromDecimal(extendedData?.financial_ratios?.operating_margins)}
                     </div>
                     <div className="detail-item">
-                      <strong>Eigenkapitalrendite (ROE)</strong>
-                      {formatPercentFromDecimal(extendedData?.financial_ratios?.return_on_equity)}
+                      <strong>Bruttomarge</strong>
+                      {formatPercentFromDecimal(extendedData?.financial_ratios?.gross_margins ?? extendedData?.financial_ratios?.gross_margin)}
                     </div>
                     <div className="detail-item">
-                      <strong>Gesamtkapitalrendite (ROA)</strong>
-                      {formatPercentFromDecimal(extendedData?.financial_ratios?.return_on_assets)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Cashflow Section */}
-                <div className="data-section">
-                  <h3>💰 Cashflow & Bilanz</h3>
-                  <div className="detail-grid">
-                    <div className="detail-item">
-                      <strong>Operativer Cashflow</strong>
-                      {formatLargeNumber(extendedData?.cashflow_data?.operating_cashflow)}
-                    </div>
-                    <div className="detail-item">
-                      <strong>Freier Cashflow</strong>
-                      {formatLargeNumber(extendedData?.cashflow_data?.free_cashflow)}
-                    </div>
-                    <div className="detail-item">
-                      <strong>Liquide Mittel</strong>
-                      {formatLargeNumber(extendedData?.cashflow_data?.total_cash)}
-                    </div>
-                    <div className="detail-item">
-                      <strong>Gesamtverschuldung</strong>
-                      {formatLargeNumber(extendedData?.cashflow_data?.total_debt)}
-                    </div>
-                    <div className="detail-item">
-                      <strong>Verschuldungsgrad</strong>
-                      {formatNumber(extendedData?.cashflow_data?.debt_to_equity)}
+                      <strong>EBITDA-Marge</strong>
+                      {formatPercentFromDecimal(extendedData?.financial_ratios?.ebitda_margins)}
                     </div>
                   </div>
                 </div>
@@ -361,6 +453,14 @@ function StockDetailModal({ stock, onClose }) {
                       <div className="detail-item">
                         <strong>Dividende (jährlich)</strong>
                         {formatPrice(extendedData?.dividend_info?.dividend_rate, stock)}
+                      </div>
+                      <div className="detail-item">
+                        <strong>Letzte Dividende</strong>
+                        {formatPrice(extendedData?.dividend_info?.last_dividend_value ?? latestFundamentals?.last_dividend_value, stock)}
+                      </div>
+                      <div className="detail-item">
+                        <strong>Letztes Dividenden-Datum</strong>
+                        {formatDate(extendedData?.dividend_info?.last_dividend_date ?? latestFundamentals?.last_dividend_date)}
                       </div>
                       <div className="detail-item">
                         <strong>Dividendenrendite</strong>
@@ -662,58 +762,9 @@ function StockDetailModal({ stock, onClose }) {
                       <strong>Branche</strong>
                       {stock.industry || '-'}
                     </div>
-                    {irWebsite ? (
-                      <div className="detail-item">
-                        <strong>Investor Relations</strong>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <a href={irWebsite} target="_blank" rel="noreferrer">{irWebsite}</a>
-                          <button
-                            className="btn btn-sm"
-                            onClick={async (e) => {
-                              e.preventDefault();
-                              try {
-                                await navigator.clipboard.writeText(irWebsite);
-                                setCopiedUrl(true);
-                                setTimeout(() => setCopiedUrl(false), 2000);
-                              } catch (err) {
-                                console.error('Copy failed', err);
-                              }
-                            }}
-                            aria-label="IR-URL kopieren"
-                            title="Kopieren"
-                          >
-                            📋
-                          </button>
-                          {copiedUrl && <span style={{ color: '#2e7d32', fontSize: '0.9em' }}>Kopiert</span>}
-                        </div>
-                      </div>
-                    ) : null}
-                    <div style={{ marginTop: '8px' }}>
-                      <button
-                        className="btn btn-sm btn-outline"
-                        onClick={async () => {
-                          setRefreshStatus('loading');
-                          try {
-                            const resp = await fetch(`${API_BASE}/stocks/${stock.id}/extended-data?force_refresh=true`);
-                            if (!resp.ok) throw new Error(`Status ${resp.status}`);
-                            const json = await resp.json();
-                            // The extended-data endpoint returns the ExtendedStockData object directly
-                            setExtendedData(json);
-                            const website = json?.website || json?.info_full?.website || null;
-                            setIrWebsite(website);
-                            setRefreshStatus('success');
-                            setTimeout(() => setRefreshStatus(null), 2000);
-                          } catch (e) {
-                            console.error('Failed to refresh extended data', e);
-                            setRefreshStatus('error');
-                            setTimeout(() => setRefreshStatus(null), 2000);
-                          }
-                        }}
-                      >
-                        {refreshStatus === 'loading' ? 'Aktualisiere …' : 'Erweiterte Daten aktualisieren'}
-                      </button>
-                      {refreshStatus === 'success' && <span style={{ color: '#2e7d32', marginLeft: '8px' }}>Aktualisiert</span>}
-                      {refreshStatus === 'error' && <span style={{ color: '#c62828', marginLeft: '8px' }}>Fehler</span>}
+                    <div className="detail-item">
+                      <strong>Investor Relations</strong>
+                      {<a href={irWebsite} target="_blank" rel="noreferrer">{irWebsite}</a> || '-'}
                     </div>
                   </div>
                 </div>

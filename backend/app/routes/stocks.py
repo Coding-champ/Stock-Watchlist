@@ -1330,6 +1330,35 @@ def get_stock_extended_data(
         )
     
     extended_data = cached_data['extended_data']
+    # If cache exists but key fields are missing (old cache), try to fetch fresh data
+    try:
+        fr_missing = False
+        fr = extended_data.get('financial_ratios', {}) or {}
+        if fr.get('eps') is None:
+            fr_missing = True
+        if (extended_data.get('book_value') is None and extended_data.get('bookValue') is None and extended_data.get('bookValuePerShare') is None):
+            fr_missing = True
+        # also check volume averages
+        vol = extended_data.get('volume_data', {}) or {}
+        if vol.get('average_volume') is None or vol.get('average_volume_10days') is None:
+            fr_missing = True
+
+        if fr_missing and not force_refresh and not cache_hit:
+            # attempt to fetch fresh extended data and prefer non-cached values
+            try:
+                fresh = get_extended_stock_data(stock.ticker_symbol)
+                if fresh:
+                    # merge fresh values into extended_data, favor fresh
+                    merged = dict(extended_data)
+                    for k, v in fresh.items():
+                        if v is not None:
+                            merged[k] = v
+                    extended_data = merged
+            except Exception:
+                pass
+    except Exception:
+        # non-fatal: continue with cached data
+        pass
     # Merge top-level short-interest keys into risk_metrics dict for schema compatibility
     def _to_int_safe(v):
         if v is None:
@@ -1351,13 +1380,29 @@ def get_stock_extended_data(
     # Common keys that may appear at top-level in yfinance dumps
     ss = _to_int_safe(extended_data.get('sharesShort'))
     sr = _to_float_safe(extended_data.get('shortRatio'))
-    sp = _to_float_safe(extended_data.get('shortPercent'))
+    # Accept multiple common short-percent field names
+    sp = _to_float_safe(extended_data.get('shortPercent') or extended_data.get('shortPercentOfFloat') or extended_data.get('shortPercentFloat'))
     if ss is not None:
         risk_metrics_data.setdefault('short_interest', ss)
     if sr is not None:
         risk_metrics_data.setdefault('short_ratio', sr)
     if sp is not None:
         risk_metrics_data.setdefault('short_percent', sp)
+    # Include book value if present at top-level or inside common keys
+    book_val = extended_data.get('book_value') or extended_data.get('bookValue') or extended_data.get('bookValuePerShare')
+
+    # Normalize volume keys (accept several variants returned by different yfinance versions)
+    vol_raw = extended_data.get('volume_data') or {}
+    # Also allow top-level legacy keys
+    vol_raw_top = extended_data
+    avg = vol_raw.get('average_volume') or vol_raw.get('averageVolume') or vol_raw_top.get('averageVolume') or vol_raw_top.get('average_volume') or vol_raw_top.get('average_volume_10days')
+    avg10 = vol_raw.get('average_volume_10days') or vol_raw.get('averageVolume10Days') or vol_raw_top.get('averageVolume10days') or vol_raw_top.get('ten_day_average_volume')
+
+    volume_obj = schemas.VolumeData(
+        volume=vol_raw.get('volume') or vol_raw_top.get('volume'),
+        average_volume=_to_int_safe(avg),
+        average_volume_10days=_to_int_safe(avg10)
+    )
 
     return schemas.ExtendedStockData(
         business_summary=extended_data.get('business_summary'),
@@ -1365,8 +1410,12 @@ def get_stock_extended_data(
         cashflow_data=schemas.CashflowData(**extended_data.get('cashflow_data', {})),
         dividend_info=schemas.DividendInfo(**extended_data.get('dividend_info', {})),
         price_data=schemas.PriceData(**extended_data.get('price_data', {})),
-        volume_data=schemas.VolumeData(**extended_data.get('volume_data', {})),
-        risk_metrics=schemas.RiskMetrics(**risk_metrics_data)
+        volume_data=volume_obj,
+        risk_metrics=schemas.RiskMetrics(**risk_metrics_data),
+        book_value=book_val,
+        enterprise_value=extended_data.get('enterprise_value') or extended_data.get('enterpriseValue'),
+        website=extended_data.get('website') or extended_data.get('irWebsite') or extended_data.get('ir_website') or (extended_data.get('info_full') or {}).get('website'),
+        ir_website=extended_data.get('irWebsite') or extended_data.get('ir_website') or extended_data.get('website')
     )
 
 
@@ -1429,9 +1478,25 @@ def get_stock_detailed(
             cached_data, cache_hit = _getter(stock_id, force_refresh)
             extended_data = cached_data.get('extended_data') if cached_data else None
         
-        if not extended_data:
-            # Fallback to direct API call if cache fails
-            extended_data = get_extended_stock_data(stock.ticker_symbol)
+            if not extended_data:
+                # Fallback to direct API call if cache fails
+                extended_data = get_extended_stock_data(stock.ticker_symbol)
+            else:
+                # If cached extended_data exists but lacks key fields (eps/book_value/volume averages), try a fresh fetch
+                try:
+                    fr = extended_data.get('financial_ratios', {}) or {}
+                    vol = extended_data.get('volume_data', {}) or {}
+                    missing_keys = (fr.get('eps') is None) or (extended_data.get('book_value') is None and extended_data.get('bookValue') is None and extended_data.get('bookValuePerShare') is None) or (vol.get('average_volume') is None or vol.get('average_volume_10days') is None)
+                    if missing_keys and not force_refresh and not cache_hit:
+                        fresh = get_extended_stock_data(stock.ticker_symbol)
+                        if fresh:
+                            merged = dict(extended_data)
+                            for k, v in fresh.items():
+                                if v is not None:
+                                    merged[k] = v
+                            extended_data = merged
+                except Exception:
+                    pass
     except Exception as e:
         # If cache fails, fallback to direct yfinance call
         import logging
@@ -1490,15 +1555,29 @@ def get_stock_detailed(
                 return None
 
         risk_metrics_data = dict(extended_data.get('risk_metrics', {}) or {})
-        ss = _to_int_safe(extended_data.get('sharesShort'))
+        ss = _to_int_safe(extended_data.get('sharesShort') or extended_data.get('sharesShortPriorMonth'))
         sr = _to_float_safe(extended_data.get('shortRatio'))
-        sp = _to_float_safe(extended_data.get('shortPercent'))
+        sp = _to_float_safe(extended_data.get('shortPercent') or extended_data.get('shortPercentOfFloat') or extended_data.get('shortPercentFloat'))
         if ss is not None:
             risk_metrics_data.setdefault('short_interest', ss)
         if sr is not None:
             risk_metrics_data.setdefault('short_ratio', sr)
         if sp is not None:
             risk_metrics_data.setdefault('short_percent', sp)
+        # Book value may be present at top-level or under different keys
+        book_val = extended_data.get('book_value') or extended_data.get('bookValue') or extended_data.get('bookValuePerShare') or None
+
+        # Normalize volume keys for compatibility
+        vol_raw = extended_data.get('volume_data') or {}
+        vol_raw_top = extended_data
+        avg = vol_raw.get('average_volume') or vol_raw.get('averageVolume') or vol_raw_top.get('averageVolume') or vol_raw_top.get('average_volume')
+        avg10 = vol_raw.get('average_volume_10days') or vol_raw.get('averageVolume10days') or vol_raw.get('averageVolume10Days') or vol_raw_top.get('averageVolume10days') or vol_raw_top.get('ten_day_average_volume')
+
+        volume_obj = schemas.VolumeData(
+            volume=vol_raw.get('volume') or vol_raw_top.get('volume'),
+            average_volume=_to_int_safe(avg),
+            average_volume_10days=_to_int_safe(avg10)
+        )
 
         extended_data_obj = schemas.ExtendedStockData(
             business_summary=extended_data.get('business_summary'),
@@ -1506,8 +1585,12 @@ def get_stock_detailed(
             cashflow_data=schemas.CashflowData(**extended_data.get('cashflow_data', {})),
             dividend_info=schemas.DividendInfo(**extended_data.get('dividend_info', {})),
             price_data=schemas.PriceData(**extended_data.get('price_data', {})),
-            volume_data=schemas.VolumeData(**extended_data.get('volume_data', {})),
-            risk_metrics=schemas.RiskMetrics(**risk_metrics_data)
+            volume_data=volume_obj,
+            risk_metrics=schemas.RiskMetrics(**risk_metrics_data),
+            book_value=book_val,
+            enterprise_value=extended_data.get('enterprise_value') or extended_data.get('enterpriseValue'),
+            website=extended_data.get('website') or extended_data.get('irWebsite') or extended_data.get('ir_website') or (extended_data.get('info_full') or {}).get('website'),
+            ir_website=extended_data.get('irWebsite') or extended_data.get('ir_website') or extended_data.get('website')
         )
     
     # Create response object
@@ -1707,15 +1790,29 @@ def get_stock_with_calculated_metrics(
                 return None
 
         risk_metrics_data = dict(extended_data.get('risk_metrics', {}) or {})
-        ss = _to_int_safe(extended_data.get('sharesShort'))
+        ss = _to_int_safe(extended_data.get('sharesShort') or extended_data.get('sharesShortPriorMonth'))
         sr = _to_float_safe(extended_data.get('shortRatio'))
-        sp = _to_float_safe(extended_data.get('shortPercent'))
+        sp = _to_float_safe(extended_data.get('shortPercent') or extended_data.get('shortPercentOfFloat') or extended_data.get('shortPercentFloat'))
         if ss is not None:
             risk_metrics_data.setdefault('short_interest', ss)
         if sr is not None:
             risk_metrics_data.setdefault('short_ratio', sr)
         if sp is not None:
             risk_metrics_data.setdefault('short_percent', sp)
+        # Include book value when constructing ExtendedStockData
+        book_val = extended_data.get('book_value') or extended_data.get('bookValue') or extended_data.get('bookValuePerShare') or None
+
+        # Normalize volume keys for compatibility
+        vol_raw = extended_data.get('volume_data') or {}
+        vol_raw_top = extended_data
+        avg = vol_raw.get('average_volume') or vol_raw.get('averageVolume') or vol_raw_top.get('averageVolume') or vol_raw_top.get('average_volume')
+        avg10 = vol_raw.get('average_volume_10days') or vol_raw.get('averageVolume10days') or vol_raw.get('averageVolume10Days') or vol_raw_top.get('averageVolume10days') or vol_raw_top.get('ten_day_average_volume')
+
+        volume_obj = schemas.VolumeData(
+            volume=vol_raw.get('volume') or vol_raw_top.get('volume'),
+            average_volume=_to_int_safe(avg),
+            average_volume_10days=_to_int_safe(avg10)
+        )
 
         extended_data_obj = schemas.ExtendedStockData(
             business_summary=extended_data.get('business_summary'),
@@ -1723,8 +1820,12 @@ def get_stock_with_calculated_metrics(
             cashflow_data=schemas.CashflowData(**extended_data.get('cashflow_data', {})),
             dividend_info=schemas.DividendInfo(**extended_data.get('dividend_info', {})),
             price_data=schemas.PriceData(**extended_data.get('price_data', {})),
-            volume_data=schemas.VolumeData(**extended_data.get('volume_data', {})),
-            risk_metrics=schemas.RiskMetrics(**risk_metrics_data)
+            volume_data=volume_obj,
+            risk_metrics=schemas.RiskMetrics(**risk_metrics_data),
+            book_value=book_val,
+            enterprise_value=extended_data.get('enterprise_value') or extended_data.get('enterpriseValue'),
+            website=extended_data.get('website') or extended_data.get('irWebsite') or extended_data.get('ir_website') or (extended_data.get('info_full') or {}).get('website'),
+            ir_website=extended_data.get('irWebsite') or extended_data.get('ir_website') or extended_data.get('website')
         )
     
     # Calculate metrics

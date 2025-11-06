@@ -43,56 +43,6 @@ def _estimate_required_warmup_bars(indicators: Optional[List[str]]) -> Optional[
     DEPRECATED: Use utils.time_series_utils.estimate_required_warmup_bars
     """
     return util_warmup_bars(indicators)
-    """
-    Estimate required warmup bars (history) given a list of indicators.
-    Returns the maximum window length needed by the requested indicators.
-    """
-    if not indicators:
-        return None
-
-    # Base mapping of indicator -> required bars
-    mapping = {
-        'sma_50': 50,
-        'sma_200': 200,
-        'sma': 200,  # generic fallback
-        'rsi': 14,
-        'macd': 35,  # slow (26) + signal (9)
-        'bollinger': 20,
-        'stochastic': 20,
-        'vwap': 20,
-        'atr': 14
-    }
-
-    required = 0
-    for ind in indicators:
-        name = ind.lower() if isinstance(ind, str) else ''
-        if not name:
-            continue
-        if name in mapping:
-            required = max(required, mapping[name])
-            continue
-        # handle names like 'sma_50' or 'sma_200'
-        if 'sma' in name:
-            if '200' in name:
-                required = max(required, 200)
-            elif '50' in name:
-                required = max(required, 50)
-            else:
-                required = max(required, 50)
-            continue
-        if 'macd' in name:
-            required = max(required, mapping['macd'])
-            continue
-        if 'rsi' in name:
-            required = max(required, mapping['rsi'])
-            continue
-        if 'stochastic' in name or 'stoch' in name:
-            required = max(required, mapping['stochastic'])
-            continue
-        if 'bollinger' in name:
-            required = max(required, mapping['bollinger'])
-
-    return required if required > 0 else None
 
 
 def _period_to_days(period: str) -> int:
@@ -161,8 +111,6 @@ def get_fast_stock_data(ticker_symbol: str) -> Optional[Dict[str, Any]]:
                 'day_low': getattr(fast_info, 'day_low', None),
                 'fifty_two_week_high': getattr(fast_info, 'year_high', None),
                 'fifty_two_week_low': getattr(fast_info, 'year_low', None),
-                #'fifty_day_average': getattr(fast_info, 'fifty_day_average', None),
-                #'two_hundred_day_average': getattr(fast_info, 'two_hundred_day_average', None)
             },
             
             # Volume Data (from fast_info)
@@ -262,8 +210,14 @@ def get_extended_stock_data(ticker_symbol: str) -> Optional[Dict[str, Any]]:
             return f
 
         return {
-            # Business Summary (info only)
+            # Business Summary
             'business_summary': info.get('longBusinessSummary', ''),
+            # Website / IR website
+            'website': info.get('website') or (info.get('info_full') or {}).get('website') if isinstance(info, dict) else None,
+            # Book value per share (may be present under different keys)
+            'book_value': info.get('bookValue') or info.get('bookValuePerShare') or None,
+            # Enterprise value (top-level convenience key)
+            'enterprise_value': info.get('enterpriseValue') or info.get('enterprise_value') or None,
             
             # Financial Ratios (info only - detailed financials)
             'financial_ratios': {
@@ -272,9 +226,18 @@ def get_extended_stock_data(ticker_symbol: str) -> Optional[Dict[str, Any]]:
                 'price_to_book': info.get('priceToBook'),
                 'price_to_sales': info.get('priceToSalesTrailing12Months'),
                 'profit_margins': info.get('profitMargins'),
+                'gross_margins': info.get('grossMargins'),
                 'operating_margins': info.get('operatingMargins'),
+                'ebitda_margins': info.get('ebitdaMargins'),
                 'return_on_equity': info.get('returnOnEquity'),
                 'return_on_assets': info.get('returnOnAssets'),
+                # Growth metrics
+                'earnings_growth': info.get('earningsGrowth'),
+                'earnings_quarterly_growth': info.get('earningsQuarterlyGrowth'),
+                'revenue_growth': info.get('revenueGrowth'),
+                # EPS: yfinance can expose this under different keys depending on version/provider
+                # Try common keys: 'epsTrailingTwelveMonths', 'trailingEps', 'eps'
+                'eps': info.get('epsTrailingTwelveMonths') or info.get('trailingEps') or info.get('eps'),
                 'market_cap': fast_data['market_data']['market_cap']  # Use fast_info version
             },
             
@@ -293,11 +256,19 @@ def get_extended_stock_data(ticker_symbol: str) -> Optional[Dict[str, Any]]:
                 'dividend_yield': info.get('dividendYield'),
                 'payout_ratio': info.get('payoutRatio'),
                 'five_year_avg_dividend_yield': info.get('fiveYearAvgDividendYield'),
-                'ex_dividend_date': info.get('exDividendDate')
+                'ex_dividend_date': info.get('exDividendDate'),
+                'last_dividend_value': info.get('lastDividendValue') or None,
+                'last_dividend_date': info.get('lastDividendDate') or None
             },
             
             # Price Data (use fast_info version - much faster)
-            'price_data': fast_data['price_data'],
+            # include fast_info price data and, when available, upstream all-time high/low
+            'price_data': {
+                **(fast_data.get('price_data') or {}),
+                # normalized all-time fields from yfinance info (if present)
+                'all_time_high': _safe_float(info.get('allTimeHigh') or info.get('all_time_high')),
+                'all_time_low': _safe_float(info.get('allTimeLow') or info.get('all_time_low'))
+            },
             
             # Volume Data (use fast_info version - much faster)
             'volume_data': fast_data['volume_data'],
@@ -310,7 +281,10 @@ def get_extended_stock_data(ticker_symbol: str) -> Optional[Dict[str, Any]]:
                 'float_shares': _safe_int(info.get('floatShares')),
                 'short_interest': _safe_int(info.get('sharesShort') or info.get('sharesShortPriorMonth')),
                 'short_ratio': _safe_float(info.get('shortRatio')),
-                'short_percent': _parse_percent(info.get('shortPercent')),
+                # short percent can be provided under different keys across yfinance versions
+                'short_percent': _parse_percent(
+                    info.get('shortPercent') or info.get('shortPercentOfFloat') or info.get('shortPercentFloat')
+                ),
                 'held_percent_insiders': _safe_float(info.get('heldPercentInsiders')),
                 'held_percent_institutions': _safe_float(info.get('heldPercentInstitutions'))
             }
