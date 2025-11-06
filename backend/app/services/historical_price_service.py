@@ -49,13 +49,22 @@ class HistoricalPriceService:
             # Fetch data from yfinance
             ticker = yf.Ticker(stock.ticker_symbol)
             hist_data = ticker.history(period=period, interval=interval)
+
+            # Try to get exchange and currency metadata from yfinance ticker info
+            info = {}
+            try:
+                info = ticker.info or {}
+            except Exception:
+                info = {}
+            exchange = info.get('exchange') or info.get('market') or None
+            currency = info.get('currency') or None
             
             if hist_data.empty:
                 logger.warning(f"No historical data available for {stock.ticker_symbol}")
                 return {"success": False, "error": "No data available", "count": 0}
             
-            # Save data to database
-            records_saved = self._save_price_data(stock_id, hist_data)
+            # Save data to database (pass exchange/currency metadata)
+            records_saved = self._save_price_data(stock_id, hist_data, exchange=exchange, currency=currency)
             
             logger.info(f"Saved {records_saved} price records for {stock.ticker_symbol}")
             
@@ -72,7 +81,7 @@ class HistoricalPriceService:
             logger.error(f"Error loading historical prices for stock {stock_id}: {e}")
             return {"success": False, "error": str(e), "count": 0}
     
-    def _save_price_data(self, stock_id: int, df: pd.DataFrame) -> int:
+    def _save_price_data(self, stock_id: int, df: pd.DataFrame, exchange: Optional[str] = None, currency: Optional[str] = None) -> int:
         """
         Save price data from DataFrame to database
         Uses bulk insert for performance
@@ -112,6 +121,11 @@ class HistoricalPriceService:
                     existing.adjusted_close = float(row.get('Close', 0)) if pd.notna(row.get('Close')) else None
                     existing.dividends = float(row.get('Dividends', 0)) if pd.notna(row.get('Dividends')) else 0.0
                     existing.stock_splits = float(row.get('Stock Splits', 0)) if pd.notna(row.get('Stock Splits')) else None
+                    # Update exchange/currency if available
+                    if exchange is not None:
+                        existing.exchange = exchange
+                    if currency is not None:
+                        existing.currency = currency
                     records_saved += 1
                 else:
                     # Create new record
@@ -127,6 +141,11 @@ class HistoricalPriceService:
                         dividends=float(row.get('Dividends', 0)) if pd.notna(row.get('Dividends')) else 0.0,
                         stock_splits=float(row.get('Stock Splits', 0)) if pd.notna(row.get('Stock Splits')) else None
                     )
+                    # Set exchange/currency on new record if known
+                    if exchange is not None:
+                        price_record.exchange = exchange
+                    if currency is not None:
+                        price_record.currency = currency
                     price_records.append(price_record)
                     records_saved += 1
             

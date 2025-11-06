@@ -103,6 +103,9 @@ class StockPriceData(Base):
     adjusted_close = Column(Float, nullable=True)
     dividends = Column(Float, nullable=True, default=0.0)  # Dividend amount on ex-div date
     stock_splits = Column(Float, nullable=True)  # Split ratio (e.g., 2.0 for 2:1 split)
+    # Exchange and currency for price rows (nullable to support legacy rows)
+    exchange = Column(String, nullable=True)  # e.g., "XETRA", "NASDAQ"
+    currency = Column(String, nullable=True)  # e.g., "EUR", "USD"
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships

@@ -140,6 +140,9 @@ class StockPriceDataBase(BaseModel):
     adjusted_close: Optional[float] = None
     dividends: Optional[float] = 0.0
     stock_splits: Optional[float] = None
+    # Exchange and currency help trace the source of historical price rows
+    exchange: Optional[str] = None
+    currency: Optional[str] = None
 
 
 class StockPriceData(StockPriceDataBase):
