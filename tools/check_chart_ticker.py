@@ -1,0 +1,53 @@
+"""
+Check chart indicators internally for a given ticker using get_chart_with_indicators.
+Usage:
+  python tools/check_chart_ticker.py --ticker AAPL
+"""
+import argparse
+import os, sys
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from backend.app.services.chart_core import get_chart_with_indicators
+import numpy as np
+
+
+def first_non_nan_index(arr):
+    if not isinstance(arr, list):
+        return None
+    for i, v in enumerate(arr):
+        try:
+            if v is None:
+                continue
+            if isinstance(v, float) and np.isnan(v):
+                continue
+            return i
+        except Exception:
+            return i
+    return None
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ticker', required=True)
+    parser.add_argument('--period', default='1y')
+    parser.add_argument('--interval', default='1d')
+    args = parser.parse_args()
+
+    ticker = args.ticker
+    data = get_chart_with_indicators(ticker_symbol=ticker, period=args.period, interval=args.interval, indicators=['sma_50','sma_200','rsi'])
+    if not data:
+        print('No data returned')
+        sys.exit(1)
+    ind = data.get('indicators', {})
+    for name in ['sma_50','sma_200','rsi']:
+        series = ind.get(name)
+        if series is None:
+            print(f'{name}: missing')
+            continue
+        idx = first_non_nan_index(series)
+        print(f'{name}: first_non_nan_index={idx} (len={len(series)})')
+
+if __name__ == '__main__':
+    main()
