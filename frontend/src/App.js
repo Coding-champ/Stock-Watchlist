@@ -6,6 +6,7 @@ import AlertDashboard from './components/AlertDashboard';
 import { useAlerts } from './hooks/useAlerts';
 import ScreenerView from './components/screener/ScreenerView';
 import EarningsView from './components/earnings/EarningsView';
+import StockDetailPage from './components/StockDetailPage';
 
 import API_BASE from './config';
 
@@ -16,6 +17,7 @@ function App() {
   const [toast, setToast] = useState(null);
   const [showAlertDashboard, setShowAlertDashboard] = useState(false);
   const [activeView, setActiveView] = useState('watchlist');
+  const [selectedStock, setSelectedStock] = useState(null);
   const toastTimeoutRef = useRef(null);
 
   const showToast = useCallback((message, appearance = 'info') => {
@@ -309,6 +311,7 @@ function App() {
                   watchlist={currentWatchlist}
                   watchlists={watchlists}
                   onShowToast={showToast}
+                  onOpenStock={(stock) => { setSelectedStock(stock); setActiveView('stock'); }}
                 />
               ) : (
                 <div className="empty-state empty-state--hero">
@@ -319,6 +322,42 @@ function App() {
                   <p className="empty-state__hint">
                     Du kannst jederzeit neue Watchlists anlegen oder bestehende anpassen.
                   </p>
+                </div>
+              )}
+            </main>
+          </div>
+        )}
+
+        {activeView === 'stock' && (
+          <div className={`layout ${sidebarCollapsed ? 'layout--sidebar-collapsed' : ''}`}>
+            <aside className={`layout__sidebar ${sidebarCollapsed ? 'layout__sidebar--collapsed' : ''}`}>
+              <button
+                type="button"
+                className="sidebar-toggle"
+                aria-label={sidebarCollapsed ? 'Sidebar ausklappen' : 'Sidebar einklappen'}
+                onClick={() => setSidebarCollapsed((s) => !s)}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" fill="currentColor" />
+                </svg>
+              </button>
+              <WatchlistSection
+                watchlists={watchlists}
+                currentWatchlist={currentWatchlist}
+                onWatchlistSelect={handleWatchlistSelectAndCollapse}
+                onWatchlistsChange={loadWatchlists}
+                onShowToast={showToast}
+                collapsed={sidebarCollapsed}
+                onToggleCollapsed={() => setSidebarCollapsed((s) => !s)}
+              />
+            </aside>
+            <main className="layout__content">
+              {selectedStock ? (
+                <StockDetailPage stock={selectedStock} onBack={() => { setActiveView('watchlist'); setSelectedStock(null); }} />
+              ) : (
+                <div className="empty-state empty-state--hero">
+                  <h2>Keine Aktie ausgewählt</h2>
+                  <p>Wähle eine Aktie aus der Watchlist aus, um Details zu sehen.</p>
                 </div>
               )}
             </main>

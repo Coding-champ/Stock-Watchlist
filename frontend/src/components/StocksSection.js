@@ -6,14 +6,12 @@ import { parseCSV, exportCSV } from '../utils/csvUtils';
 import { createPortal } from 'react-dom';
 import StockTable from './StockTable';
 import StockModal from './StockModal';
-import StockDetailModal from './StockDetailModal';
 
 
-function StocksSection({ watchlist, watchlists, onShowToast }) {
+function StocksSection({ watchlist, watchlists, onShowToast, onOpenStock }) {
   const [stocks, setStocks] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [selectedStock, setSelectedStock] = useState(null);
   const [loading, setLoading] = useState(false);
   const [bulkUpdating, setBulkUpdating] = useState(false);
   const [tableFadeVisible, setTableFadeVisible] = useState(false);
@@ -266,7 +264,16 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
   };
 
   const handleStockClick = (stock) => {
-    setSelectedStock(stock);
+    // Open the dedicated stock page. No inline fallback modal anymore.
+    if (typeof onOpenStock === 'function') {
+      onOpenStock(stock);
+      return;
+    }
+
+    // If no navigation callback provided, log a warning (developer oversight)
+    // Previously an inline modal fallback existed; that has been removed intentionally.
+    // eslint-disable-next-line no-console
+    console.warn('No onOpenStock handler provided; stock click ignored.', stock);
   };
 
   const handleDeleteStock = async (stockId, skipToast = false) => {
@@ -793,12 +800,7 @@ function StocksSection({ watchlist, watchlists, onShowToast }) {
         onChange={handleFileSelected}
       />
 
-      {selectedStock && (
-        <StockDetailModal
-          stock={selectedStock}
-          onClose={() => setSelectedStock(null)}
-        />
-      )}
+      {/* Stock details are rendered as a dedicated page via App routing; no inline modal fallback. */}
 
       </section>
     </>

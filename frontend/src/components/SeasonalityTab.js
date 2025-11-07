@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import './SeasonalityTab.css';
 import '../styles/skeletons.css';
+import API_BASE from '../config';
 
 function SeasonalityTab({ stockId }) {
   const [seasonality, setSeasonality] = useState([]);
@@ -27,24 +28,39 @@ function SeasonalityTab({ stockId }) {
   const [selectedPeriod, setSelectedPeriod] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [availableYears, setAvailableYears] = useState(null);
+  const [availableRange, setAvailableRange] = useState(null);
+  // when we detect the server has less history than 'all' default (15y), we may
+  // force a one-time refetch using the actual available years to surface per-year series
+  const [forcedYearsBack, setForcedYearsBack] = useState(null);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
-    // Always send a valid years_back value; for 'all', use a sensible default (e.g., 15)
-    const yearsBack = selectedPeriod === 'all' ? '15' : selectedPeriod.replace('y', '');
+  // Always send a valid years_back value; for 'all', use a sensible default (e.g., 15)
+  // If forcedYearsBack is set we use that to trigger a single refetch with the
+  // exact number of available years (so include_series can be true for <=10 years).
+  const yearsBack = forcedYearsBack ? String(forcedYearsBack) : (selectedPeriod === 'all' ? '15' : selectedPeriod.replace('y', ''));
     const includeSeries = Number(yearsBack) <= 10;
-    fetch(`/api/stocks/${stockId}/seasonality?years_back=${yearsBack}${includeSeries ? '&include_series=true' : ''}`)
+    const url = `${API_BASE}/stocks/${stockId}/seasonality?years_back=${yearsBack}${includeSeries ? '&include_series=true' : ''}`;
+    fetch(url)
       .then(res => {
         if (!res.ok) {
-          throw new Error('API response not OK');
+          console.error('Seasonality fetch failed', { url, status: res.status });
+          throw new Error(`API response not OK: ${res.status}`);
         }
         return res.json();
       })
-    .then(data => {
+  .then(data => {
         // Support two response shapes:
         // 1) { seasonality: [...], series: [...] }
         // 2) [...] (legacy)
+        // If the API returns an object with metadata, capture it for UI hints
+        if (!Array.isArray(data) && data) {
+          if (Array.isArray(data.available_years)) setAvailableYears(data.available_years);
+          if (data.available_range) setAvailableRange(data.available_range);
+        }
+
         if (Array.isArray(data)) {
           setSeasonality(data);
           setSeries([]);
@@ -57,12 +73,28 @@ function SeasonalityTab({ stockId }) {
           setError('Ungültige Saisonalitätsdaten vom Server');
         }
         setLoading(false);
+
+        // If we requested the 'all' default but the server reports fewer available years
+        // and those years are <= 10, force a one-time refetch using that exact years_back
+        // so the per-year series can be included and plotted. Use forcedYearsBack to avoid loops.
+        try {
+          if (!forcedYearsBack && selectedPeriod === 'all' && data && Array.isArray(data.available_years)) {
+            const availCount = data.available_years.length;
+            if (availCount > 0 && availCount <= 10 && String(availCount) !== yearsBack) {
+              // schedule a one-time refetch
+              setForcedYearsBack(String(availCount));
+            }
+          }
+        } catch (e) {
+          // ignore any safety errors here
+        }
       })
       .catch(err => {
+        console.error('Error loading seasonality for', stockId, err);
         setError('Fehler beim Laden der Saisonalitätsdaten');
         setLoading(false);
       });
-  }, [stockId, selectedPeriod]);
+  }, [stockId, selectedPeriod, forcedYearsBack]);
 
   // initialize visible series keys whenever series updates
   useEffect(() => {
@@ -385,6 +417,17 @@ function SeasonalityTab({ stockId }) {
           </button>
         ))}
       </div>
+      {/* show available history range if backend provided it */}
+      {availableRange && (
+        <div className="available-range" style={{ marginTop: 8, marginBottom: 8, fontSize: '0.9rem', color: '#555' }}>
+          Verfügbare Historie: {availableRange.start} — {availableRange.end}
+        </div>
+      )}
+      {forcedYearsBack && (
+        <div className="available-range" style={{ marginTop: 4, marginBottom: 8, fontSize: '0.85rem', color: '#b07200' }}>
+          Hinweis: Darstellung auf die vorhandenen {forcedYearsBack} Jahr(e) angepasst, damit Jahresreihen angezeigt werden.
+        </div>
+      )}
       {loading ? (
         <div className="loading" role="status" aria-live="polite">Lade Saisonalitätsdaten...</div>
       ) : error ? (

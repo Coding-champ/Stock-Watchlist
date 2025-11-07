@@ -7,7 +7,7 @@ from threading import Lock
 import logging
 import pandas as pd
 from backend.app.services.yfinance_service import get_historical_prices
-from backend.app.services.seasonality_service import get_all_seasonalities
+from backend.app.services.seasonality_service import get_all_seasonalities, calculate_monthly_returns, calculate_seasonality
 from backend.app.services.analyst_service import get_complete_analyst_overview
 from backend.app import schemas
 from backend.app.models import (
@@ -1961,6 +1961,126 @@ def get_stock_price_history(
         },
         data=prices
     )
+
+
+@router.get("/{stock_id}/seasonality")
+def get_stock_seasonality(
+    stock_id: int,
+    years_back: Optional[int] = Query(15, description="Years to look back (use None for all)"),
+    include_series: bool = Query(False, description="Include per-year monthly close series (up to 10 years)"),
+    debug: bool = Query(False, description="Return debugging information in the response (dev only)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Return monthly seasonality summary for a stock.
+
+    Optional `include_series=true` returns an array of per-year monthly close series
+    (newest first) for visualization when the requested window is reasonable (<=10 years).
+    """
+    stock = db.query(StockModel).filter(StockModel.id == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+
+    # Use HistoricalPriceService to obtain a DataFrame of historical closes
+    hist_service = HistoricalPriceService(db)
+    df = hist_service.get_price_dataframe(stock_id)
+
+    # Log request parameters and data availability at INFO so it's visible in standard dev output
+    try:
+        logger.info(f"Seasonality request stock_id={stock_id} years_back={years_back} include_series={include_series}")
+        if df is None or df.empty:
+            logger.info(f"No historical dataframe available for stock_id={stock_id}")
+        else:
+            logger.info(f"Historical dataframe for stock_id={stock_id}: rows={len(df)}, start={df.index.min()}, end={df.index.max()}, cols={list(df.columns)}")
+    except Exception:
+        # don't break on logging
+        pass
+
+    if df is None or df.empty:
+        return {"seasonality": [], "series": [] if include_series else []}
+
+    # Compute seasonalities for requested window. The service provides common windows.
+    if years_back is None:
+        results = get_all_seasonalities(df)
+        season_df = results.get('all')
+    elif years_back in (5, 10, 15):
+        results = get_all_seasonalities(df)
+        season_df = results.get(f'{years_back}y')
+    else:
+        # Compute ad-hoc window
+        monthly_returns = calculate_monthly_returns(df)
+        season_df = calculate_seasonality(monthly_returns, years_back=years_back)
+
+    # Convert seasonality DataFrame to list of dicts
+    try:
+        seasonality = season_df.sort_values('month').to_dict(orient='records') if season_df is not None else []
+    except Exception:
+        seasonality = []
+
+    series_out = []
+    if include_series:
+        # Only include per-year series for reasonably small windows (limit to 10 years)
+        try:
+            # Determine years to include (newest first)
+            years = sorted(list(set(df.index.year)), reverse=True)
+            logger.info(f"Computed years for series (pre-limit): {years}")
+            # Limit to last 10 years
+            years = years[:10]
+            logger.info(f"Years used for series (post-limit): {years}")
+            for y in years:
+                monthly_closes = []
+                for m in range(1, 13):
+                    # find last available close for this year/month
+                    mask = (df.index.year == y) & (df.index.month == m)
+                    if mask.any():
+                        # take last available
+                        vals = df.loc[mask]['close'] if 'close' in df.columns else df.iloc[:, 0]
+                        try:
+                            val = float(vals.iloc[-1])
+                        except Exception:
+                            val = None
+                    else:
+                        val = None
+                    monthly_closes.append(val)
+                series_out.append({"year": int(y), "monthly_closes": monthly_closes})
+        except Exception:
+            series_out = []
+
+    # Debug sample output
+    try:
+        logger.info(f"Seasonality result counts: seasonality_rows={len(seasonality) if seasonality is not None else 0}, series_count={len(series_out)}")
+        if series_out:
+            logger.info(f"Sample series first entry: {series_out[0]}" )
+    except Exception:
+        pass
+
+    out = {"seasonality": seasonality, "series": series_out}
+    # Provide availability metadata so the frontend can show why large windows may
+    # return identical results (not enough history). This is non-breaking.
+    try:
+        available_years = sorted(list(set(df.index.year)), reverse=True)
+        out["available_years"] = available_years
+        out["available_range"] = {"start": str(df.index.min()), "end": str(df.index.max())}
+    except Exception:
+        out["available_years"] = []
+        out["available_range"] = {"start": None, "end": None}
+    if debug:
+        try:
+            years_pre = sorted(list(set(df.index.year)), reverse=True)
+        except Exception:
+            years_pre = []
+        debug_obj = {
+            "df_rows": len(df),
+            "df_start": str(df.index.min()),
+            "df_end": str(df.index.max()),
+            "df_columns": list(df.columns),
+            "years_pre_limit": years_pre,
+            "years_used": years if include_series else [],
+            "sample_series_first": series_out[0] if series_out else None
+        }
+        out["debug"] = debug_obj
+
+    return out
 
 
 @router.post("/{stock_id}/price-history/refresh", response_model=Dict[str, Any])

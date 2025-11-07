@@ -12,8 +12,37 @@ def calculate_monthly_returns(df: pd.DataFrame, price_col: str = 'Close') -> pd.
     if df.empty:
         return pd.Series(dtype=float)
 
+    # Determine the column to use for close prices. The dataframe coming from
+    # HistoricalPriceService typically has lowercase column names ('close',
+    # 'adjusted_close'), whereas other data sources may use 'Close'. Be robust
+    # and accept common variants or fall back to the first numeric column.
+    if price_col in df.columns:
+        price_col_actual = price_col
+    else:
+        cols_lc = {c.lower(): c for c in df.columns}
+        if price_col.lower() in cols_lc:
+            price_col_actual = cols_lc[price_col.lower()]
+        elif 'close' in cols_lc:
+            price_col_actual = cols_lc['close']
+        elif 'adjusted_close' in cols_lc:
+            price_col_actual = cols_lc['adjusted_close']
+        elif 'adj close' in cols_lc:
+            price_col_actual = cols_lc['adj close']
+        else:
+            # Fallback: try to pick the first numeric column
+            numeric_cols = df.select_dtypes(include=[np.number]).columns
+            if len(numeric_cols) > 0:
+                price_col_actual = numeric_cols[0]
+            else:
+                # No usable numeric column found
+                return pd.Series(dtype=float)
+
     # Resample to month-end prices (last available price in each calendar month)
-    monthly_prices = df[price_col].resample('M').last()
+    try:
+        monthly_prices = df[price_col_actual].resample('M').last()
+    except Exception:
+        # If resampling fails for any reason, return an empty series
+        return pd.Series(dtype=float)
 
     # If the most recent month is incomplete (last row date before month end), drop it
     last_row_date = df.index.max()

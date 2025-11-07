@@ -13,25 +13,23 @@ import { useAlerts } from '../hooks/useAlerts';
 import API_BASE from '../config';
 import { OBSERVATION_REASON_OPTIONS } from './ObservationFields';
 
-function StockDetailModal({ stock, onClose }) {
+function StockDetailPage({ stock, onBack }) {
   const [chartLatestVwap, setChartLatestVwap] = useState(null);
   const { alerts, loadAlerts, toggleAlert, deleteAlert } = useAlerts(stock.id);
   const [extendedData, setExtendedData] = useState(null);
   const [latestFundamentals, setLatestFundamentals] = useState(null);
   const [irWebsite, setIrWebsite] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('chart'); // 'chart', 'fundamentals', 'analysis', 'investment', 'company'
-  const [alertModalConfig, setAlertModalConfig] = useState(null); // { mode: 'create' | 'edit', alert: null | Alert }
+  const [activeTab, setActiveTab] = useState('chart');
+  const [alertModalConfig, setAlertModalConfig] = useState(null);
 
   const loadExtendedData = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/stocks/${stock.id}/detailed`);
       const data = await response.json();
       setExtendedData(data.extended_data);
-      // try top-level ir_website from API response, fallback to common keys inside extended_data
       const website = data.ir_website || data.extended_data?.website || data.extended_data?.info_full?.website || data.extended_data?.business_summary?.website || null;
       setIrWebsite(website);
-      // Also try to fetch latest fundamentals (single most recent period) to populate Bilanz / GuV / Cashflow sections
       try {
         const fRes = await fetch(`${API_BASE}/stocks/${stock.id}/fundamentals?periods=1`);
         if (fRes.ok) {
@@ -41,7 +39,7 @@ function StockDetailModal({ stock, onClose }) {
           }
         }
       } catch (e) {
-        // non-fatal: ignore
+        // non-fatal
       }
     } catch (error) {
       console.error('Error loading extended stock data:', error);
@@ -65,7 +63,6 @@ function StockDetailModal({ stock, onClose }) {
 
   const changeInfo = React.useMemo(() => {
     const current = extendedData?.price_data?.current_price;
-    // try multiple possible keys for previous close
     const prev = extendedData?.price_data?.previous_close ?? extendedData?.price_data?.previousClose ?? extendedData?.price_data?.previous_close_price ?? null;
     if (typeof current === 'number' && typeof prev === 'number') {
       const absolute = current - prev;
@@ -75,7 +72,6 @@ function StockDetailModal({ stock, onClose }) {
     return null;
   }, [extendedData]);
 
-  // If extendedData doesn't provide a previous close, try to fetch the last two price datapoints
   const [fetchedChangeInfo, setFetchedChangeInfo] = useState(null);
   useEffect(() => {
     let mounted = true;
@@ -89,13 +85,9 @@ function StockDetailModal({ stock, onClose }) {
         const resp = await fetch(`${API_BASE}/stock-data/${stock.id}?limit=2`, { signal: controller.signal });
         if (!resp.ok) return;
         const json = await resp.json();
-
-        // Normalize and sort by timestamp ascending (same approach as StockTable)
         const raw = Array.isArray(json) ? json : [];
         const filtered = raw.filter((e) => e && e.current_price != null);
         const ordered = filtered.slice().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-        // Use the last two valid samples (robust against ordering differences)
         if (ordered.length >= 2 && mounted) {
           const first = Number(ordered[ordered.length - 2].current_price);
           const last = Number(ordered[ordered.length - 1].current_price);
@@ -106,7 +98,7 @@ function StockDetailModal({ stock, onClose }) {
           }
         }
       } catch (e) {
-        // ignore errors silently
+        // ignore
       }
     })();
 
@@ -116,11 +108,8 @@ function StockDetailModal({ stock, onClose }) {
     };
   }, [changeInfo, stock]);
 
-  // use shared formatPrice from utils which determines currency from stock (ticker/country/exchange)
-
   const formatLargeNumber = (value) => {
     if (value === null || value === undefined) return '-';
-    // accept numeric strings as well as numbers
     const numVal = (typeof value === 'number') ? value : (Number(String(value).replace(/[,\s]/g, '')));
     if (typeof numVal === 'number' && !Number.isNaN(numVal)) {
       if (value >= 1e12) return (value / 1e12).toFixed(2) + 'T';
@@ -132,13 +121,10 @@ function StockDetailModal({ stock, onClose }) {
     return '-';
   };
 
-  // KORREKTE Prozentformatierung für yfinance
-  const formatPercentAsIs = (value) => formatNumber(value, 2, '%'); // Bereits Prozent (dividendYield)
-  const formatPercentFromDecimal = (value) => formatNumber(value * 100, 2, '%'); // Dezimal zu Prozent
-  
+  const formatPercentAsIs = (value) => formatNumber(value, 2, '%');
+  const formatPercentFromDecimal = (value) => formatNumber(value * 100, 2, '%');
   const formatDate = (timestamp) => {
     if (!timestamp) return '-';
-    // timestamp may be epoch seconds or an ISO string
     try {
       if (typeof timestamp === 'number') return new Date(timestamp * 1000).toLocaleDateString('de-DE');
       return new Date(timestamp).toLocaleDateString('de-DE');
@@ -147,26 +133,37 @@ function StockDetailModal({ stock, onClose }) {
     }
   };
 
-  // Defensive fallback for risk metrics similar to StockDetailPage
+  // Defensive fallback: some API responses may place risk metrics under different keys
   const riskMetrics = extendedData?.risk_metrics ?? extendedData?.riskMetrics ?? extendedData?.riskMetricsSummary ?? extendedData?.statistics?.risk_metrics ?? extendedData?.statistics ?? {};
 
   if (loading) {
     return (
-      <div className="modal" onClick={onClose}>
-        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-          <span className="close" onClick={onClose}>&times;</span>
-          <div className="stock-detail-content">
-            <div className="loading">Lade erweiterte Daten...</div>
+      <section className="panel">
+        <div className="panel__header">
+          <div className="panel__title-group">
+            <h2 className="panel__title">Lade Aktie…</h2>
           </div>
         </div>
-      </div>
+        <div className="panel__body">
+          <div className="loading">Lade erweiterte Daten…</div>
+        </div>
+      </section>
     );
   }
 
   return (
-    <div className="modal" onClick={onClose}>
-      <div className="modal-content expanded" onClick={(e) => e.stopPropagation()}>
-        <span className="close" onClick={onClose}>&times;</span>
+    <section className="panel panel--stock-detail">
+      <div className="panel__header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button className="btn btn--ghost" onClick={() => onBack && onBack()} aria-label="Zurück">‹ Zurück</button>
+          <div>
+            <h2 className="panel__title">{stock.name} ({stock.ticker_symbol})</h2>
+            <p className="panel__subtitle">Details und Kennzahlen</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel__body">
         <div className="stock-detail-content">
           <div className="stock-header">
             <h2>{stock.name} ({stock.ticker_symbol})</h2>
@@ -189,8 +186,8 @@ function StockDetailModal({ stock, onClose }) {
               })()
             }
           </div>
-          
-          {/* Tab Navigation */}
+
+          {/* Tab Navigation and content (same as modal tabs) */}
           <div className="tab-navigation">
             <button 
               className={`tab-button ${activeTab === 'chart' ? 'active' : ''}`}
@@ -250,16 +247,13 @@ function StockDetailModal({ stock, onClose }) {
             </button>
           </div>
 
-          {/* Tab Content */}
           <div className="tab-content">
-            {/* CHART TAB */}
             {activeTab === 'chart' && (
               <div className="tab-panel">
-                <StockChart stock={stock} isEmbedded={true} onLatestVwap={setChartLatestVwap} />
+                <StockChart stock={stock} isEmbedded={false} onLatestVwap={setChartLatestVwap} />
               </div>
             )}
 
-            {/* FUNDAMENTALDATEN TAB */}
             {activeTab === 'fundamentals' && (
               <div className="tab-panel">
                 {/* Price Data Section */}
@@ -487,24 +481,20 @@ function StockDetailModal({ stock, onClose }) {
               </div>
             )}
 
-            {/* FUNDAMENTALS TIME SERIES TAB */}
             {activeTab === 'fundamentals_ts' && (
               <div className="tab-panel">
                 <FundamentalsTimeSeriesTab stockId={stock.id} />
               </div>
             )}
 
-            {/* SECTOR / INDUSTRY COMPARISON TAB */}
             {activeTab === 'sector_comparison' && (
               <div className="tab-panel">
                 <SectorComparisonTab stockId={stock.id} />
               </div>
             )}
 
-            {/* AUSWERTUNG (STATISTICS) TAB */}
             {activeTab === 'analysis' && (
               <div className="tab-panel">
-                {/* Volume Section */}
                 <div className="data-section">
                   <h3>📊 Handelsvolumen</h3>
                   <div className="detail-grid">
@@ -523,7 +513,6 @@ function StockDetailModal({ stock, onClose }) {
                   </div>
                 </div>
 
-                {/* Risk Metrics Section */}
                 <div className="data-section">
                   <h3>⚠️ Volatilität & Risiko</h3>
                   <div className="detail-grid">
@@ -562,7 +551,6 @@ function StockDetailModal({ stock, onClose }) {
                         if (sr === null || sr === undefined) return '-';
                         const num = Number(sr);
                         if (Number.isNaN(num)) return '-';
-                        // highlight unusually high short ratios (e.g., > 5 days)
                         const isHigh = num > 5;
                         return (
                           <span style={isHigh ? { color: '#c62828', fontWeight: 600 } : {}}>
@@ -578,7 +566,6 @@ function StockDetailModal({ stock, onClose }) {
                         if (sp === null || sp === undefined) return '-';
                         const num = Number(sp);
                         if (Number.isNaN(num)) return '-';
-                        // Backend normalizes to decimal (e.g. 0.12). Be defensive: if value > 1 assume it's a whole-percent and convert.
                         const decimal = Math.abs(num) > 1 ? num / 100.0 : num;
                         return formatPercentFromDecimal(decimal);
                       })()}
@@ -586,30 +573,24 @@ function StockDetailModal({ stock, onClose }) {
                   </div>
                 </div>
 
-                {/* Calculated Metrics */}
-                {/* Pass isActive so CalculatedMetricsTab fetches immediately when this tab is selected */}
                 <CalculatedMetricsTab stockId={stock.id} isActive={activeTab === 'analysis'} prefetch={true} chartLatestVwap={chartLatestVwap} />
               </div>
             )}
 
-            {/* SAISONALITÄT TAB */}
             {activeTab === 'saisonalität' && (
-                <div className="tab-panel">
+              <div className="tab-panel">
                 <SeasonalityTab stockId={stock.id} />
               </div>
             )}
 
-            {/* ANALYSTEN TAB */}
             {activeTab === 'analysten' && (
               <div className="tab-panel">
                 <AnalystTab stockId={stock.id} />
               </div>
             )}
 
-            {/* INVESTMENT TAB */}
             {activeTab === 'investment' && (
               <div className="tab-panel">
-                {/* Observation Reasons */}
                 {stock.observation_reasons && stock.observation_reasons.length > 0 && (
                   <div className="data-section">
                     <h3>💡 Beobachtungsgründe</h3>
@@ -626,7 +607,6 @@ function StockDetailModal({ stock, onClose }) {
                   </div>
                 )}
 
-                {/* Observation Notes */}
                 {stock.observation_notes && (
                   <div className="data-section">
                     <h3>📝 Bemerkungen</h3>
@@ -636,7 +616,6 @@ function StockDetailModal({ stock, onClose }) {
                   </div>
                 )}
 
-                {/* Price Alerts */}
                 <div className="data-section">
                   <div className="section-header-with-action">
                     <h3>🔔 Kursalarme</h3>
@@ -650,9 +629,7 @@ function StockDetailModal({ stock, onClose }) {
                   {alerts.length > 0 ? (
                     <div className="alerts-list">
                       {alerts.map((alert) => {
-                        // Einheit basierend auf Alarm-Typ bestimmen
                         const unit = getUnitForAlertType(alert.alert_type, stock);
-                        
                         return (
                         <div 
                           key={alert.id} 
@@ -669,11 +646,6 @@ function StockDetailModal({ stock, onClose }) {
                               <strong>{getConditionLabel(alert.condition)}</strong> 
                               {alert.alert_type !== 'ma_cross' && (
                                 <> {formatNumber(alert.threshold_value, 2)}{unit && ` ${unit}`}</>
-                              )}
-                              {alert.timeframe_days && (
-                                <span style={{ marginLeft: '5px', color: '#666', fontSize: '0.9em' }}>
-                                  ({alert.timeframe_days} Tag{alert.timeframe_days > 1 ? 'e' : ''})
-                                </span>
                               )}
                             </div>
                             {alert.last_triggered && (
@@ -724,10 +696,8 @@ function StockDetailModal({ stock, onClose }) {
               </div>
             )}
 
-            {/* COMPANY INFO TAB */}
             {activeTab === 'company' && (
               <div className="tab-panel">
-                {/* Business Summary */}
                 {extendedData?.business_summary && (
                   <div className="data-section">
                     <h3>📄 Unternehmensbeschreibung</h3>
@@ -737,7 +707,6 @@ function StockDetailModal({ stock, onClose }) {
                   </div>
                 )}
 
-                {/* Company Info */}
                 <div className="data-section">
                   <h3>🏢 Unternehmensdaten</h3>
                   <div className="detail-grid">
@@ -774,24 +743,22 @@ function StockDetailModal({ stock, onClose }) {
               </div>
             )}
           </div>
+
+          {alertModalConfig && (
+            <AlertModal
+              stock={stock}
+              existingAlert={alertModalConfig.alert}
+              onClose={() => setAlertModalConfig(null)}
+              onAlertSaved={async () => {
+                await loadAlerts();
+                setAlertModalConfig(null);
+              }}
+            />
+          )}
         </div>
       </div>
-
-      {/* Alert Modal */}
-      {alertModalConfig && (
-        <AlertModal
-          stock={stock}
-          existingAlert={alertModalConfig.alert}
-          onClose={() => setAlertModalConfig(null)}
-          onAlertSaved={async () => {
-            await loadAlerts();
-            setAlertModalConfig(null);
-          }}
-        />
-      )}
-    </div>
+    </section>
   );
 }
 
-export default StockDetailModal;
-
+export default StockDetailPage;
