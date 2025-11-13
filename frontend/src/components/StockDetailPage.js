@@ -21,6 +21,7 @@ function StockDetailPage({ stock, onBack }) {
   const [extendedData, setExtendedData] = useState(null);
   const [latestFundamentals, setLatestFundamentals] = useState(null);
   const [irWebsite, setIrWebsite] = useState(null);
+  const [calendarData, setCalendarData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('chart');
   const [alertModalConfig, setAlertModalConfig] = useState(null);
@@ -50,6 +51,28 @@ function StockDetailPage({ stock, onBack }) {
         }
       } catch (e) {
         // non-fatal
+      }
+
+      // Fetch calendar/earnings data
+      try {
+        console.log('Fetching calendar data for stock ID:', stock.id);
+        const calUrl = `${API_BASE}/stocks/${stock.id}/calendar`;
+        console.log('Calendar URL:', calUrl);
+        
+        const calJson = await queryClient.fetchQuery(['api', calUrl], async () => {
+          const resp = await fetch(calUrl);
+          console.log('Calendar API response status:', resp.status);
+          if (!resp.ok) throw new Error(`Request failed: ${resp.status}`);
+          const json = await resp.json();
+          console.log('Calendar API response data:', json);
+          return json;
+        }, { staleTime: 300000 });
+
+        console.log('Calendar data received:', calJson);
+        setCalendarData(calJson);
+        console.log('Calendar data state set');
+      } catch (e) {
+        console.error('Could not load calendar data:', e);
       }
 
     } catch (error) {
@@ -165,39 +188,94 @@ function StockDetailPage({ stock, onBack }) {
   return (
     <section className="panel panel--stock-detail">
       <div className="panel__header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button className="btn btn--ghost" onClick={() => onBack && onBack()} aria-label="Zurück">‹ Zurück</button>
-          <div>
-            <h2 className="panel__title">{stock.name} ({stock.ticker_symbol})</h2>
-            <p className="panel__subtitle">Details und Kennzahlen</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
+          <button className="btn btn--ghost" onClick={() => onBack && onBack()} aria-label="Zurück">‹</button>
+          <div className="stock-header" style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <h2>{stock.name} ({stock.ticker_symbol})</h2>
+                
+                {
+                (() => {
+                  const info = changeInfo ?? fetchedChangeInfo;
+                  const cls = info ? (info.absolute >= 0 ? 'positive' : 'negative') : '';
+                  return (
+                    <div className={`stock-change-badge ${cls}`} role="status" aria-live="polite">
+                      <div className="stock-change-values">
+                        {info ? (
+                          <>{info.relative >= 0 ? '+' : ''}{info.relative.toFixed(2)}% ({info.absolute >= 0 ? '+' : ''}{formatPrice(info.absolute, stock, 2)})</>
+                        ) : (
+                          <span className="stock-change-placeholder">—</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()
+                }
+              </div>
+              
+              {/* Earnings Date Badge */}
+              {calendarData && (calendarData.next_earnings_date || calendarData.earnings_date) && (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 14px',
+                  background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(91, 33, 182, 0.06) 100%)',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(124, 58, 237, 0.25)',
+                  boxShadow: '0 2px 6px rgba(124, 58, 237, 0.08)',
+                  fontSize: '0.85rem',
+                  whiteSpace: 'nowrap'
+                }}>
+                 
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                    <span style={{
+                      fontSize: '0.7rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      color: 'var(--text-muted)',
+                      fontWeight: '600'
+                    }}>
+                      Earnings
+                    </span>
+                    <span style={{ 
+                      color: 'var(--brand-primary-dark)',
+                      fontWeight: '700',
+                      fontSize: '0.85rem'
+                    }}>
+                      {(() => {
+                        const timestamp = calendarData.next_earnings_date || calendarData.earnings_date;
+                        let date;
+                        if (typeof timestamp === 'number') {
+                          date = new Date(timestamp * 1000);
+                        } else if (typeof timestamp === 'string') {
+                          date = new Date(timestamp);
+                        } else {
+                          return 'N/A';
+                        }
+                        
+                        if (isNaN(date.getTime())) {
+                          return 'N/A';
+                        }
+                        
+                        return date.toLocaleDateString('de-DE', { 
+                          day: '2-digit',
+                          month: 'short'
+                        });
+                      })()}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="panel__body">
         <div className="stock-detail-content">
-          <div className="stock-header">
-            <h2>{stock.name} ({stock.ticker_symbol})</h2>
-            {
-              (() => {
-                const info = changeInfo ?? fetchedChangeInfo;
-                const cls = info ? (info.absolute >= 0 ? 'positive' : 'negative') : '';
-                return (
-                  <div className={`stock-change-badge ${cls}`} role="status" aria-live="polite">
-                    <div className="stock-change-label">Veränderung:</div>
-                    <div className="stock-change-values">
-                      {info ? (
-                        <>{info.absolute >= 0 ? '+' : ''}{formatPrice(info.absolute, stock, 2)} ({info.relative >= 0 ? '+' : ''}{info.relative.toFixed(2)}%)</>
-                      ) : (
-                        <span className="stock-change-placeholder">—</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()
-            }
-          </div>
-
+          
           {/* Tab Navigation and content (same as modal tabs) */}
           <div className="tab-navigation">
             <button 

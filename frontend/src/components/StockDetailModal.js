@@ -20,6 +20,7 @@ function StockDetailModal({ stock, onClose }) {
   const [extendedData, setExtendedData] = useState(null);
   const [latestFundamentals, setLatestFundamentals] = useState(null);
   const [irWebsite, setIrWebsite] = useState(null);
+  const [calendarData, setCalendarData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('chart'); // 'chart', 'fundamentals', 'analysis', 'investment', 'company'
   const [alertModalConfig, setAlertModalConfig] = useState(null); // { mode: 'create' | 'edit', alert: null | Alert }
@@ -53,6 +54,29 @@ function StockDetailModal({ stock, onClose }) {
         }
       } catch (e) {
         // non-fatal: ignore
+      }
+
+      // Fetch calendar/earnings data
+      try {
+        console.log('Fetching calendar data for stock ID:', stock.id);
+        const calUrl = `${API_BASE}/stocks/${stock.id}/calendar`;
+        console.log('Calendar URL:', calUrl);
+        
+        const calJson = await queryClient.fetchQuery(['api', calUrl], async () => {
+          const resp = await fetch(calUrl);
+          console.log('Calendar API response status:', resp.status);
+          if (!resp.ok) throw new Error(`Request failed: ${resp.status}`);
+          const json = await resp.json();
+          console.log('Calendar API response data:', json);
+          return json;
+        }, { staleTime: 300000 });
+
+        console.log('Calendar data received:', calJson);
+        setCalendarData(calJson);
+        console.log('Calendar data state set');
+      } catch (e) {
+        // non-fatal: ignore if calendar data not available
+        console.error('Could not load calendar data:', e);
       }
     } catch (error) {
       console.error('Error loading extended stock data:', error);
@@ -266,6 +290,96 @@ function StockDetailModal({ stock, onClose }) {
             {/* CHART TAB */}
             {activeTab === 'chart' && (
               <div className="tab-panel">
+                {/* DEBUG: Show calendar data status */}
+                {process.env.NODE_ENV === 'development' && (
+                  <div style={{ padding: '8px', background: '#f0f0f0', marginBottom: '8px', fontSize: '0.8rem' }}>
+                    Debug: calendarData = {calendarData ? JSON.stringify({
+                      hasData: !!calendarData,
+                      next_earnings_date: calendarData.next_earnings_date,
+                      ticker: calendarData.ticker
+                    }) : 'null'}
+                  </div>
+                )}
+                
+                {calendarData && (calendarData.next_earnings_date || calendarData.earnings_date) && (
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    marginBottom: '16px',
+                    padding: '10px 16px',
+                    background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(91, 33, 182, 0.05) 100%)',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(124, 58, 237, 0.2)',
+                    boxShadow: '0 2px 8px rgba(124, 58, 237, 0.08)'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      fontSize: '0.9rem'
+                    }}>
+                      <span style={{ 
+                        fontSize: '1.2rem',
+                        filter: 'grayscale(0.2)'
+                      }}>📊</span>
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '2px'
+                      }}>
+                        <div style={{
+                          fontSize: '0.75rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          color: 'var(--text-muted)',
+                          fontWeight: '600'
+                        }}>
+                          Nächstes Earnings
+                        </div>
+                        <div style={{ 
+                          color: 'var(--brand-primary-dark)',
+                          fontWeight: '700',
+                          fontSize: '0.95rem'
+                        }}>
+                          {(() => {
+                            const timestamp = calendarData.next_earnings_date || calendarData.earnings_date;
+                            // Handle Unix timestamp (seconds) or ISO string
+                            let date;
+                            if (typeof timestamp === 'number') {
+                              // Unix timestamp in seconds
+                              date = new Date(timestamp * 1000);
+                            } else if (typeof timestamp === 'string') {
+                              date = new Date(timestamp);
+                            } else {
+                              return 'Nicht verfügbar';
+                            }
+                            
+                            if (isNaN(date.getTime())) {
+                              return 'Nicht verfügbar';
+                            }
+                            
+                            return date.toLocaleDateString('de-DE', { 
+                              year: 'numeric', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            });
+                          })()}
+                          {calendarData.earnings_time && (
+                            <span style={{
+                              marginLeft: '8px',
+                              fontSize: '0.85rem',
+                              fontWeight: '500',
+                              color: 'var(--text-muted)'
+                            }}>
+                              {calendarData.earnings_time === 'bmo' ? '(vor Börsenöffnung)' : 
+                               calendarData.earnings_time === 'amc' ? '(nach Börsenschluss)' : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <StockChart stock={stock} isEmbedded={true} onLatestVwap={setChartLatestVwap} />
               </div>
             )}
