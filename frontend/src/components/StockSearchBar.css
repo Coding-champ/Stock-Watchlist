@@ -1,0 +1,271 @@
+/* Stock Search Bar Component Styles */
+
+.stock-search {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+}
+
+.stock-search__input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1.5px solid rgba(148, 163, 184, 0.25);
+  border-radius: 12px;
+  padding: 0 14px;
+  transition: all var(--motion-short);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.stock-search__input-wrapper:focus-within {
+  border-color: var(--brand-primary);
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.08);
+  outline: none;
+}
+
+.stock-search__icon {
+  color: var(--text-muted);
+  margin-right: 10px;
+  flex-shrink: 0;
+  transition: color var(--motion-short);
+}
+
+.stock-search__input-wrapper:focus-within .stock-search__icon {
+  color: var(--brand-primary);
+}
+
+.stock-search__input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 12px 0;
+  font-size: 0.95rem;
+  color: var(--text-main);
+  font-family: inherit;
+  box-shadow: none !important;
+}
+
+.stock-search__input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.stock-search__input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.stock-search__spinner {
+  margin-left: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.spinner--small {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+.stock-search__clear {
+  margin-left: 8px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all var(--motion-short);
+}
+
+.stock-search__clear:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-main);
+}
+
+/* Results Dropdown */
+.stock-search__results {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(600px, 90vw);
+  max-height: 420px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12),
+              0 4px 12px rgba(0, 0, 0, 0.06);
+  list-style: none;
+  padding: 6px;
+  margin: 0;
+  z-index: 1000;
+  animation: fadeInSlideDown 0.2s ease-out;
+}
+
+@keyframes fadeInSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stock-search__results::-webkit-scrollbar {
+  width: 8px;
+}
+
+.stock-search__results::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 4px;
+}
+
+.stock-search__results::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+.stock-search__results::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Result Item */
+.stock-search__result-item {
+  padding: 12px 14px;
+  padding-right: 100px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all var(--motion-short);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  min-height: 60px;
+}
+
+.stock-search__result-item:hover,
+.stock-search__result-item.is-selected {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(91, 33, 182, 0.05) 100%);
+}
+
+.stock-search__result-item.is-selected {
+  box-shadow: inset 0 0 0 1.5px rgba(124, 58, 237, 0.2);
+}
+
+.stock-search__result-main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: nowrap;
+  margin-bottom: 2px;
+}
+
+.stock-search__result-ticker {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--brand-primary-dark);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.stock-search__result-name {
+  font-size: 0.9rem;
+  color: var(--text-main);
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+.stock-search__result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-right: 90px;
+}
+
+.stock-search__result-isin,
+.stock-search__result-wkn,
+.stock-search__result-sector {
+  padding: 2px 8px;
+  background: rgba(148, 163, 184, 0.08);
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.stock-search__result-price {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--brand-primary-dark);
+}
+
+/* Highlight matching text */
+.stock-search__result-item mark {
+  background-color: rgba(124, 58, 237, 0.2);
+  color: var(--brand-primary-dark);
+  font-weight: 600;
+  padding: 0 2px;
+  border-radius: 3px;
+}
+
+/* No Results */
+.stock-search__no-results {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  padding: 20px;
+  background: white;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  animation: fadeInSlideDown 0.2s ease-out;
+}
+
+.stock-search__no-results p {
+  margin: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .stock-search {
+    max-width: 100%;
+  }
+  
+  .stock-search__results {
+    max-height: 300px;
+  }
+  
+  .stock-search__result-price {
+    position: static;
+    margin-top: 4px;
+  }
+  
+  .stock-search__result-main {
+    flex-direction: column;
+    gap: 4px;
+  }
+}

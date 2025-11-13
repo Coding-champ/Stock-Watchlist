@@ -1252,6 +1252,50 @@ def search_stocks(query: str) -> Dict[str, Any]:
         return {"found": False, "message": f"No stock found for '{query}'"}
 
 
+@router.get("/search-db/", response_model=List[schemas.Stock])
+def search_stocks_in_database(
+    q: str = Query(..., min_length=1, description="Search query (Name, Ticker, ISIN, WKN)"),
+    limit: int = Query(20, description="Maximum number of results"),
+    db: Session = Depends(get_db)
+):
+    """
+    Search for stocks in the local database by name, ticker symbol, ISIN, or WKN.
+    Returns a list of matching stocks with their latest data.
+    
+    Search is case-insensitive and supports partial matches.
+    """
+    search_term = f"%{q}%"
+    
+    # Search across multiple fields using OR conditions
+    query = db.query(StockModel).filter(
+        (StockModel.name.ilike(search_term)) |
+        (StockModel.ticker_symbol.ilike(search_term)) |
+        (StockModel.isin.ilike(search_term)) |
+        (StockModel.wkn.ilike(search_term))
+    ).limit(limit)
+    
+    stocks = query.all()
+    
+    # Enrich stocks with latest data
+    for stock in stocks:
+        stock.latest_data = _get_latest_stock_data(db, stock.id)
+        
+        # Get the first watchlist this stock belongs to (if any)
+        watchlist_entry = db.query(StockInWatchlistModel).filter(
+            StockInWatchlistModel.stock_id == stock.id
+        ).first()
+        
+        if watchlist_entry:
+            stock.watchlist_id = watchlist_entry.watchlist_id
+            stock.position = watchlist_entry.position
+            stock.observation_reasons = watchlist_entry.observation_reasons or []
+            stock.observation_notes = watchlist_entry.observation_notes
+            stock.exchange = watchlist_entry.exchange
+            stock.currency = watchlist_entry.currency
+    
+    return stocks
+
+
 @router.get("/{stock_id}/fast-data")
 def get_stock_fast_data(
     stock_id: int,

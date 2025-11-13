@@ -3,6 +3,7 @@ import './App.css';
 import WatchlistSection from './components/WatchlistSection';
 import StocksSection from './components/StocksSection';
 import AlertDashboard from './components/AlertDashboard';
+import StockSearchBar from './components/StockSearchBar';
 import { useAlerts } from './hooks/useAlerts';
 import ScreenerView from './components/screener/ScreenerView';
 import EarningsView from './components/earnings/EarningsView';
@@ -185,43 +186,55 @@ function App() {
 
         {/* Top Navigation */}
         <nav className="topnav" aria-label="Hauptnavigation">
-          <button
-            className={`topnav__item ${activeView === 'overview' ? 'is-active' : ''}`}
-            onClick={() => setActiveView('overview')}
-            type="button"
-          >
-            Übersicht
-          </button>
-          <button
-            className={`topnav__item ${activeView === 'watchlist' ? 'is-active' : ''}`}
-            onClick={() => setActiveView('watchlist')}
-            type="button"
-          >
-            Watchlist
-          </button>
-          <button
-            className={`topnav__item ${activeView === 'screener' ? 'is-active' : ''}`}
-            onClick={() => setActiveView('screener')}
-            type="button"
-          >
-            Screener
-          </button>
-          <button
-            className={`topnav__item ${activeView === 'earnings' ? 'is-active' : ''}`}
-            onClick={() => setActiveView('earnings')}
-            type="button"
-          >
-            Earnings
-          </button>
-          <button
-            className="topnav__item"
-            onClick={() => setShowAlertDashboard(true)}
-            type="button"
-            aria-haspopup="dialog"
-            aria-controls="alert-dashboard"
-          >
-            Alerts
-          </button>
+          <div className="topnav__search">
+            <StockSearchBar 
+              onStockSelect={(stock) => {
+                setSelectedStock(stock);
+                setActiveView('stock');
+                showToast(`Aktie geöffnet · ${stock.name}`, 'info');
+              }}
+              placeholder="Aktie suchen..."
+            />
+          </div>
+          <div className="topnav__items">
+            <button
+              className={`topnav__item ${activeView === 'overview' ? 'is-active' : ''}`}
+              onClick={() => setActiveView('overview')}
+              type="button"
+            >
+              Übersicht
+            </button>
+            <button
+              className={`topnav__item ${activeView === 'watchlist' ? 'is-active' : ''}`}
+              onClick={() => setActiveView('watchlist')}
+              type="button"
+            >
+              Watchlist
+            </button>
+            <button
+              className={`topnav__item ${activeView === 'screener' ? 'is-active' : ''}`}
+              onClick={() => setActiveView('screener')}
+              type="button"
+            >
+              Screener
+            </button>
+            <button
+              className={`topnav__item ${activeView === 'earnings' ? 'is-active' : ''}`}
+              onClick={() => setActiveView('earnings')}
+              type="button"
+            >
+              Earnings
+            </button>
+            <button
+              className="topnav__item"
+              onClick={() => setShowAlertDashboard(true)}
+              type="button"
+              aria-haspopup="dialog"
+              aria-controls="alert-dashboard"
+            >
+              Alerts
+            </button>
+          </div>
         </nav>
 
         {loading && (
