@@ -9,6 +9,7 @@ import SectorComparisonTab from './SectorComparisonTab';
 import AlertModal from './AlertModal';
 import { getUnitForAlertType, getAlertTypeLabel, getConditionLabel, formatNumber, formatPrice } from '../utils/currencyUtils';
 import { useAlerts } from '../hooks/useAlerts';
+import { useQueryClient } from '@tanstack/react-query';
 
 import API_BASE from '../config';
 import { OBSERVATION_REASON_OPTIONS } from './ObservationFields';
@@ -16,6 +17,7 @@ import { OBSERVATION_REASON_OPTIONS } from './ObservationFields';
 function StockDetailPage({ stock, onBack }) {
   const [chartLatestVwap, setChartLatestVwap] = useState(null);
   const { alerts, loadAlerts, toggleAlert, deleteAlert } = useAlerts(stock.id);
+  const queryClient = useQueryClient();
   const [extendedData, setExtendedData] = useState(null);
   const [latestFundamentals, setLatestFundamentals] = useState(null);
   const [irWebsite, setIrWebsite] = useState(null);
@@ -25,22 +27,31 @@ function StockDetailPage({ stock, onBack }) {
 
   const loadExtendedData = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/stocks/${stock.id}/detailed`);
-      const data = await response.json();
+      const detailedUrl = `${API_BASE}/stocks/${stock.id}/detailed`;
+      const data = await queryClient.fetchQuery(['api', detailedUrl], async () => {
+        const r = await fetch(detailedUrl);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }, { staleTime: 300000 });
+
       setExtendedData(data.extended_data);
       const website = data.ir_website || data.extended_data?.website || data.extended_data?.info_full?.website || data.extended_data?.business_summary?.website || null;
       setIrWebsite(website);
+
       try {
-        const fRes = await fetch(`${API_BASE}/stocks/${stock.id}/fundamentals?periods=1`);
-        if (fRes.ok) {
-          const fJson = await fRes.json();
-          if (fJson && Array.isArray(fJson.data) && fJson.data.length > 0) {
-            setLatestFundamentals(fJson.data[0]);
-          }
+        const fundamentalsUrl = `${API_BASE}/stocks/${stock.id}/fundamentals?periods=1`;
+        const fJson = await queryClient.fetchQuery(['api', fundamentalsUrl], async () => {
+          const rr = await fetch(fundamentalsUrl);
+          if (!rr.ok) throw new Error(`HTTP ${rr.status}`);
+          return rr.json();
+        }, { staleTime: 300000 });
+        if (fJson && Array.isArray(fJson.data) && fJson.data.length > 0) {
+          setLatestFundamentals(fJson.data[0]);
         }
       } catch (e) {
         // non-fatal
       }
+
     } catch (error) {
       console.error('Error loading extended stock data:', error);
     } finally {

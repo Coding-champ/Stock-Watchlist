@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import './FundamentalsTimeSeriesTab.css';
 import '../styles/skeletons.css';
 import API_BASE from '../config';
@@ -27,6 +28,7 @@ function FundamentalsTimeSeriesTab({ stockId }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [usedMock, setUsedMock] = useState(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let mounted = true;
@@ -35,11 +37,12 @@ function FundamentalsTimeSeriesTab({ stockId }) {
       setError(null);
       try {
         // Endpoint to be implemented on backend. For now the UI expects an array of { date, value }
-        const resp = await fetch(`${API_BASE}/stocks/${stockId}/fundamentals/timeseries?metric=${metric}&period=${period}`);
-        if (!resp.ok) {
-          throw new Error('Fehler beim Laden der Zeitreihe');
-        }
-        const json = await resp.json();
+        const url = `${API_BASE}/stocks/${stockId}/fundamentals/timeseries?metric=${metric}&period=${period}`;
+        const json = await queryClient.fetchQuery(['api', url], async () => {
+          const r = await fetch(url);
+          if (!r.ok) throw new Error('Fehler beim Laden der Zeitreihe');
+          return r.json();
+        }, { staleTime: 60000 });
         // Expecting { series: [{ date: 'YYYY-MM-DD', value: 12.3 }, ...], used_mock: bool }
         const rawSeries = json.series || [];
         // Format dates similar to StockChart (locale de-DE)

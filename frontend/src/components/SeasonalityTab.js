@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import PropTypes from 'prop-types';
 import {
   ResponsiveContainer,
@@ -30,6 +31,7 @@ function SeasonalityTab({ stockId }) {
   const [error, setError] = useState(null);
   const [availableYears, setAvailableYears] = useState(null);
   const [availableRange, setAvailableRange] = useState(null);
+  const queryClient = useQueryClient();
   // when we detect the server has less history than 'all' default (15y), we may
   // force a one-time refetch using the actual available years to surface per-year series
   const [forcedYearsBack, setForcedYearsBack] = useState(null);
@@ -43,15 +45,15 @@ function SeasonalityTab({ stockId }) {
   const yearsBack = forcedYearsBack ? String(forcedYearsBack) : (selectedPeriod === 'all' ? '15' : selectedPeriod.replace('y', ''));
     const includeSeries = Number(yearsBack) <= 10;
     const url = `${API_BASE}/stocks/${stockId}/seasonality?years_back=${yearsBack}${includeSeries ? '&include_series=true' : ''}`;
-    fetch(url)
-      .then(res => {
-        if (!res.ok) {
-          console.error('Seasonality fetch failed', { url, status: res.status });
-          throw new Error(`API response not OK: ${res.status}`);
-        }
-        return res.json();
-      })
-  .then(data => {
+    queryClient.fetchQuery(['api', url], async () => {
+      const res = await fetch(url);
+      if (!res.ok) {
+        console.error('Seasonality fetch failed', { url, status: res.status });
+        throw new Error(`API response not OK: ${res.status}`);
+      }
+      return res.json();
+    }, { staleTime: 60000 })
+    .then(data => {
         // Support two response shapes:
         // 1) { seasonality: [...], series: [...] }
         // 2) [...] (legacy)

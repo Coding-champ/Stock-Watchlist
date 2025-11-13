@@ -5,6 +5,7 @@ import EditObservationsModal from './EditObservationsModal';
 import { getLocalizedQuoteType } from '../utils/quoteTypeLabel';
 
 import API_BASE from '../config';
+import { useQueryClient } from '@tanstack/react-query';
 import { formatPrice } from '../utils/currencyUtils';
 const SPARKLINE_POINT_LIMIT = 90;
 
@@ -58,6 +59,8 @@ function StockTable({
   const [transferAction, setTransferAction] = useState(null); // 'move' or 'copy'
   const [selectedTargetWatchlist, setSelectedTargetWatchlist] = useState(null);
   const [isTransferring, setIsTransferring] = useState(false);
+
+  const queryClient = useQueryClient();
 
   const notify = (message, appearance = 'info') => {
     if (typeof onShowToast === 'function') {
@@ -473,12 +476,17 @@ function StockTable({
       const responses = await Promise.all(
         pendingStocks.map(async (stock) => {
           try {
-            const response = await fetch(`${API_BASE}/stocks/${stock.id}/detailed`);
-            if (!response.ok) {
-              throw new Error(`Request failed: ${response.status}`);
-            }
-            const data = await response.json();
-            return { id: stock.id, extended: data.extended_data || null };
+            // Use queryClient.fetchQuery so identical requests are deduped and cached.
+            const url = `${API_BASE}/stocks/${stock.id}/detailed`;
+            const data = await queryClient.fetchQuery(['api', url], async () => {
+              const response = await fetch(url);
+              if (!response.ok) {
+                throw new Error(`Request failed: ${response.status}`);
+              }
+              return await response.json();
+            }, { staleTime: 300000 });
+
+            return { id: stock.id, extended: data?.extended_data || null };
           } catch (error) {
             console.error('Fehler beim Laden erweiterter Daten:', error);
             return { id: stock.id, extended: null };

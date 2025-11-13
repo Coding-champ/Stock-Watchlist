@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import API_BASE from '../config';
 import PropTypes from 'prop-types';
 import './AnalystTab.css';
 import '../styles/skeletons.css';
@@ -7,20 +9,26 @@ function AnalystTab({ stockId }) {
   const [analystData, setAnalystData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch(`/api/stocks/${stockId}/analyst-ratings`)
-      .then(res => res.json())
-      .then(data => {
-        setAnalystData(data);
-        setLoading(false);
-      })
-      .catch(err => {
-        setError('Fehler beim Laden der Analystendaten');
-        setLoading(false);
-      });
+    const url = `${API_BASE}/stocks/${stockId}/analyst-ratings`;
+    queryClient.fetchQuery(['api', url], async () => {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    }, { staleTime: 60000 })
+    .then(data => {
+      setAnalystData(data);
+      setLoading(false);
+    })
+    .catch(err => {
+      console.error('AnalystTab fetch error', err);
+      setError('Fehler beim Laden der Analystendaten');
+      setLoading(false);
+    });
   }, [stockId]);
 
   return (

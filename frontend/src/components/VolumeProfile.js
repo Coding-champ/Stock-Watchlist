@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import './VolumeProfile.css';
 import '../styles/skeletons.css';
@@ -19,6 +20,7 @@ function VolumeProfile({ stockId, period = 30, numBins = 50, height = 400, onLoa
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!stockId) return;
@@ -26,23 +28,16 @@ function VolumeProfile({ stockId, period = 30, numBins = 50, height = 400, onLoa
     const fetchVolumeProfile = async () => {
       setLoading(true);
       setError(null);
-
+      const url = `${API_BASE}/stock-data/${stockId}/volume-profile?period_days=${period}&num_bins=${numBins}`;
       try {
-        const response = await fetch(
-          `${API_BASE}/stock-data/${stockId}/volume-profile?period_days=${period}&num_bins=${numBins}`
-        );
+        const data = await queryClient.fetchQuery(['api', url], async () => {
+          const r = await fetch(url);
+          if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+          const j = await r.json();
+          if (j.error) throw new Error(j.error);
+          return j;
+        }, { staleTime: 60000 });
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        
-        if (data.error) {
-          throw new Error(data.error);
-        }
-
-        // Transform data for recharts
         const chartData = data.price_levels.map((price, index) => ({
           price: price,
           volume: data.volumes[index],
@@ -52,16 +47,8 @@ function VolumeProfile({ stockId, period = 30, numBins = 50, height = 400, onLoa
           isLVN: data.lvn_levels.some(lvn => Math.abs(price - lvn) < 0.01)
         }));
 
-        setProfileData({
-          ...data,
-          chartData: chartData
-        });
-
-        // Notify parent component
-        if (onLoad) {
-          onLoad(data);
-        }
-
+        setProfileData({ ...data, chartData });
+        if (onLoad) onLoad(data);
       } catch (err) {
         console.error('Error fetching volume profile:', err);
         setError(err.message);

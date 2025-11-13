@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 import API_BASE from '../config';
 
@@ -10,6 +11,7 @@ import API_BASE from '../config';
 export function useAlerts(stockId = null, showToast = null) {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
 
   // Load alerts (all or filtered by stock)
   const loadAlerts = useCallback(async () => {
@@ -18,9 +20,12 @@ export function useAlerts(stockId = null, showToast = null) {
       const url = stockId 
         ? `${API_BASE}/alerts/?stock_id=${stockId}`
         : `${API_BASE}/alerts/`;
-      
-      const response = await fetch(url);
-      const data = await response.json();
+      // Use React Query to fetch/dedupe identical alert requests across components
+      const data = await queryClient.fetchQuery(['api', url], async () => {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      }, { staleTime: 30000 });
       setAlerts(data);
       return data;
     } catch (error) {

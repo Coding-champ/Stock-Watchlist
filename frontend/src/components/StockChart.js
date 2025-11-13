@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import '../styles/skeletons.css';
 import {
   LineChart,
@@ -136,7 +137,11 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
     return periodMap[period] || 30;
   };
 
-  // Fetch chart data
+  
+    // React Query client for shared/cached requests (dedupe identical URLs)
+    const queryClient = useQueryClient();
+
+    // Fetch chart data
   const fetchChartData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -154,14 +159,12 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         chartUrl += `&period=${period}`;
       }
       
-      // Fetch main chart data
-      const chartResponse = await fetch(chartUrl);
-      
-      if (!chartResponse.ok) {
-        throw new Error('Failed to fetch chart data');
-      }
-      
-  const chartJson = await chartResponse.json();
+      // Fetch main chart data via React Query to dedupe identical requests
+      const chartJson = await queryClient.fetchQuery(['api', chartUrl], async () => {
+        const r = await fetch(chartUrl);
+        if (!r.ok) throw new Error('Failed to fetch chart data');
+        return r.json();
+      }, { staleTime: 60000 });
       
   // Fetch only the SMA indicators initially (keep payload small). Other indicators are
   // fetched lazily when the user toggles them on. The chart endpoint still contains
@@ -169,11 +172,16 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   let indicatorsJson = null;
   const initialIndicatorsList = ['sma_50', 'sma_200'];
       
-      let indicatorsResponse = await fetch(
-        `${API_BASE}/stock-data/${stock.id}/technical-indicators?period=${period}&${initialIndicatorsList.map(i => `indicators=${i}`).join('&')}`
-      );
-      if (indicatorsResponse && indicatorsResponse.ok) {
-        indicatorsJson = await indicatorsResponse.json();
+      const indicatorsUrl = `${API_BASE}/stock-data/${stock.id}/technical-indicators?period=${period}&${initialIndicatorsList.map(i => `indicators=${i}`).join('&')}`;
+      try {
+        indicatorsJson = await queryClient.fetchQuery(['api', indicatorsUrl], async () => {
+          const r = await fetch(indicatorsUrl);
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        }, { staleTime: 60000 });
+      } catch (e) {
+        // ignore — indicators are optional and chartJson may already contain aligned series
+        indicatorsJson = null;
       }
 
   // Merge indicators: prefer chart payload indicators (they include warmup/alignment),
@@ -318,33 +326,36 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         });
       }
       
-      // Fetch crossover data
+      // Fetch crossover / calculated metrics data via React Query to enable dedupe
       try {
-        const crossoverResponse = await fetch(`${API_BASE}/stock-data/${stock.id}/calculated-metrics`);
-        if (crossoverResponse.ok) {
-          const crossoverJson = await crossoverResponse.json();
-          const smaCrossovers = crossoverJson?.metrics?.basic_indicators?.sma_crossovers;
-          if (smaCrossovers && smaCrossovers.all_crossovers) {
-            setCrossoverData(smaCrossovers);
-          } else {
-            setCrossoverData(null);
-          }
-          
-          // Fetch Fibonacci data
-          const fibonacciLevels = crossoverJson?.metrics?.basic_indicators?.fibonacci_levels;
-          if (fibonacciLevels) {
-            setFibonacciData(fibonacciLevels);
-          } else {
-            setFibonacciData(null);
-          }
-          
-          // Fetch Support/Resistance data
-          const supportResistance = crossoverJson?.metrics?.basic_indicators?.support_resistance;
-          if (supportResistance) {
-            setSupportResistanceData(supportResistance);
-          } else {
-            setSupportResistanceData(null);
-          }
+        const calcUrl = `${API_BASE}/stock-data/${stock.id}/calculated-metrics`;
+        const crossoverJson = await queryClient.fetchQuery(['api', calcUrl], async () => {
+          const r = await fetch(calcUrl);
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        }, { staleTime: 60000 });
+
+        const smaCrossovers = crossoverJson?.metrics?.basic_indicators?.sma_crossovers;
+        if (smaCrossovers && smaCrossovers.all_crossovers) {
+          setCrossoverData(smaCrossovers);
+        } else {
+          setCrossoverData(null);
+        }
+
+        // Fetch Fibonacci data
+        const fibonacciLevels = crossoverJson?.metrics?.basic_indicators?.fibonacci_levels;
+        if (fibonacciLevels) {
+          setFibonacciData(fibonacciLevels);
+        } else {
+          setFibonacciData(null);
+        }
+
+        // Fetch Support/Resistance data
+        const supportResistance = crossoverJson?.metrics?.basic_indicators?.support_resistance;
+        if (supportResistance) {
+          setSupportResistanceData(supportResistance);
+        } else {
+          setSupportResistanceData(null);
         }
       } catch (crossoverErr) {
         console.error('Error fetching crossover data:', crossoverErr);
@@ -354,16 +365,18 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         setSupportResistanceData(null);
       }
       
-      // Fetch divergence data
+      // Fetch divergence data via React Query to allow dedupe with other components
       try {
-        const divergenceResponse = await fetch(`${API_BASE}/stock-data/${stock.id}/divergence-analysis`);
-        if (divergenceResponse.ok) {
-          const divergenceJson = await divergenceResponse.json();
-          if (divergenceJson?.rsi_divergence || divergenceJson?.macd_divergence) {
-            setDivergenceData(divergenceJson);
-          } else {
-            setDivergenceData(null);
-          }
+        const divUrl = `${API_BASE}/stock-data/${stock.id}/divergence-analysis`;
+        const divergenceJson = await queryClient.fetchQuery(['api', divUrl], async () => {
+          const r = await fetch(divUrl);
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        }, { staleTime: 60000 });
+        if (divergenceJson?.rsi_divergence || divergenceJson?.macd_divergence) {
+          setDivergenceData(divergenceJson);
+        } else {
+          setDivergenceData(null);
         }
       } catch (divergenceErr) {
         console.error('Error fetching divergence data:', divergenceErr);
@@ -377,7 +390,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
     } finally {
       setLoading(false);
     }
-  }, [stock.id, period, customStartDate, customEndDate, onLatestVwap]); // Include all dependencies
+  }, [stock.id, period, customStartDate, customEndDate, onLatestVwap, queryClient]); // Include all dependencies
 
   useEffect(() => {
     fetchChartData();
@@ -514,7 +527,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
 
   const exportToCSV = () => {
     if (!chartData) return;
-    
+
     const headers = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume'];
     const csvContent = [
       headers.join(','),
@@ -527,7 +540,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         row.volume || ''
       ].join(','))
     ].join('\n');
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -537,65 +550,27 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
     window.URL.revokeObjectURL(url);
   };
 
-  // Custom tooltip with cursor-based positioning
-  const CustomTooltip = ({ active, payload, label, coordinate }) => {
-    if (!active || !payload || payload.length === 0 || !coordinate) return null;
-    
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (!active || !payload || payload.length === 0) return null;
     const data = payload[0].payload;
-    
-    // Position tooltip left of cursor (offset by -220px to avoid covering chart)
-    // If too close to left edge, position it to the right instead
-    const offsetX = coordinate.x < 250 ? 15 : -220;
-    const offsetY = -10; // Slightly above cursor
-    
-    const tooltipStyle = {
-      position: 'absolute',
-      left: `${coordinate.x + offsetX}px`,
-      top: `${coordinate.y + offsetY}px`,
-      pointerEvents: 'none', // Don't interfere with mouse events
-      transform: 'translateY(-50%)', // Center vertically on cursor
-    };
-    
+
     return (
-      <div className="chart-tooltip" style={tooltipStyle}>
-        <p className="tooltip-date">{label}</p>
-        {chartType === CHART_TYPES.CANDLESTICK ? (
-          <>
-            <p>
-              <span className="tooltip-label">Close:</span>
-              {' '}
-              <span className="tooltip-value">{formatPrice(data.close, stock)}</span>
-            </p>
-          </>
-        ) : (
+      <div className="custom-tooltip" style={{ background: 'white', padding: '8px', border: '1px solid #ddd', borderRadius: 6 }}>
+        {showSMA50 && data.sma50 != null && (
           <p>
-            <span className="tooltip-label">Price:</span>
+            <span className="tooltip-label" style={{ color: '#ff7f0e' }}>SMA 50:</span>
             {' '}
-            <span className="tooltip-value">{formatPrice(data.close, stock)}</span>
+            <span className="tooltip-value">{formatPrice(data.sma50, stock)}</span>
           </p>
         )}
-        {showVolume && data.volume && (
+        {showSMA200 && data.sma200 != null && (
           <p>
-            <span className="tooltip-label">Volume:</span>
-            {' '}
-            <span className="tooltip-value">{(data.volume / 1000000).toFixed(2)}M</span>
-          </p>
-        )}
-        {showSMA50 && data.sma50 && data.sma50 !== null && data.sma50 !== undefined && (
-            <p>
-              <span className="tooltip-label" style={{ color: '#ff7f0e' }}>SMA 50:</span>
-              {' '}
-              <span className="tooltip-value">{formatPrice(data.sma50, stock)}</span>
-            </p>
-        )}
-        {showSMA200 && data.sma200 && data.sma200 !== null && data.sma200 !== undefined && (
-            <p>
             <span className="tooltip-label" style={{ color: '#9467bd' }}>SMA 200:</span>
             {' '}
             <span className="tooltip-value">{formatPrice(data.sma200, stock)}</span>
           </p>
         )}
-        {showBollinger && data.bollingerUpper && data.bollingerUpper !== null && data.bollingerUpper !== undefined && (
+        {showBollinger && data.bollingerUpper != null && (
           <>
             <p>
               <span className="tooltip-label" style={{ color: '#e74c3c' }}>BB Upper:</span>
@@ -612,14 +587,14 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
               {' '}
               <span className="tooltip-value">{data.bollingerLower != null ? formatPrice(data.bollingerLower, stock) : 'N/A'}</span>
             </p>
-            {data.bollingerPercentB !== undefined && data.bollingerPercentB !== null && (
+            {data.bollingerPercentB != null && (
               <p>
                 <span className="tooltip-label" style={{ color: '#3498db' }}>%B:</span>
                 {' '}
                 <span className="tooltip-value">{data.bollingerPercentB.toFixed(2)}</span>
               </p>
             )}
-            {data.bollingerBandwidth !== undefined && data.bollingerBandwidth !== null && (
+            {data.bollingerBandwidth != null && (
               <p>
                 <span className="tooltip-label" style={{ color: '#f39c12' }}>Bandwidth:</span>
                 {' '}
@@ -628,30 +603,30 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
             )}
           </>
         )}
-        {showATR && data.atr && data.atr !== null && data.atr !== undefined && (
-            <p>
+        {showATR && data.atr != null && (
+          <p>
             <span className="tooltip-label" style={{ color: '#f39c12' }}>ATR:</span>
             {' '}
             <span className="tooltip-value">{formatPrice(data.atr, stock)}</span>
           </p>
         )}
-        {showVWAP && data.vwap && data.vwap !== null && data.vwap !== undefined && (
+        {showVWAP && data.vwap != null && (
           <p>
             <span className="tooltip-label" style={{ color: '#17a2b8' }}>VWAP (20):</span>
             {' '}
             <span className="tooltip-value">{formatPrice(data.vwap, stock)}</span>
           </p>
         )}
-        {showIchimoku && ( (data.ichimoku_conversion !== undefined && data.ichimoku_conversion !== null) || (data.ichimoku_base !== undefined && data.ichimoku_base !== null)) && (
+        {showIchimoku && ((data.ichimoku_conversion != null) || (data.ichimoku_base != null)) && (
           <>
-            {data.ichimoku_conversion !== undefined && data.ichimoku_conversion !== null && (
+            {data.ichimoku_conversion != null && (
               <p>
                 <span className="tooltip-label" style={{ color: '#1f77b4' }}>Ichimoku Tenkan (Conv):</span>
                 {' '}
                 <span className="tooltip-value">{formatPrice(data.ichimoku_conversion, stock)}</span>
               </p>
             )}
-            {data.ichimoku_base !== undefined && data.ichimoku_base !== null && (
+            {data.ichimoku_base != null && (
               <p>
                 <span className="tooltip-label" style={{ color: '#ff7f0e' }}>Ichimoku Kijun (Base):</span>
                 {' '}

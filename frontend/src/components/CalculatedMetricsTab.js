@@ -4,6 +4,7 @@ import './CalculatedMetrics.css';
 import '../styles/skeletons.css';
 
 import API_BASE from '../config';
+import { useQueryClient } from '@tanstack/react-query';
 import { formatPrice } from '../utils/currencyUtils';
 
 /**
@@ -26,6 +27,7 @@ function CalculatedMetricsTab({ stockId, isActive = true, prefetch = false, char
 
   // Ref to store the current AbortController so we can cancel in-flight requests
   const controllerRef = useRef(null);
+  const queryClient = useQueryClient();
 
   const loadMetrics = useCallback(async () => {
     // Abort previous in-flight request to avoid race conditions
@@ -44,25 +46,29 @@ function CalculatedMetricsTab({ stockId, isActive = true, prefetch = false, char
   // load initiated
 
     try {
-      // Load calculated metrics
-      const response = await fetch(`${API_BASE}/stock-data/${stockId}/calculated-metrics`, { signal });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      // Load calculated metrics via React Query to enable caching/dedupe
+      const calcUrl = `${API_BASE}/stock-data/${stockId}/calculated-metrics`;
+      const data = await queryClient.fetchQuery(['api', calcUrl], async () => {
+        const r = await fetch(calcUrl);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }, { staleTime: 60000 });
       setMetrics(data);
 
       // If SMA values are missing from calculated-metrics, try to fetch them from
       // the technical-indicators endpoint and merge the latest value into metrics
-      try {
+      {
         const hasSma50 = data?.metrics?.basic_indicators?.sma_50 !== undefined && data?.metrics?.basic_indicators?.sma_50 !== null;
         const hasSma200 = data?.metrics?.basic_indicators?.sma_200 !== undefined && data?.metrics?.basic_indicators?.sma_200 !== null;
         if (!hasSma50 || !hasSma200) {
-          const smaResp = await fetch(`${API_BASE}/stock-data/${stockId}/technical-indicators?period=1y&indicators=sma_50&indicators=sma_200`, { signal });
-          if (smaResp.ok) {
-            const smaJson = await smaResp.json();
+          const smaUrl = `${API_BASE}/stock-data/${stockId}/technical-indicators?period=1y&indicators=sma_50&indicators=sma_200`;
+          try {
+            const smaJson = await queryClient.fetchQuery(['api', smaUrl], async () => {
+              const r = await fetch(smaUrl);
+              if (!r.ok) throw new Error(`HTTP ${r.status}`);
+              return r.json();
+            }, { staleTime: 60000 });
+
             const extractLatestNumber = (maybeArray) => {
               if (!maybeArray) return null;
               if (Array.isArray(maybeArray) && maybeArray.length > 0) {
@@ -91,16 +97,20 @@ function CalculatedMetricsTab({ stockId, isActive = true, prefetch = false, char
                 return next;
               });
             }
+          } catch (smaErr) {
+            // ignore SMA fetch errors
           }
         }
-      } catch (e) {
-        // ignore SMA fetch errors — not critical for the tab
       }
 
       // Load VWAP from technical indicators (use same signal so both requests can be aborted)
-      const vwapResponse = await fetch(`${API_BASE}/stock-data/${stockId}/technical-indicators?period=1y&indicators=vwap`, { signal });
-      if (vwapResponse.ok) {
-        const vwapJson = await vwapResponse.json();
+      const vwapUrl = `${API_BASE}/stock-data/${stockId}/technical-indicators?period=1y&indicators=vwap`;
+      const vwapJson = await queryClient.fetchQuery(['api', vwapUrl], async () => {
+        const r = await fetch(vwapUrl);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }, { staleTime: 60000 });
+      if (vwapJson) {
 
         // Helper: try to extract the last numeric value from different shapes
         const extractLatestNumber = (maybeArray) => {
@@ -136,27 +146,30 @@ function CalculatedMetricsTab({ stockId, isActive = true, prefetch = false, char
           // Prefer computing VWAP from the same chart data the StockChart uses
           // to ensure consistency between Chart and Auswertung tabs.
           try {
-            const chartResp = await fetch(`${API_BASE}/stock-data/${stockId}/chart?period=1y&include_volume=true`, { signal });
-            if (chartResp.ok) {
-              const chartJson = await chartResp.json();
-              const closes = Array.isArray(chartJson.close) ? chartJson.close : (chartJson?.close || []);
-              const volumes = Array.isArray(chartJson.volume) ? chartJson.volume : (chartJson?.volume || []);
-              // take last up to 20 entries
-              const n = Math.min(20, closes.length, volumes.length);
-              let volSum = 0;
-              let pwSum = 0;
-              for (let i = closes.length - n; i < closes.length; i++) {
-                const close = closes[i];
-                const vol = volumes[i];
-                if (typeof close === 'number' && typeof vol === 'number' && vol > 0) {
-                  pwSum += close * vol;
-                  volSum += vol;
-                }
+            const chartUrl = `${API_BASE}/stock-data/${stockId}/chart?period=1y&include_volume=true`;
+            const chartJson = await queryClient.fetchQuery(['api', chartUrl], async () => {
+              const r = await fetch(chartUrl, { signal });
+              if (!r.ok) throw new Error(`HTTP ${r.status}`);
+              return r.json();
+            }, { staleTime: 60000 });
+
+            const closes = Array.isArray(chartJson.close) ? chartJson.close : (chartJson?.close || []);
+            const volumes = Array.isArray(chartJson.volume) ? chartJson.volume : (chartJson?.volume || []);
+            // take last up to 20 entries
+            const n = Math.min(20, closes.length, volumes.length);
+            let volSum = 0;
+            let pwSum = 0;
+            for (let i = closes.length - n; i < closes.length; i++) {
+              const close = closes[i];
+              const vol = volumes[i];
+              if (typeof close === 'number' && typeof vol === 'number' && vol > 0) {
+                pwSum += close * vol;
+                volSum += vol;
               }
-              if (volSum > 0) {
-                currentVwap = pwSum / volSum;
-                fallbackUsed = true;
-              }
+            }
+            if (volSum > 0) {
+              currentVwap = pwSum / volSum;
+              fallbackUsed = true;
             }
           } catch (err) {
             // ignore and try older price-history endpoint next
@@ -165,24 +178,27 @@ function CalculatedMetricsTab({ stockId, isActive = true, prefetch = false, char
           // If chart-based fallback failed, fall back to the legacy price-history endpoint
           if (currentVwap === null) {
             try {
-              const histResp = await fetch(`${API_BASE}/stocks/${stockId}/price-history?limit=20`, { signal });
-              if (histResp.ok) {
-                const histJson = await histResp.json();
-                const priceRecords = Array.isArray(histJson.data) ? histJson.data : (histJson || []).slice ? histJson : [];
-                let volSum = 0;
-                let pwSum = 0;
-                for (const r of priceRecords) {
-                  const close = r?.close ?? r?.price ?? r?.close_price ?? null;
-                  const vol = r?.volume ?? r?.vol ?? null;
-                  if (typeof close === 'number' && typeof vol === 'number' && vol > 0) {
-                    pwSum += close * vol;
-                    volSum += vol;
-                  }
+              const histUrl = `${API_BASE}/stocks/${stockId}/price-history?limit=20`;
+              const histJson = await queryClient.fetchQuery(['api', histUrl], async () => {
+                const r = await fetch(histUrl, { signal });
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.json();
+              }, { staleTime: 60000 });
+
+              const priceRecords = Array.isArray(histJson.data) ? histJson.data : (histJson || []).slice ? histJson : [];
+              let volSum = 0;
+              let pwSum = 0;
+              for (const r of priceRecords) {
+                const close = r?.close ?? r?.price ?? r?.close_price ?? null;
+                const vol = r?.volume ?? r?.vol ?? null;
+                if (typeof close === 'number' && typeof vol === 'number' && vol > 0) {
+                  pwSum += close * vol;
+                  volSum += vol;
                 }
-                if (volSum > 0) {
-                  currentVwap = pwSum / volSum;
-                  fallbackUsed = true;
-                }
+              }
+              if (volSum > 0) {
+                currentVwap = pwSum / volSum;
+                fallbackUsed = true;
               }
             } catch (err) {
               // ignore errors for the fallback; we'll simply not show VWAP

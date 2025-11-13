@@ -9,6 +9,7 @@ import SectorComparisonTab from './SectorComparisonTab';
 import AlertModal from './AlertModal';
 import { getUnitForAlertType, getAlertTypeLabel, getConditionLabel, formatNumber, formatPrice } from '../utils/currencyUtils';
 import { useAlerts } from '../hooks/useAlerts';
+import { useQueryClient } from '@tanstack/react-query';
 
 import API_BASE from '../config';
 import { OBSERVATION_REASON_OPTIONS } from './ObservationFields';
@@ -23,22 +24,32 @@ function StockDetailModal({ stock, onClose }) {
   const [activeTab, setActiveTab] = useState('chart'); // 'chart', 'fundamentals', 'analysis', 'investment', 'company'
   const [alertModalConfig, setAlertModalConfig] = useState(null); // { mode: 'create' | 'edit', alert: null | Alert }
 
+  const queryClient = useQueryClient();
+
   const loadExtendedData = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/stocks/${stock.id}/detailed`);
-      const data = await response.json();
-      setExtendedData(data.extended_data);
-      // try top-level ir_website from API response, fallback to common keys inside extended_data
-      const website = data.ir_website || data.extended_data?.website || data.extended_data?.info_full?.website || data.extended_data?.business_summary?.website || null;
+      const url = `${API_BASE}/stocks/${stock.id}/detailed`;
+      const data = await queryClient.fetchQuery(['api', url], async () => {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+        return await response.json();
+      }, { staleTime: 300000 });
+
+      setExtendedData(data?.extended_data);
+      const website = data?.ir_website || data?.extended_data?.website || data?.extended_data?.info_full?.website || data?.extended_data?.business_summary?.website || null;
       setIrWebsite(website);
-      // Also try to fetch latest fundamentals (single most recent period) to populate Bilanz / GuV / Cashflow sections
+
+      // Also try to fetch latest fundamentals (single most recent period) to populate sections
       try {
-        const fRes = await fetch(`${API_BASE}/stocks/${stock.id}/fundamentals?periods=1`);
-        if (fRes.ok) {
-          const fJson = await fRes.json();
-          if (fJson && Array.isArray(fJson.data) && fJson.data.length > 0) {
-            setLatestFundamentals(fJson.data[0]);
-          }
+        const fUrl = `${API_BASE}/stocks/${stock.id}/fundamentals?periods=1`;
+        const fJson = await queryClient.fetchQuery(['api', fUrl], async () => {
+          const resp = await fetch(fUrl);
+          if (!resp.ok) throw new Error(`Request failed: ${resp.status}`);
+          return await resp.json();
+        }, { staleTime: 300000 });
+
+        if (fJson && Array.isArray(fJson.data) && fJson.data.length > 0) {
+          setLatestFundamentals(fJson.data[0]);
         }
       } catch (e) {
         // non-fatal: ignore
@@ -48,7 +59,7 @@ function StockDetailModal({ stock, onClose }) {
     } finally {
       setLoading(false);
     }
-  }, [stock.id]);
+  }, [stock.id, queryClient]);
 
   const handleDeleteAlert = async (alertId) => {
     await deleteAlert(alertId);

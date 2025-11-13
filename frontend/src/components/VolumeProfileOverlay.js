@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import './VolumeProfileOverlay.css';
 import '../styles/skeletons.css';
 
@@ -28,32 +29,26 @@ function VolumeProfileOverlay({
 }) {
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!stockId) return;
 
     const fetchVolumeProfile = async () => {
       setLoading(true);
-
+      const url = `${API_BASE}/stock-data/${stockId}/volume-profile?period_days=${period}&num_bins=${numBins}`;
       try {
-        const response = await fetch(
-          `${API_BASE}/stock-data/${stockId}/volume-profile?period_days=${period}&num_bins=${numBins}`
-        );
+        const data = await queryClient.fetchQuery(['api', url], async () => {
+          const r = await fetch(url);
+          if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+          const j = await r.json();
+          if (j.error) throw new Error(j.error);
+          return j;
+        }, { staleTime: 60000 });
 
-        if (response.ok) {
-          const data = await response.json();
-          
-          if (!data.error) {
-            setProfileData(data);
-            
-            if (onProfileLoad) {
-              onProfileLoad({
-                poc: data.poc,
-                vah: data.value_area.high,
-                val: data.value_area.low
-              });
-            }
-          }
+        setProfileData(data);
+        if (onProfileLoad) {
+          onProfileLoad({ poc: data.poc, vah: data.value_area.high, val: data.value_area.low });
         }
       } catch (err) {
         console.error('Error fetching volume profile:', err);
