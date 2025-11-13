@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import '../styles/skeletons.css';
 import API_BASE from '../config';
 import { formatPrice } from '../utils/currencyUtils';
@@ -25,7 +25,7 @@ function StockModal({ watchlistId, onClose, onStockAdded, onShowToast }) {
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [observationReasons, setObservationReasons] = useState([]);
   const [observationNotes, setObservationNotes] = useState('');
-  const [showReasonsDropdown, setShowReasonsDropdown] = useState(false);
+  
 
   const handleModeChange = (nextMode) => {
     setMode(nextMode);
@@ -53,19 +53,7 @@ function StockModal({ watchlistId, onClose, onStockAdded, onShowToast }) {
     onClose();
   };
 
-  const handleObservationReasonsChange = (value) => {
-    if (observationReasons.includes(value)) {
-      // Entfernen wenn bereits ausgewählt
-      setObservationReasons(observationReasons.filter(r => r !== value));
-    } else {
-      // Hinzufügen wenn noch nicht ausgewählt
-      setObservationReasons([...observationReasons, value]);
-    }
-  };
-
-  const handleObservationNotesChange = (event) => {
-    setObservationNotes(event.target.value);
-  };
+  
 
   const renderObservationFields = (suffix) => (
     <ObservationFields

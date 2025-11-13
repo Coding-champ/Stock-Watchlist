@@ -29,7 +29,7 @@ function AnalystTab({ stockId }) {
       setError('Fehler beim Laden der Analystendaten');
       setLoading(false);
     });
-  }, [stockId]);
+  }, [stockId, queryClient]);
 
   return (
     <div className="analyst-tab">

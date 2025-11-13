@@ -71,7 +71,7 @@ function FundamentalsTimeSeriesTab({ stockId }) {
 
     fetchData();
     return () => { mounted = false; };
-  }, [stockId, metric, period]);
+  }, [stockId, metric, period, queryClient]);
 
   
 

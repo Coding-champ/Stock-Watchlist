@@ -58,7 +58,7 @@ function VolumeProfile({ stockId, period = 30, numBins = 50, height = 400, onLoa
     };
 
     fetchVolumeProfile();
-  }, [stockId, period, numBins, onLoad]);
+  }, [stockId, period, numBins, onLoad, queryClient]);
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload }) => {

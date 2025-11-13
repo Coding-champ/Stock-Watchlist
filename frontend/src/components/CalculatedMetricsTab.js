@@ -242,7 +242,7 @@ function CalculatedMetricsTab({ stockId, isActive = true, prefetch = false, char
       if (!signal.aborted) setLoading(false);
       if (controllerRef.current === controller) controllerRef.current = null;
     }
-  }, [stockId, chartLatestVwap]);
+  }, [stockId, chartLatestVwap, queryClient]);
 
   // Load metrics when component becomes active (e.g. when the "Auswertung" tab is selected).
   // Keep default isActive = true for backward compatibility so behavior is unchanged

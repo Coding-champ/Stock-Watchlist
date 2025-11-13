@@ -35,7 +35,7 @@ export function useAlerts(stockId = null, showToast = null) {
     } finally {
       setLoading(false);
     }
-  }, [stockId, showToast]);
+  }, [stockId, showToast, queryClient]);
 
   // Toggle alert active status
   const toggleAlert = useCallback(async (alert) => {

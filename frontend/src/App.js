@@ -9,6 +9,7 @@ import EarningsView from './components/earnings/EarningsView';
 import StockDetailPage from './components/StockDetailPage';
 
 import API_BASE from './config';
+import { useQueryClient } from '@tanstack/react-query';
 
 function App() {
   const [watchlists, setWatchlists] = useState([]);
@@ -44,6 +45,7 @@ function App() {
 
   // Use the alerts hook for background checking (after showToast is defined)
   const { checkAllAlerts } = useAlerts(null, showToast);
+  const queryClient = useQueryClient();
 
   useEffect(() => () => {
     if (toastTimeoutRef.current) {
@@ -55,8 +57,12 @@ function App() {
   const loadWatchlists = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/watchlists/`);
-      const data = await response.json();
+      const url = `${API_BASE}/watchlists/`;
+      const data = await queryClient.fetchQuery(['api', url], async () => {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      }, { staleTime: 60 * 1000 });
       setWatchlists(data);
     } catch (error) {
       console.error('Error loading watchlists:', error);
@@ -64,7 +70,7 @@ function App() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, queryClient]);
 
   useEffect(() => {
     loadWatchlists();

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import PropTypes from 'prop-types';
 import {
@@ -29,7 +29,7 @@ function SeasonalityTab({ stockId }) {
   const [selectedPeriod, setSelectedPeriod] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [availableYears, setAvailableYears] = useState(null);
+  const availableYearsRef = useRef(null);
   const [availableRange, setAvailableRange] = useState(null);
   const queryClient = useQueryClient();
   // when we detect the server has less history than 'all' default (15y), we may
@@ -58,8 +58,8 @@ function SeasonalityTab({ stockId }) {
         // 1) { seasonality: [...], series: [...] }
         // 2) [...] (legacy)
         // If the API returns an object with metadata, capture it for UI hints
-        if (!Array.isArray(data) && data) {
-          if (Array.isArray(data.available_years)) setAvailableYears(data.available_years);
+          if (!Array.isArray(data) && data) {
+          if (Array.isArray(data.available_years)) availableYearsRef.current = data.available_years;
           if (data.available_range) setAvailableRange(data.available_range);
         }
 
@@ -96,7 +96,7 @@ function SeasonalityTab({ stockId }) {
         setError('Fehler beim Laden der Saisonalitätsdaten');
         setLoading(false);
       });
-  }, [stockId, selectedPeriod, forcedYearsBack]);
+  }, [stockId, selectedPeriod, forcedYearsBack, queryClient]);
 
   // initialize visible series keys whenever series updates
   useEffect(() => {

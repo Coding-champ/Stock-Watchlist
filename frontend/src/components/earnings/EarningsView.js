@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import '../../styles/skeletons.css';
 import API_BASE from '../../config';
+import { useQueryClient } from '@tanstack/react-query';
 
 const EarningsView = () => {
   const [earnings, setEarnings] = useState([]);
@@ -8,6 +9,7 @@ const EarningsView = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [loadingByDay, setLoadingByDay] = useState({});
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let cancelled = false;
@@ -17,12 +19,22 @@ const EarningsView = () => {
       setError(null);
       try {
         // Get stocks (limit to 100 to avoid throttling)
-        const resp = await fetch(`${API_BASE}/stocks?limit=100`);
-        const stocks = await resp.json();
+        const stocksUrl = `${API_BASE}/stocks?limit=100`;
+        const stocks = await queryClient.fetchQuery(['api', stocksUrl], async () => {
+          const r = await fetch(stocksUrl);
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        }, { staleTime: 60 * 1000 });
 
         // For each stock, fetch calendar/earnings
         const requests = stocks.map((s) =>
-          fetch(`${API_BASE}/stocks/${s.id}/calendar`).then((r) => ({ r, s })).catch((e) => ({ error: e, s }))
+          queryClient.fetchQuery(['api', `${API_BASE}/stocks/${s.id}/calendar`], async () => {
+            const r = await fetch(`${API_BASE}/stocks/${s.id}/calendar`);
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+          }, { staleTime: 60 * 1000 })
+          .then((data) => ({ r: { ok: true, status: 200, json: async () => data }, s }))
+          .catch((e) => ({ error: e, s }))
         );
 
         const results = await Promise.all(requests);
@@ -137,7 +149,13 @@ const EarningsView = () => {
 
               try {
                 const extPromises = ids.map((id) =>
-                  fetch(`${API_BASE}/stocks/${id}/extended-data`).then((r) => ({ r, id })).catch((e) => ({ error: e, id }))
+                  queryClient.fetchQuery(['api', `${API_BASE}/stocks/${id}/extended-data`], async () => {
+                    const r = await fetch(`${API_BASE}/stocks/${id}/extended-data`);
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    return r.json();
+                  }, { staleTime: 300000 })
+                  .then((data) => ({ r: { ok: true, status: 200, json: async () => data }, id }))
+                  .catch((e) => ({ error: e, id }))
                 );
                 const extResults = await Promise.all(extPromises);
                 const tzById = {};
@@ -166,7 +184,13 @@ const EarningsView = () => {
           } else {
             // Non-grouped: fetch all extended-data in bulk (original behavior)
             const extPromises = idsWithEarnings.map((id) =>
-              fetch(`${API_BASE}/stocks/${id}/extended-data`).then((r) => ({ r, id })).catch((e) => ({ error: e, id }))
+              queryClient.fetchQuery(['api', `${API_BASE}/stocks/${id}/extended-data`], async () => {
+                const r = await fetch(`${API_BASE}/stocks/${id}/extended-data`);
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.json();
+              }, { staleTime: 300000 })
+              .then((data) => ({ r: { ok: true, status: 200, json: async () => data }, id }))
+              .catch((e) => ({ error: e, id }))
             );
 
             const extResults = await Promise.all(extPromises);
@@ -204,7 +228,7 @@ const EarningsView = () => {
     return () => {
       cancelled = true;
     };
-  }, [groupByDate]);
+  }, [groupByDate, queryClient]);
 
   // Grouped view calculation
   const grouped = useMemo(() => {

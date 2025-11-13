@@ -57,7 +57,7 @@ function StockDetailPage({ stock, onBack }) {
     } finally {
       setLoading(false);
     }
-  }, [stock.id]);
+  }, [stock.id, queryClient]);
 
   const handleDeleteAlert = async (alertId) => {
     await deleteAlert(alertId);

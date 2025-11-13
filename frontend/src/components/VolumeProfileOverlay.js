@@ -58,7 +58,7 @@ function VolumeProfileOverlay({
     };
 
     fetchVolumeProfile();
-  }, [stockId, period, numBins, onProfileLoad]);
+  }, [stockId, period, numBins, onProfileLoad, queryClient]);
 
   // Separate useEffect to call onProfileLoad when data changes
   useEffect(() => {

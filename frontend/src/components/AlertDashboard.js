@@ -3,10 +3,12 @@ import '../styles/skeletons.css';
 import { getAlertTypeLabel, getConditionLabel, getUnitForAlertType, formatNumber } from '../utils/currencyUtils';
 import { useAlerts } from '../hooks/useAlerts';
 import API_BASE from '../config';
+import { useQueryClient } from '@tanstack/react-query';
 
 function AlertDashboard({ onClose, showToast }) {
   const { alerts, loading, loadAlerts, toggleAlert, deleteAlert, checkAllAlerts } = useAlerts(null, showToast);
   const [stocks, setStocks] = useState({});
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState('all'); // 'all', 'active', 'inactive', 'triggered'
   const [sortBy, setSortBy] = useState('created'); // 'created', 'triggered', 'stock', 'type'
 
@@ -16,8 +18,12 @@ function AlertDashboard({ onClose, showToast }) {
       await loadAlerts();
       
       // Load all stocks to get names
-      const watchlistsResponse = await fetch(`${API_BASE}/watchlists/`);
-      const watchlistsData = await watchlistsResponse.json();
+      const url = `${API_BASE}/watchlists/`;
+      const watchlistsData = await queryClient.fetchQuery(['api', url], async () => {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }, { staleTime: 60 * 1000 });
       
       // Create stock lookup
       const stockLookup = {};
@@ -32,7 +38,7 @@ function AlertDashboard({ onClose, showToast }) {
       console.error('Error loading data:', error);
       if (showToast) showToast('Fehler beim Laden der Daten', 'error');
     }
-  }, [loadAlerts, showToast]);
+  }, [loadAlerts, showToast, queryClient]);
 
   useEffect(() => {
     loadAllData();

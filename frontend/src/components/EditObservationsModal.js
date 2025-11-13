@@ -14,15 +14,7 @@ function EditObservationsModal({ stock, watchlistId, onClose, onSaved, onShowToa
     }
   }, [stock]);
 
-  const handleObservationReasonsChange = (value) => {
-    if (observationReasons.includes(value)) {
-      // Entfernen wenn bereits ausgewählt
-      setObservationReasons(observationReasons.filter(r => r !== value));
-    } else {
-      // Hinzufügen wenn noch nicht ausgewählt
-      setObservationReasons([...observationReasons, value]);
-    }
-  };
+  // Note: ObservationFields uses setObservationReasons directly; no local handler required
 
   const handleClearAll = () => {
     setObservationReasons([]);

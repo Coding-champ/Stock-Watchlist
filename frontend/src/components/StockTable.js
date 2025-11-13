@@ -456,7 +456,7 @@ function StockTable({
     return () => {
       cancelled = true;
     };
-  }, [stocks]);
+  }, [stocks, queryClient]);
 
   useEffect(() => {
     if (!stocks || stocks.length === 0) {
@@ -512,7 +512,7 @@ function StockTable({
     return () => {
       cancelled = true;
     };
-  }, [stocks]);
+  }, [stocks, queryClient]);
 
   const toggleMenu = (event, stockId) => {
     event.stopPropagation();
