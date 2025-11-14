@@ -2811,8 +2811,7 @@ tr:hover {
 
 /* Extended Stock Detail Modal Styles */
 .stock-detail-content {
-  max-height: calc(95vh - 100px);
-  overflow-y: auto;
+  /* Keine eigene Scrollbar - Modal-Content scrollt */
 }
 
 .business-summary {
@@ -3036,18 +3035,18 @@ tr:hover {
 }
 
 .tab-button {
-  padding: 12px 24px;
+  padding: 12px 16px;
   background: transparent;
   border: none;
   border-bottom: 3px solid transparent;
   color: #6c757d;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   position: relative;
   bottom: -6px;
 }

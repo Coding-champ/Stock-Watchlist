@@ -282,13 +282,13 @@ function StockDetailPage({ stock, onBack }) {
               className={`tab-button ${activeTab === 'chart' ? 'active' : ''}`}
               onClick={() => setActiveTab('chart')}
             >
-              📈 Chart
+              Chart
             </button>
             <button 
               className={`tab-button ${activeTab === 'fundamentals' ? 'active' : ''}`}
               onClick={() => setActiveTab('fundamentals')}
             >
-              🔢 Fundamentaldaten
+              Fundamentaldaten
             </button>
             <button
               className={`tab-button ${activeTab === 'fundamentals_ts' ? 'active' : ''}`}
@@ -300,39 +300,39 @@ function StockDetailPage({ stock, onBack }) {
               className={`tab-button ${activeTab === 'sector_comparison' ? 'active' : ''}`}
               onClick={() => setActiveTab('sector_comparison')}
             >
-              Branchenvergleich
+              PeerGroup
             </button>
             <button 
               className={`tab-button ${activeTab === 'analysis' ? 'active' : ''}`}
               onClick={() => setActiveTab('analysis')}
             >
-              📋 Auswertung
+              Auswertung
             </button>
             <button 
               className={`tab-button ${activeTab === 'investment' ? 'active' : ''}`}
               onClick={() => setActiveTab('investment')}
             >
-              🎯 Investment
+              Investment
             </button>
             <button
               key="Saisonalität"
               className={`tab-button${activeTab === 'saisonalität' ? ' active' : ''}`}
               onClick={() => setActiveTab('saisonalität')}
             >
-              🌦️ Saisonalität
+              Saisonalität
             </button>
             <button
               key="Analysten"
               className={`tab-button${activeTab === 'analysten' ? ' active' : ''}`}
               onClick={() => setActiveTab('analysten')}
             >
-              🧑 Analysten
+              Analysten
             </button>
             <button 
               className={`tab-button ${activeTab === 'company' ? 'active' : ''}`}
               onClick={() => setActiveTab('company')}
             >
-              🏢 Unternehmensinfos
+              Unternehmensinfo
             </button>
           </div>
 
