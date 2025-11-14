@@ -16,6 +16,7 @@
   background: #f8f9fa;
   border-radius: 6px;
   border: 1px solid #e0e0e0;
+  justify-content: flex-start;
 }
 
 .control-group {
@@ -150,6 +151,63 @@
 .checkbox-label span {
   color: #333;
   font-weight: 500;
+}
+
+/* Collapsible Panels */
+.collapsible-panel {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #ddd;
+  background-color: #f8f9fa;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #dee2e6;
+}
+
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.collapsible-toggle-icon {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid #666;
+  transition: transform 0.3s ease;
+  margin-right: 4px;
+}
+
+.collapsible-toggle-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.collapsible-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.3s ease;
+  opacity: 0;
+}
+
+.collapsible-content.expanded {
+  max-height: 1000px;
+  opacity: 1;
+  margin-top: 10px;
+}
+
+/* Specific panel styling */
+.bollinger-signal-panel {
+  border: 1px solid #dee2e6;
+}
+
+.bollinger-signal-panel.squeeze {
+  background-color: #fff3cd;
+  border: 2px solid #ffc107;
 }
 
 /* Export Buttons */

@@ -79,7 +79,6 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   const [showFibonacci, setShowFibonacci] = useState(false);
   const [fibonacciType, setFibonacciType] = useState('retracement'); // 'retracement' or 'extension'
   const [selectedFibLevels, setSelectedFibLevels] = useState({
-    '23.6': false,
     '38.2': false,
     '50.0': true,
     '61.8': true,
@@ -105,6 +104,12 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   const [showVolumeProfileOverlay, setShowVolumeProfileOverlay] = useState(false);
   const [volumeProfileLevels, setVolumeProfileLevels] = useState(null);
   const [xAxisTicks, setXAxisTicks] = useState(null);
+
+  // Collapsible panel states
+  const [fibonacciPanelExpanded, setFibonacciPanelExpanded] = useState(true);
+  const [supportResistancePanelExpanded, setSupportResistancePanelExpanded] = useState(true);
+  const [volumeProfilePanelExpanded, setVolumeProfilePanelExpanded] = useState(true);
+  const [bollingerSignalPanelExpanded, setBollingerSignalPanelExpanded] = useState(true);
 
   // Memoized callback for Volume Profile data loading
   const handleProfileLoad = useCallback((levels) => {
@@ -1153,6 +1158,18 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         </div>
 
         <div className="control-group">
+          <label>Export:</label>
+          <div className="export-buttons">
+            <button onClick={exportToPNG} className="export-button">
+              🖼️ PNG
+            </button>
+            <button onClick={exportToCSV} className="export-button">
+              📄 CSV
+            </button>
+          </div>
+        </div>
+
+        <div className="control-group">
           <label>Indikatoren:</label>
           <div className="indicator-toggles">
             <label className="checkbox-label">
@@ -1253,294 +1270,284 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
             </label>
             
             {/* Fibonacci Controls */}
-            <div className="fibonacci-controls" style={{ 
-              marginTop: '10px', 
-              paddingTop: '10px', 
-              borderTop: '1px solid #ddd',
-              backgroundColor: '#f8f9fa',
-              padding: '10px',
-              borderRadius: '6px'
-            }}>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={showFibonacci}
-                  onChange={(e) => setShowFibonacci(e.target.checked)}
-                />
-                <span style={{ fontWeight: 'bold' }}>📐 Fibonacci Levels</span>
-              </label>
+            <div className="collapsible-panel">
+              <div 
+                className="collapsible-header"
+                onClick={() => setFibonacciPanelExpanded(!fibonacciPanelExpanded)}
+              >
+                <span className={`collapsible-toggle-icon ${fibonacciPanelExpanded ? 'expanded' : ''}`}></span>
+                <label className="checkbox-label" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={showFibonacci}
+                    onChange={(e) => setShowFibonacci(e.target.checked)}
+                  />
+                  <span style={{ fontWeight: 'bold' }}>📐 Fibonacci Levels</span>
+                </label>
+              </div>
               
-              {showFibonacci && fibonacciData && (
-                <div style={{ marginLeft: '10px', marginTop: '10px' }}>
-                  {/* Type Selection */}
-                  <div style={{ 
-                    marginBottom: '10px',
-                    display: 'flex',
-                    gap: '5px'
-                  }}>
-                    <button
-                      onClick={() => setFibonacciType('retracement')}
-                      style={{
-                        padding: '5px 12px',
-                        fontSize: '12px',
-                        border: '1px solid #007bff',
-                        borderRadius: '4px',
-                        backgroundColor: fibonacciType === 'retracement' ? '#007bff' : 'white',
-                        color: fibonacciType === 'retracement' ? 'white' : '#007bff',
-                        cursor: 'pointer',
-                        fontWeight: fibonacciType === 'retracement' ? 'bold' : 'normal',
-                        transition: 'all var(--motion-short)'
-                      }}
-                    >
-                      📉 Retracement
-                    </button>
-                    <button
-                      onClick={() => setFibonacciType('extension')}
-                      style={{
-                        padding: '5px 12px',
-                        fontSize: '12px',
-                        border: '1px solid #28a745',
-                        borderRadius: '4px',
-                        backgroundColor: fibonacciType === 'extension' ? '#28a745' : 'white',
-                        color: fibonacciType === 'extension' ? 'white' : '#28a745',
-                        cursor: 'pointer',
-                        fontWeight: fibonacciType === 'extension' ? 'bold' : 'normal',
-                        transition: 'all var(--motion-short)'
-                      }}
-                    >
-                      📈 Extension
-                    </button>
-                  </div>
-                  
-                  {/* Level Selection */}
-                  <div style={{ 
-                    fontSize: '11px',
-                    backgroundColor: 'white',
-                    padding: '8px',
-                    borderRadius: '4px',
-                    border: '1px solid #dee2e6'
-                  }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: '5px', color: '#495057' }}>
-                      {fibonacciType === 'retracement' ? 'Retracement Levels:' : 'Extension Levels:'}
+              <div className={`collapsible-content ${fibonacciPanelExpanded && showFibonacci && fibonacciData ? 'expanded' : ''}`}>
+                {showFibonacci && fibonacciData && (
+                  <div>
+                    {/* Type Selection */}
+                    <div style={{ 
+                      marginBottom: '10px',
+                      display: 'flex',
+                      gap: '5px'
+                    }}>
+                      <button
+                        onClick={() => setFibonacciType('retracement')}
+                        style={{
+                          padding: '5px 12px',
+                          fontSize: '12px',
+                          border: '1px solid #007bff',
+                          borderRadius: '4px',
+                          backgroundColor: fibonacciType === 'retracement' ? '#007bff' : 'white',
+                          color: fibonacciType === 'retracement' ? 'white' : '#007bff',
+                          cursor: 'pointer',
+                          fontWeight: fibonacciType === 'retracement' ? 'bold' : 'normal',
+                          transition: 'all var(--motion-short)'
+                        }}
+                      >
+                        📉 Retracement
+                      </button>
+                      <button
+                        onClick={() => setFibonacciType('extension')}
+                        style={{
+                          padding: '5px 12px',
+                          fontSize: '12px',
+                          border: '1px solid #28a745',
+                          borderRadius: '4px',
+                          backgroundColor: fibonacciType === 'extension' ? '#28a745' : 'white',
+                          color: fibonacciType === 'extension' ? 'white' : '#28a745',
+                          cursor: 'pointer',
+                          fontWeight: fibonacciType === 'extension' ? 'bold' : 'normal',
+                          transition: 'all var(--motion-short)'
+                        }}
+                      >
+                        📈 Extension
+                      </button>
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {fibonacciType === 'retracement' ? (
-                        Object.keys(selectedFibLevels).map(level => (
-                          <label key={level} style={{ 
-                            display: 'flex', 
-                            alignItems: 'center',
-                            padding: '3px 8px',
-                            backgroundColor: selectedFibLevels[level] ? '#e3f2fd' : '#f8f9fa',
-                            border: '1px solid ' + (selectedFibLevels[level] ? '#2196f3' : '#dee2e6'),
-                            borderRadius: '3px',
-                            cursor: 'pointer',
-                            transition: 'all var(--motion-short)'
-                          }}>
-                            <input
-                              type="checkbox"
-                              checked={selectedFibLevels[level]}
-                              onChange={(e) => setSelectedFibLevels({
-                                ...selectedFibLevels,
-                                [level]: e.target.checked
-                              })}
-                              style={{ marginRight: '4px' }}
-                            />
-                            <span style={{ fontWeight: selectedFibLevels[level] ? 'bold' : 'normal' }}>
-                              {level}%
-                            </span>
-                          </label>
-                        ))
-                      ) : (
-                        Object.keys(selectedExtensionLevels).map(level => (
-                          <label key={level} style={{ 
-                            display: 'flex', 
-                            alignItems: 'center',
-                            padding: '3px 8px',
-                            backgroundColor: selectedExtensionLevels[level] ? '#e8f5e9' : '#f8f9fa',
-                            border: '1px solid ' + (selectedExtensionLevels[level] ? '#4caf50' : '#dee2e6'),
-                            borderRadius: '3px',
-                            cursor: 'pointer',
-                            transition: 'all var(--motion-short)'
-                          }}>
-                            <input
-                              type="checkbox"
-                              checked={selectedExtensionLevels[level]}
-                              onChange={(e) => setSelectedExtensionLevels({
-                                ...selectedExtensionLevels,
-                                [level]: e.target.checked
-                              })}
-                              style={{ marginRight: '4px' }}
-                            />
-                            <span style={{ fontWeight: selectedExtensionLevels[level] ? 'bold' : 'normal' }}>
-                              {level}%
-                            </span>
-                          </label>
-                        ))
-                      )}
+                    
+                    {/* Level Selection */}
+                    <div style={{ 
+                      fontSize: '11px',
+                      backgroundColor: 'white',
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #dee2e6'
+                    }}>
+                      <div style={{ fontWeight: 'bold', marginBottom: '5px', color: '#495057' }}>
+                        {fibonacciType === 'retracement' ? 'Retracement Levels:' : 'Extension Levels:'}
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {fibonacciType === 'retracement' ? (
+                          Object.keys(selectedFibLevels).map(level => (
+                            <label key={level} style={{ 
+                              display: 'flex', 
+                              alignItems: 'center',
+                              padding: '3px 8px',
+                              backgroundColor: selectedFibLevels[level] ? '#e3f2fd' : '#f8f9fa',
+                              border: '1px solid ' + (selectedFibLevels[level] ? '#2196f3' : '#dee2e6'),
+                              borderRadius: '3px',
+                              cursor: 'pointer',
+                              transition: 'all var(--motion-short)'
+                            }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedFibLevels[level]}
+                                onChange={(e) => setSelectedFibLevels({
+                                  ...selectedFibLevels,
+                                  [level]: e.target.checked
+                                })}
+                                style={{ marginRight: '4px' }}
+                              />
+                              <span style={{ fontWeight: selectedFibLevels[level] ? 'bold' : 'normal' }}>
+                                {level}%
+                              </span>
+                            </label>
+                          ))
+                        ) : (
+                          Object.keys(selectedExtensionLevels).map(level => (
+                            <label key={level} style={{ 
+                              display: 'flex', 
+                              alignItems: 'center',
+                              padding: '3px 8px',
+                              backgroundColor: selectedExtensionLevels[level] ? '#e8f5e9' : '#f8f9fa',
+                              border: '1px solid ' + (selectedExtensionLevels[level] ? '#4caf50' : '#dee2e6'),
+                              borderRadius: '3px',
+                              cursor: 'pointer',
+                              transition: 'all var(--motion-short)'
+                            }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedExtensionLevels[level]}
+                                onChange={(e) => setSelectedExtensionLevels({
+                                  ...selectedExtensionLevels,
+                                  [level]: e.target.checked
+                                })}
+                                style={{ marginRight: '4px' }}
+                              />
+                              <span style={{ fontWeight: selectedExtensionLevels[level] ? 'bold' : 'normal' }}>
+                                {level}%
+                              </span>
+                            </label>
+                          ))
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
             
             {/* Support/Resistance Controls */}
-            <div className="support-resistance-controls" style={{ 
-              marginTop: '10px', 
-              paddingTop: '10px', 
-              borderTop: '1px solid #ddd',
-              backgroundColor: '#f8f9fa',
-              padding: '10px',
-              borderRadius: '6px'
-            }}>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={showSupportResistance}
-                  onChange={(e) => setShowSupportResistance(e.target.checked)}
-                />
-                <span style={{ fontWeight: 'bold' }}>📊 Support & Resistance</span>
-              </label>
+            <div className="collapsible-panel">
+              <div 
+                className="collapsible-header"
+                onClick={() => setSupportResistancePanelExpanded(!supportResistancePanelExpanded)}
+              >
+                <span className={`collapsible-toggle-icon ${supportResistancePanelExpanded ? 'expanded' : ''}`}></span>
+                <label className="checkbox-label" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={showSupportResistance}
+                    onChange={(e) => setShowSupportResistance(e.target.checked)}
+                  />
+                  <span style={{ fontWeight: 'bold' }}>📊 Support & Resistance</span>
+                </label>
+              </div>
               
-              {showSupportResistance && supportResistanceData && (
-                <div style={{ 
-                  marginLeft: '10px', 
-                  marginTop: '8px',
-                  fontSize: '11px',
-                  color: '#666'
-                }}>
-                  <div style={{ display: 'flex', gap: '15px' }}>
-                    <span>🟢 Support: {supportResistanceData.support.length}</span>
-                    <span>🔴 Resistance: {supportResistanceData.resistance.length}</span>
+              <div className={`collapsible-content ${supportResistancePanelExpanded && showSupportResistance && supportResistanceData ? 'expanded' : ''}`}>
+                {showSupportResistance && supportResistanceData && (
+                  <div style={{ 
+                    fontSize: '11px',
+                    color: '#666'
+                  }}>
+                    <div style={{ display: 'flex', gap: '15px' }}>
+                      <span>🟢 Support: {supportResistanceData.support.length}</span>
+                      <span>🔴 Resistance: {supportResistanceData.resistance.length}</span>
+                    </div>
+                    <div style={{ marginTop: '5px', fontSize: '10px', fontStyle: 'italic' }}>
+                      Linienstärke = Anzahl Tests
+                    </div>
                   </div>
-                  <div style={{ marginTop: '5px', fontSize: '10px', fontStyle: 'italic' }}>
-                    Linienstärke = Anzahl Tests
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Bollinger Bands Signal Info */}
             {showBollinger && bollingerSignal && (
-              <div style={{ 
-                marginTop: '10px', 
-                paddingTop: '10px', 
-                borderTop: '1px solid #ddd',
-                backgroundColor: bollingerSignal.squeeze ? '#fff3cd' : '#f8f9fa',
-                padding: '10px',
-                borderRadius: '6px',
-                border: bollingerSignal.squeeze ? '2px solid #ffc107' : '1px solid #dee2e6'
-              }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>📊 Bollinger Bands ({bollingerSignal.period || 20})</span>
-                  {bollingerSignal.squeeze && (
-                    <span style={{ 
-                      fontSize: '10px', 
-                      backgroundColor: '#ffc107', 
-                      color: '#000', 
-                      padding: '2px 6px', 
-                      borderRadius: '10px',
-                      fontWeight: 'bold'
-                    }}>
-                      SQUEEZE!
-                    </span>
-                  )}
+              <div className={`collapsible-panel bollinger-signal-panel ${bollingerSignal.squeeze ? 'squeeze' : ''}`}>
+                <div 
+                  className="collapsible-header"
+                  onClick={() => setBollingerSignalPanelExpanded(!bollingerSignalPanelExpanded)}
+                >
+                  <span className={`collapsible-toggle-icon ${bollingerSignalPanelExpanded ? 'expanded' : ''}`}></span>
+                  <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                    <span>📊 Bollinger Bands ({bollingerSignal.period || 20})</span>
+                    {bollingerSignal.squeeze && (
+                      <span style={{ 
+                        fontSize: '10px', 
+                        backgroundColor: '#ffc107', 
+                        color: '#000', 
+                        padding: '2px 6px', 
+                        borderRadius: '10px',
+                        fontWeight: 'bold'
+                      }}>
+                        SQUEEZE!
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div style={{ fontSize: '11px', color: '#666' }}>
-                  {bollingerSignal.current_percent_b !== null && (
-                    <div style={{ marginBottom: '4px' }}>
-                      <span style={{ fontWeight: 'bold' }}>%B:</span> {bollingerSignal.current_percent_b?.toFixed(2) || 'N/A'}
-                      {bollingerSignal.current_percent_b > 1 && <span style={{ color: '#e74c3c' }}> (über oberem Band)</span>}
-                      {bollingerSignal.current_percent_b < 0 && <span style={{ color: '#27ae60' }}> (unter unterem Band)</span>}
-                    </div>
-                  )}
-                  {bollingerSignal.current_bandwidth !== null && (
-                    <div style={{ marginBottom: '4px' }}>
-                      <span style={{ fontWeight: 'bold' }}>Bandwidth:</span> {bollingerSignal.current_bandwidth?.toFixed(2) || 'N/A'}%
-                    </div>
-                  )}
-                  {bollingerSignal.band_walking && (
-                    <div style={{ 
-                      marginTop: '6px', 
-                      padding: '4px 8px', 
-                      backgroundColor: bollingerSignal.band_walking === 'upper' ? '#e8f5e9' : '#ffebee',
-                      borderRadius: '4px',
-                      fontSize: '10px',
-                      fontWeight: 'bold',
-                      color: bollingerSignal.band_walking === 'upper' ? '#2e7d32' : '#c62828'
-                    }}>
-                      {bollingerSignal.band_walking === 'upper' ? '📈 Walking Upper Band (Uptrend)' : '📉 Walking Lower Band (Downtrend)'}
-                    </div>
-                  )}
-                  {bollingerSignal.signal_reason && (
-                    <div style={{ 
-                      marginTop: '6px', 
-                      padding: '4px 8px', 
-                      backgroundColor: '#e3f2fd',
-                      borderRadius: '4px',
-                      fontSize: '10px',
-                      fontStyle: 'italic'
-                    }}>
-                      💡 {bollingerSignal.signal_reason}
-                    </div>
-                  )}
+                
+                <div className={`collapsible-content ${bollingerSignalPanelExpanded ? 'expanded' : ''}`}>
+                  <div style={{ fontSize: '11px', color: '#666' }}>
+                    {bollingerSignal.current_percent_b !== null && (
+                      <div style={{ marginBottom: '4px' }}>
+                        <span style={{ fontWeight: 'bold' }}>%B:</span> {bollingerSignal.current_percent_b?.toFixed(2) || 'N/A'}
+                        {bollingerSignal.current_percent_b > 1 && <span style={{ color: '#e74c3c' }}> (über oberem Band)</span>}
+                        {bollingerSignal.current_percent_b < 0 && <span style={{ color: '#27ae60' }}> (unter unterem Band)</span>}
+                      </div>
+                    )}
+                    {bollingerSignal.current_bandwidth !== null && (
+                      <div style={{ marginBottom: '4px' }}>
+                        <span style={{ fontWeight: 'bold' }}>Bandwidth:</span> {bollingerSignal.current_bandwidth?.toFixed(2) || 'N/A'}%
+                      </div>
+                    )}
+                    {bollingerSignal.band_walking && (
+                      <div style={{ 
+                        marginTop: '6px', 
+                        padding: '4px 8px', 
+                        backgroundColor: bollingerSignal.band_walking === 'upper' ? '#e8f5e9' : '#ffebee',
+                        borderRadius: '4px',
+                        fontSize: '10px',
+                        fontWeight: 'bold',
+                        color: bollingerSignal.band_walking === 'upper' ? '#2e7d32' : '#c62828'
+                      }}>
+                        {bollingerSignal.band_walking === 'upper' ? '📈 Walking Upper Band (Uptrend)' : '📉 Walking Lower Band (Downtrend)'}
+                      </div>
+                    )}
+                    {bollingerSignal.signal_reason && (
+                      <div style={{ 
+                        marginTop: '6px', 
+                        padding: '4px 8px', 
+                        backgroundColor: '#e3f2fd',
+                        borderRadius: '4px',
+                        fontSize: '10px',
+                        fontStyle: 'italic'
+                      }}>
+                        💡 {bollingerSignal.signal_reason}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
             {/* Volume Profile Controls */}
-            <div className="volume-profile-controls" style={{ 
-              marginTop: '10px', 
-              paddingTop: '10px', 
-              borderTop: '1px solid #ddd',
-              backgroundColor: '#f8f9fa',
-              padding: '10px',
-              borderRadius: '6px'
-            }}>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={showVolumeProfile}
-                  onChange={(e) => setShowVolumeProfile(e.target.checked)}
-                />
-                <span style={{ fontWeight: 'bold' }}>📊 Volume Profile (Standalone)</span>
-              </label>
+            <div className="collapsible-panel">
+              <div 
+                className="collapsible-header"
+                onClick={() => setVolumeProfilePanelExpanded(!volumeProfilePanelExpanded)}
+              >
+                <span className={`collapsible-toggle-icon ${volumeProfilePanelExpanded ? 'expanded' : ''}`}></span>
+                <div style={{ flex: 1 }}>
+                  <label className="checkbox-label" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={showVolumeProfile}
+                      onChange={(e) => setShowVolumeProfile(e.target.checked)}
+                    />
+                    <span style={{ fontWeight: 'bold' }}>📊 Volume Profile (Standalone)</span>
+                  </label>
 
-              <label className="checkbox-label" style={{ marginTop: '8px' }}>
-                <input
-                  type="checkbox"
-                  checked={showVolumeProfileOverlay}
-                  onChange={(e) => setShowVolumeProfileOverlay(e.target.checked)}
-                />
-                <span style={{ fontWeight: 'bold' }}>📊 Volume Profile (Overlay)</span>
-              </label>
-              
-              {(showVolumeProfile || showVolumeProfileOverlay) && volumeProfileLevels && (
-                <div style={{ 
-                  marginLeft: '10px', 
-                  marginTop: '8px',
-                  fontSize: '11px',
-                  color: '#666'
-                }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    <span>🟢 POC: {volumeProfileLevels.poc != null ? formatPrice(volumeProfileLevels.poc, stock) : 'N/A'}</span>
-                    <span>🔵 VAH: {volumeProfileLevels.vah != null ? formatPrice(volumeProfileLevels.vah, stock) : 'N/A'}</span>
-                    <span>🔴 VAL: {volumeProfileLevels.val != null ? formatPrice(volumeProfileLevels.val, stock) : 'N/A'}</span>
-                  </div>
+                  <label className="checkbox-label" style={{ marginTop: '8px' }} onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={showVolumeProfileOverlay}
+                      onChange={(e) => setShowVolumeProfileOverlay(e.target.checked)}
+                    />
+                    <span style={{ fontWeight: 'bold' }}>📊 Volume Profile (Overlay)</span>
+                  </label>
                 </div>
-              )}
+              </div>
+              
+              <div className={`collapsible-content ${volumeProfilePanelExpanded && (showVolumeProfile || showVolumeProfileOverlay) && volumeProfileLevels ? 'expanded' : ''}`}>
+                {(showVolumeProfile || showVolumeProfileOverlay) && volumeProfileLevels && (
+                  <div style={{ 
+                    fontSize: '11px',
+                    color: '#666'
+                  }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <span>🟢 POC: {volumeProfileLevels.poc != null ? formatPrice(volumeProfileLevels.poc, stock) : 'N/A'}</span>
+                      <span>🔵 VAH: {volumeProfileLevels.vah != null ? formatPrice(volumeProfileLevels.vah, stock) : 'N/A'}</span>
+                      <span>🔴 VAL: {volumeProfileLevels.val != null ? formatPrice(volumeProfileLevels.val, stock) : 'N/A'}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-
-        <div className="control-group">
-          <label>Export:</label>
-          <div className="export-buttons">
-            <button onClick={exportToPNG} className="export-button">
-              🖼️ PNG
-            </button>
-            <button onClick={exportToCSV} className="export-button">
-              📄 CSV
-            </button>
           </div>
         </div>
       </div>
