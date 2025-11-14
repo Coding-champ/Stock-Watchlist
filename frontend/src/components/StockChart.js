@@ -1021,25 +1021,25 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
       <div className="stock-chart-container">
         <div className="chart-controls" aria-hidden style={{ opacity: 0.9 }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <div className="skeleton" style={{ width: 120, height: 36, borderRadius: 10 }} />
-            <div className="skeleton" style={{ width: 80, height: 36, borderRadius: 10 }} />
-            <div className="skeleton" style={{ width: 160, height: 36, borderRadius: 10 }} />
+            <div className="skeleton" style={{ width: 120, height: 36 }} />
+            <div className="skeleton" style={{ width: 80, height: 36 }} />
+            <div className="skeleton" style={{ width: 160, height: 36 }} />
           </div>
         </div>
 
         <div className="chart-section" style={{ position: 'relative' }}>
           <div style={{ padding: 16 }}>
-            <div className="skeleton" style={{ width: '48%', height: 18, borderRadius: 6, marginBottom: 12 }} />
-            <div className="skeleton" style={{ width: '100%', height: 360, borderRadius: 10 }} />
+            <div className="skeleton" style={{ width: '48%', height: 18, marginBottom: 12 }} />
+            <div className="skeleton" style={{ width: '100%', height: 360 }} />
           </div>
 
           <div style={{ display: 'flex', gap: 12, padding: 16 }}>
-            <div className="skeleton" style={{ flex: 1, height: 120, borderRadius: 8 }} />
-            <div className="skeleton" style={{ width: 220, height: 120, borderRadius: 8 }} />
+            <div className="skeleton" style={{ flex: 1, height: 120 }} />
+            <div className="skeleton" style={{ width: 220, height: 120 }} />
           </div>
 
           <div className="chart-info" style={{ padding: 12 }}>
-            <div className="skeleton" style={{ width: 200, height: 12, borderRadius: 6 }} />
+            <div className="skeleton" style={{ width: 200, height: 12 }} />
           </div>
         </div>
       </div>
