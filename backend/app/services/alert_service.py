@@ -21,6 +21,7 @@ from backend.app.services.technical_indicators_service import (
     detect_macd_divergence,
     analyze_technical_indicators_with_divergence
 )
+from backend.app.services.indicators_core import calculate_sma
 
 # Import optimized yfinance functions
 from backend.app.services.yfinance_service import get_fast_stock_data, get_extended_stock_data
@@ -675,9 +676,9 @@ class AlertService:
             if len(hist) < 200:
                 return False
             
-            # Calculate 50-day and 200-day moving averages
-            ma_50 = hist['Close'].rolling(window=50).mean()
-            ma_200 = hist['Close'].rolling(window=200).mean()
+            # Calculate 50-day and 200-day moving averages using centralized calculation
+            ma_50 = calculate_sma(hist['Close'], 50)
+            ma_200 = calculate_sma(hist['Close'], 200)
             
             # Check for crossover
             if len(ma_50) < 2 or len(ma_200) < 2:

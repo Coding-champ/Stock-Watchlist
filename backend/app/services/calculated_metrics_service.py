@@ -18,6 +18,9 @@ from backend.app.services.technical_indicators_service import (
     analyze_technical_indicators_with_divergence
 )
 
+# Import core indicator calculations
+from backend.app.services.indicators_core import calculate_sma
+
 # Import unified signal interpretation utilities
 from backend.app.utils.signal_interpretation import interpret_rsi, interpret_macd
 
@@ -208,9 +211,9 @@ def detect_sma_crossovers(historical_prices: pd.DataFrame,
         if close_col != 'Close':
             df['Close'] = df[close_col]
         
-        # SMAs berechnen
-        df[f'SMA{sma_short}'] = df['Close'].rolling(window=sma_short).mean()
-        df[f'SMA{sma_long}'] = df['Close'].rolling(window=sma_long).mean()
+        # SMAs berechnen using centralized calculation from indicators_core
+        df[f'SMA{sma_short}'] = calculate_sma(df['Close'], sma_short)
+        df[f'SMA{sma_long}'] = calculate_sma(df['Close'], sma_long)
         
         # NaN-Werte entfernen (erste 200 Tage haben keine vollständigen SMAs)
         df = df.dropna(subset=[f'SMA{sma_short}', f'SMA{sma_long}'])
@@ -751,12 +754,12 @@ def calculate_stochastic_oscillator(high_prices: pd.Series,
         # %K berechnen
         k_percent = 100 * ((close_prices - lowest_low) / (highest_high - lowest_low))
         
-        # %K smoothing
+        # %K smoothing using centralized SMA calculation
         if smooth_k > 1:
-            k_percent = k_percent.rolling(window=smooth_k).mean()
+            k_percent = calculate_sma(k_percent, smooth_k)
         
-        # %D (Signal Line)
-        d_percent = k_percent.rolling(window=smooth_d).mean()
+        # %D (Signal Line) using centralized SMA calculation
+        d_percent = calculate_sma(k_percent, smooth_d)
         
         # Aktuelle Werte
         result['k_percent'] = float(k_percent.iloc[-1])

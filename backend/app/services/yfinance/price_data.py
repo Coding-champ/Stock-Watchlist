@@ -11,6 +11,9 @@ import logging
 
 from .client import _get_extended_period, _clean_for_json
 
+# Import core indicator calculations
+from backend.app.services.indicators_core import calculate_sma
+
 # Import unified time series utilities
 from backend.app.utils.time_series_utils import (
     calculate_period_cutoff_date as util_calc_cutoff,
@@ -538,9 +541,9 @@ def get_chart_data(
         # Compute volume moving averages if volume requested
         if include_volume and 'Volume' in hist.columns:
             try:
-                # 10-day and 20-day volume moving averages (align with frontend expectations)
-                vol_ma10 = hist['Volume'].rolling(window=10).mean()
-                vol_ma20 = hist['Volume'].rolling(window=20).mean()
+                # 10-day and 20-day volume moving averages using centralized calculation
+                vol_ma10 = calculate_sma(hist['Volume'], 10)
+                vol_ma20 = calculate_sma(hist['Volume'], 20)
                 # Ensure it's serializable (convert NaN to None)
                 indicators_result = indicators_result or {'dates': [d.isoformat() for d in hist.index], 'indicators': {}}
                 indicators_result['indicators']['volumeMA10'] = [None if pd.isna(v) else float(v) for v in vol_ma10.tolist()]
@@ -583,12 +586,12 @@ def get_chart_data(
         
         # Prepare chart data
         chart_data = []
-        # Precompute filtered volume moving averages (10 & 20) for per-point inclusion
+        # Precompute filtered volume moving averages (10 & 20) for per-point inclusion using centralized calculation
         try:
             filtered_volumes = [int(row['Volume']) if pd.notna(row['Volume']) else None for _, row in hist.iterrows()]
             vol_series = pd.Series([v if v is not None else np.nan for v in filtered_volumes])
-            vol_ma10_filtered = vol_series.rolling(window=10).mean().tolist()
-            vol_ma20_filtered = vol_series.rolling(window=20).mean().tolist()
+            vol_ma10_filtered = calculate_sma(vol_series, 10).tolist()
+            vol_ma20_filtered = calculate_sma(vol_series, 20).tolist()
         except Exception:
             vol_ma10_filtered = [None] * len(hist)
             vol_ma20_filtered = [None] * len(hist)

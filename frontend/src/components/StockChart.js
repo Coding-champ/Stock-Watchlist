@@ -74,7 +74,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   const [showATR, setShowATR] = useState(false);
   const [showVWAP, setShowVWAP] = useState(false);
   const [showCrossovers, setShowCrossovers] = useState(false);
-  const [showDivergences, setShowDivergences] = useState(true);
+  const [showDivergences, setShowDivergences] = useState(false);
   
   // Fibonacci toggles
   const [showFibonacci, setShowFibonacci] = useState(false);
@@ -167,8 +167,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
       }, { staleTime: 60000 });
       
   // Fetch only the SMA indicators initially (keep payload small). Other indicators are
-  // fetched lazily when the user toggles them on. The chart endpoint still contains
-  // aligned series in `chartJson.indicators` which we prefer when present.
+  // fetched lazily when the user toggles them on.
   let indicatorsJson = null;
   const initialIndicatorsList = ['sma_50', 'sma_200'];
       
@@ -180,7 +179,6 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
           return r.json();
         }, { staleTime: 60000 });
       } catch (e) {
-        // ignore — indicators are optional and chartJson may already contain aligned series
         indicatorsJson = null;
       }
 
@@ -226,8 +224,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         vwap: sourceIndicators?.vwap?.[index],
         // prefer server-provided volume moving averages if present
         volumeMA10: sourceIndicators?.volumeMA10?.[index],
-        volumeMA20: sourceIndicators?.volumeMA20?.[index]
-        ,
+        volumeMA20: sourceIndicators?.volumeMA20?.[index],
         // Ichimoku series (if provided by backend)
         ichimoku_conversion: sourceIndicators?.ichimoku?.conversion?.[index],
         ichimoku_base: sourceIndicators?.ichimoku?.base?.[index],

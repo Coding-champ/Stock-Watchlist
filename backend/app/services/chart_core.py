@@ -120,9 +120,9 @@ def get_chart_with_indicators(
         try:
             if 'volume' in df and df['volume'].notna().any():
                 vol_series = df['volume']
-                # 10-day and 20-day moving averages
-                result['indicators']['volumeMA10'] = vol_series.rolling(window=10).mean().fillna(value=np.nan).tolist()
-                result['indicators']['volumeMA20'] = vol_series.rolling(window=20).mean().fillna(value=np.nan).tolist()
+                # 10-day and 20-day moving averages using centralized calculation
+                result['indicators']['volumeMA10'] = calculate_sma(vol_series, 10).fillna(value=np.nan).tolist()
+                result['indicators']['volumeMA20'] = calculate_sma(vol_series, 20).fillna(value=np.nan).tolist()
         except Exception:
             # non-fatal
             pass
