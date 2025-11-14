@@ -31,6 +31,8 @@ from backend.app.services.cache_service import StockDataCacheService
 from backend.app.services.stock_service import StockService
 from backend.app.services.historical_price_service import HistoricalPriceService
 from backend.app.services.fundamental_data_service import FundamentalDataService
+from backend.app.services.technical_indicators_service import calculate_rsi as ta_calculate_rsi, calculate_macd as ta_calculate_macd
+from backend.app.utils.signal_interpretation import interpret_rsi as ta_interpret_rsi, interpret_macd as ta_interpret_macd
 from backend.app.services.stock_query_service import StockQueryService
 from backend.app.utils.url_utils import normalize_website_url
 
@@ -304,6 +306,190 @@ def get_stocks(
                 pass
 
         return stocks
+
+
+# ------------------------------------------------------------------
+# ALL STOCKS: Performance list (with optional RSI/MACD signals)
+# Moved above generic /{stock_id} route to avoid path-param shadowing
+# ------------------------------------------------------------------
+@router.get("/performance", response_model=schemas.PerformanceListResponse)
+def list_stocks_performance(
+    period: str = Query("6m", description="Period: e.g. 6m, 1y, 3y"),
+    points: int = Query(24, ge=2, le=180, description="Number of sparkline points"),
+    sort: str = Query("desc", description="Sort order by performance: asc|desc"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(24, ge=1, le=200),
+    includeSignals: bool = Query(True, description="Include latest RSI/MACD signals"),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns a paginated list of stocks with performance over the given period,
+    a compact price series (sparkline), and optionally lightweight RSI/MACD signals.
+
+    Response format:
+    {
+      "items": [
+        {
+          "id": 1,
+          "ticker": "AAPL",
+          "name": "Apple Inc.",
+          "performance_pct": 12.34,
+          "price_series": [{"date": "YYYY-MM-DD", "close": 123.45}, ...],
+          "signals": {
+             "rsi": {"value": 52.1, "signal": "neutral"},
+             "macd": {"histogram": 0.12, "trend": "bullish"}
+          }
+        }
+      ],
+      "total": 123,
+      "page": 1,
+      "limit": 24
+    }
+    """
+    from dateutil.relativedelta import relativedelta
+    from datetime import datetime
+    import pandas as pd
+
+    now = datetime.utcnow().date()
+    p = (period or "6m").lower()
+    if p.endswith("y") and p[:-1].isdigit():
+        start_date = now - relativedelta(years=int(p[:-1]))
+    elif p.endswith("m") and p[:-1].isdigit():
+        start_date = now - relativedelta(months=int(p[:-1]))
+    else:
+        start_date = now - relativedelta(months=6)
+
+    # Load candidates (all stocks); simple approach first
+    stocks = db.query(StockModel).all()
+
+    items = []
+    for s in stocks:
+        try:
+            latest_row = db.query(StockPriceDataModel).filter(StockPriceDataModel.stock_id == s.id).order_by(desc(StockPriceDataModel.date)).first()
+            if not latest_row:
+                continue
+
+            # find start reference price
+            start_row = db.query(StockPriceDataModel).filter(
+                StockPriceDataModel.stock_id == s.id,
+                StockPriceDataModel.date >= start_date
+            ).order_by(asc(StockPriceDataModel.date)).first()
+            if not start_row:
+                start_row = db.query(StockPriceDataModel).filter(
+                    StockPriceDataModel.stock_id == s.id,
+                    StockPriceDataModel.date <= start_date
+                ).order_by(desc(StockPriceDataModel.date)).first()
+
+            perf_pct = None
+            if start_row and start_row.close not in (None, 0) and latest_row.close is not None:
+                try:
+                    perf_pct = (float(latest_row.close) - float(start_row.close)) / float(start_row.close) * 100.0
+                    perf_pct = round(perf_pct, 2)
+                except Exception:
+                    perf_pct = None
+
+            # Collect price rows to build sparkline and (optionally) compute signals
+            price_rows = db.query(StockPriceDataModel).filter(
+                StockPriceDataModel.stock_id == s.id,
+                StockPriceDataModel.date >= start_date,
+                StockPriceDataModel.date <= latest_row.date
+            ).order_by(asc(StockPriceDataModel.date)).all()
+
+            points_list = []
+            closes_for_ind = []
+            for pr in price_rows:
+                if pr.close is None:
+                    continue
+                d = pr.date.strftime("%Y-%m-%d")
+                c = float(pr.close)
+                points_list.append({"date": d, "close": c})
+                closes_for_ind.append(c)
+
+            # Downsample to requested number of points (similar strategy as peers)
+            price_series = None
+            if points_list:
+                try:
+                    # Aggregate by month for longer periods (>=3 months)
+                    months = None
+                    if p.endswith('y') and p[:-1].isdigit():
+                        months = int(p[:-1]) * 12
+                    elif p.endswith('m') and p[:-1].isdigit():
+                        months = int(p[:-1])
+                    else:
+                        months = 6
+
+                    if months >= 3:
+                        grouped = {}
+                        for pt in points_list:
+                            y, m, _ = pt['date'].split('-')
+                            key = (int(y), int(m))
+                            grouped[key] = pt  # keep last occurrence in month
+                        sorted_months = sorted(grouped.keys())
+                        month_points = [grouped[k] for k in sorted_months]
+                        if len(month_points) > points and points > 1:
+                            step = max(1, int(len(month_points) / points))
+                            sampled = [month_points[i] for i in range(0, len(month_points), step)]
+                            price_series = sampled[:points]
+                        else:
+                            price_series = month_points
+                    else:
+                        if len(points_list) > points and points > 1:
+                            step = max(1, int(len(points_list) / points))
+                            sampled = [points_list[i] for i in range(0, len(points_list), step)]
+                            price_series = sampled[:points]
+                        else:
+                            price_series = points_list
+                except Exception:
+                    # simple fallback
+                    if len(points_list) > points and points > 1:
+                        step = max(1, int(len(points_list) / points))
+                        sampled = [points_list[i] for i in range(0, len(points_list), step)]
+                        price_series = sampled[:points]
+                    else:
+                        price_series = points_list
+
+            signals = None
+            if includeSignals and closes_for_ind and len(closes_for_ind) >= 30:  # ensure minimum data length
+                try:
+                    close_series = pd.Series(closes_for_ind)
+                    rsi_res = ta_calculate_rsi(close_series)
+                    macd_res = ta_calculate_macd(close_series)
+                    signals = {
+                        "rsi": {
+                            "value": float(rsi_res.get('value')) if rsi_res.get('value') is not None else None,
+                            "signal": rsi_res.get('signal') or (ta_interpret_rsi(rsi_res.get('value')) if rsi_res.get('value') is not None else None)
+                        },
+                        "macd": {
+                            "histogram": float(macd_res.get('histogram')) if macd_res.get('histogram') is not None else None,
+                            "trend": macd_res.get('trend') or (ta_interpret_macd(macd_res.get('histogram')) if macd_res.get('histogram') is not None else None)
+                        }
+                    }
+                except Exception:
+                    signals = None
+
+            items.append({
+                "id": s.id,
+                "ticker": s.ticker_symbol,
+                "name": s.name,
+                "performance_pct": perf_pct,
+                "price_series": price_series or [],
+                "signals": signals
+            })
+        except Exception:
+            continue
+
+    # Sort and paginate
+    def sort_key(x):
+        v = x.get("performance_pct")
+        return (v is None, v if sort == "asc" else -(v or 0))
+
+    items_sorted = sorted(items, key=sort_key)
+    total = len(items_sorted)
+    start = (page - 1) * limit
+    end = start + limit
+    page_items = items_sorted[start:end]
+
+    return {"items": page_items, "total": total, "page": page, "limit": limit}
 
 
 @router.get("/{stock_id}", response_model=schemas.Stock)
@@ -734,6 +920,9 @@ def get_stock_peers(
             peers.append({"name": name, "ticker": f"PEER{i+1}", "value": val, "performance": None, "price_series": mock_series})
 
     return {"stock_id": stock_id, "ticker": stock.ticker_symbol, "by": by, "metric": metric, "used_mock": used_mock, "peers": peers}
+
+
+ # moved earlier
 
 
 @router.post("/", response_model=schemas.Stock, status_code=201)

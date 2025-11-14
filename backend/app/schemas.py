@@ -1,3 +1,40 @@
+
+from pydantic import BaseModel  # Ensure BaseModel is imported for new schemas
+from typing import Optional, List  # Ensure Optional and List are imported for new schemas
+
+# ------------------------------------------------------------------
+# PERFORMANCE LIST SCHEMAS (for /stocks/performance endpoint)
+# ------------------------------------------------------------------
+
+class PerformanceSignalRSI(BaseModel):
+    value: Optional[float] = None
+    signal: Optional[str] = None  # e.g. 'neutral', 'overbought', 'oversold'
+
+class PerformanceSignalMACD(BaseModel):
+    histogram: Optional[float] = None
+    trend: Optional[str] = None  # e.g. 'bullish', 'bearish', 'neutral'
+
+class PerformanceSignals(BaseModel):
+    rsi: Optional[PerformanceSignalRSI] = None
+    macd: Optional[PerformanceSignalMACD] = None
+
+class PerformancePricePoint(BaseModel):
+    date: str
+    close: float
+
+class PerformanceListItem(BaseModel):
+    id: int
+    ticker: str
+    name: str
+    performance_pct: Optional[float] = None
+    price_series: List[PerformancePricePoint] = []
+    signals: Optional[PerformanceSignals] = None
+
+class PerformanceListResponse(BaseModel):
+    items: List[PerformanceListItem]
+    total: int
+    page: int
+    limit: int
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any, Literal, Union
 from datetime import datetime, date
