@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import API_BASE from '../config';
 import ObservationFields from './ObservationFields';
+import { useApi } from '../hooks/useApi';
 
 function EditObservationsModal({ stock, watchlistId, onClose, onSaved, onShowToast }) {
   const [observationReasons, setObservationReasons] = useState([]);
   const [observationNotes, setObservationNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const { fetchApi } = useApi();
+  
   // Initialisierung mit den aktuellen Werten
   useEffect(() => {
     if (stock) {
@@ -41,32 +43,25 @@ function EditObservationsModal({ stock, watchlistId, onClose, onSaved, onShowToa
         observation_notes: trimmedNotes || null
       };
 
-      const response = await fetch(`${API_BASE}/stocks/${stock.id}?watchlist_id=${watchlistId}`, {
+      await fetchApi(`/stocks/${stock.id}?watchlist_id=${watchlistId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: payload,
+        onError: (err) => {
+          if (onShowToast) {
+            onShowToast(err.message || 'Fehler beim Speichern', 'error');
+          }
+        }
       });
 
-      if (response.ok) {
-        if (onShowToast) {
-          onShowToast(`Beobachtungen aktualisiert · ${stock.name}`, 'success');
-        }
-        if (onSaved) {
-          onSaved();
-        }
-        onClose();
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.detail || 'Fehler beim Speichern';
-        if (onShowToast) {
-          onShowToast(errorMessage, 'error');
-        }
+      if (onShowToast) {
+        onShowToast(`Beobachtungen aktualisiert · ${stock.name}`, 'success');
       }
+      if (onSaved) {
+        onSaved();
+      }
+      onClose();
     } catch (error) {
       console.error('Error updating observations:', error);
-      if (onShowToast) {
-        onShowToast('Fehler beim Speichern der Beobachtungen', 'error');
-      }
     } finally {
       setSaving(false);
     }

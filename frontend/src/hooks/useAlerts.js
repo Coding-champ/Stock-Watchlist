@@ -1,7 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-
-import API_BASE from '../config';
+import { useApi } from './useApi';
 
 /**
  * Custom Hook for managing alerts
@@ -11,60 +9,47 @@ import API_BASE from '../config';
 export function useAlerts(stockId = null, showToast = null) {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(false);
-  const queryClient = useQueryClient();
+  const { fetchApi } = useApi();
 
   // Load alerts (all or filtered by stock)
   const loadAlerts = useCallback(async () => {
     try {
       setLoading(true);
-      const url = stockId 
-        ? `${API_BASE}/alerts/?stock_id=${stockId}`
-        : `${API_BASE}/alerts/`;
-      // Use React Query to fetch/dedupe identical alert requests across components
-      const data = await queryClient.fetchQuery(['api', url], async () => {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.json();
-      }, { staleTime: 30000 });
+      const endpoint = stockId 
+        ? `/alerts/?stock_id=${stockId}`
+        : `/alerts/`;
+      const data = await fetchApi(endpoint, {
+        onError: () => showToast && showToast('Fehler beim Laden der Alarme', 'error')
+      });
       setAlerts(data);
       return data;
     } catch (error) {
-      console.error('Error loading alerts:', error);
-      if (showToast) showToast('Fehler beim Laden der Alarme', 'error');
       throw error;
     } finally {
       setLoading(false);
     }
-  }, [stockId, showToast, queryClient]);
+  }, [stockId, showToast, fetchApi]);
 
   // Toggle alert active status
   const toggleAlert = useCallback(async (alert) => {
     try {
-      const response = await fetch(`${API_BASE}/alerts/${alert.id}`, {
+      await fetchApi(`/alerts/${alert.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          is_active: !alert.is_active
-        })
+        body: { is_active: !alert.is_active },
+        onError: () => showToast && showToast('Fehler beim Aktualisieren des Alarms', 'error')
       });
-
-      if (response.ok) {
-        await loadAlerts();
-        if (showToast) {
-          showToast(
-            `Alarm ${alert.is_active ? 'deaktiviert' : 'aktiviert'}`, 
-            'success'
-          );
-        }
-        return true;
+      await loadAlerts();
+      if (showToast) {
+        showToast(
+          `Alarm ${alert.is_active ? 'deaktiviert' : 'aktiviert'}`, 
+          'success'
+        );
       }
-      return false;
+      return true;
     } catch (error) {
-      console.error('Error toggling alert:', error);
-      if (showToast) showToast('Fehler beim Aktualisieren des Alarms', 'error');
       return false;
     }
-  }, [loadAlerts, showToast]);
+  }, [loadAlerts, showToast, fetchApi]);
 
   // Delete alert
   const deleteAlert = useCallback(async (alertId, skipConfirm = false) => {
@@ -73,100 +58,77 @@ export function useAlerts(stockId = null, showToast = null) {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/alerts/${alertId}`, {
-        method: 'DELETE'
+      await fetchApi(`/alerts/${alertId}`, {
+        method: 'DELETE',
+        onError: () => showToast && showToast('Fehler beim Löschen des Alarms', 'error')
       });
-
-      if (response.ok) {
-        await loadAlerts();
-        if (showToast) showToast('Alarm gelöscht', 'success');
-        return true;
-      }
-      return false;
+      await loadAlerts();
+      if (showToast) showToast('Alarm gelöscht', 'success');
+      return true;
     } catch (error) {
-      console.error('Error deleting alert:', error);
-      if (showToast) showToast('Fehler beim Löschen des Alarms', 'error');
       return false;
     }
-  }, [loadAlerts, showToast]);
+  }, [loadAlerts, showToast, fetchApi]);
 
   // Create alert
   const createAlert = useCallback(async (alertData) => {
     try {
-      const response = await fetch(`${API_BASE}/alerts/`, {
+      const newAlert = await fetchApi(`/alerts/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(alertData)
+        body: alertData,
+        onError: () => showToast && showToast('Fehler beim Erstellen des Alarms', 'error')
       });
-
-      if (response.ok) {
-        const newAlert = await response.json();
-        await loadAlerts();
-        if (showToast) showToast('Alarm erstellt', 'success');
-        return newAlert;
-      }
-      return null;
+      await loadAlerts();
+      if (showToast) showToast('Alarm erstellt', 'success');
+      return newAlert;
     } catch (error) {
-      console.error('Error creating alert:', error);
-      if (showToast) showToast('Fehler beim Erstellen des Alarms', 'error');
       return null;
     }
-  }, [loadAlerts, showToast]);
+  }, [loadAlerts, showToast, fetchApi]);
 
   // Update alert
   const updateAlert = useCallback(async (alertId, alertData) => {
     try {
-      const response = await fetch(`${API_BASE}/alerts/${alertId}`, {
+      const updatedAlert = await fetchApi(`/alerts/${alertId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(alertData)
+        body: alertData,
+        onError: () => showToast && showToast('Fehler beim Aktualisieren des Alarms', 'error')
       });
-
-      if (response.ok) {
-        const updatedAlert = await response.json();
-        await loadAlerts();
-        if (showToast) showToast('Alarm aktualisiert', 'success');
-        return updatedAlert;
-      }
-      return null;
+      await loadAlerts();
+      if (showToast) showToast('Alarm aktualisiert', 'success');
+      return updatedAlert;
     } catch (error) {
-      console.error('Error updating alert:', error);
-      if (showToast) showToast('Fehler beim Aktualisieren des Alarms', 'error');
       return null;
     }
-  }, [loadAlerts, showToast]);
+  }, [loadAlerts, showToast, fetchApi]);
 
   // Check all alerts
   const checkAllAlerts = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/alerts/check-all`, {
-        method: 'POST'
+      const result = await fetchApi(`/alerts/check-all`, {
+        method: 'POST',
+        onError: () => showToast && showToast('Fehler beim Prüfen der Alarme', 'error')
       });
-      const result = await response.json();
       await loadAlerts();
       return result;
     } catch (error) {
-      console.error('Error checking alerts:', error);
-      if (showToast) showToast('Fehler beim Prüfen der Alarme', 'error');
       throw error;
     }
-  }, [loadAlerts, showToast]);
+  }, [loadAlerts, showToast, fetchApi]);
 
   // Check single alert
   const checkAlert = useCallback(async (alertId) => {
     try {
-      const response = await fetch(`${API_BASE}/alerts/check/${alertId}`, {
-        method: 'POST'
+      const result = await fetchApi(`/alerts/check/${alertId}`, {
+        method: 'POST',
+        onError: () => showToast && showToast('Fehler beim Prüfen des Alarms', 'error')
       });
-      const result = await response.json();
       await loadAlerts();
       return result;
     } catch (error) {
-      console.error('Error checking alert:', error);
-      if (showToast) showToast('Fehler beim Prüfen des Alarms', 'error');
       throw error;
     }
-  }, [loadAlerts, showToast]);
+  }, [loadAlerts, showToast, fetchApi]);
 
   return {
     alerts,

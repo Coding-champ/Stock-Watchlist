@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import '../styles/skeletons.css';
-import API_BASE from '../config';
+import { useApi } from '../hooks/useApi';
 
 const getInitials = (name = '') => {
   const trimmed = (name || '').trim();
@@ -19,48 +19,31 @@ const getInitials = (name = '') => {
 function WatchlistSection({ watchlists, currentWatchlist, onWatchlistSelect, onWatchlistsChange, onShowToast, collapsed = false, onToggleCollapsed = () => {} }) {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ name: '', description: '' });
+  const { fetchApi } = useApi();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_BASE}/watchlists/`, {
+      const created = await fetchApi(`/watchlists/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: formData,
+        onError: (err) => {
+          if (onShowToast) {
+            onShowToast(`Erstellung fehlgeschlagen · ${err.message || 'Fehler'}`, 'error');
+          } else {
+            alert(err.message || 'Fehler beim Erstellen der Watchlist');
+          }
+        }
       });
       
-      if (response.ok) {
-        const created = await response.json();
-        setShowModal(false);
-        setFormData({ name: '', description: '' });
-        onWatchlistsChange();
-        if (onShowToast) {
-          onShowToast(`Watchlist erstellt · ${created?.name || formData.name}`, 'success');
-        }
-      } else {
-        let message = 'Fehler beim Erstellen der Watchlist';
-        try {
-          const errorBody = await response.json();
-          if (errorBody?.detail) {
-            message = errorBody.detail;
-          }
-        } catch (parseError) {
-          console.warn('Watchlist create: konnte Fehlermeldung nicht parsen', parseError);
-        }
-
-        if (onShowToast) {
-          onShowToast(`Erstellung fehlgeschlagen · ${message}`, 'error');
-        } else {
-          alert(message);
-        }
+      setShowModal(false);
+      setFormData({ name: '', description: '' });
+      onWatchlistsChange();
+      if (onShowToast) {
+        onShowToast(`Watchlist erstellt · ${created?.name || formData.name}`, 'success');
       }
     } catch (error) {
       console.error('Error creating watchlist:', error);
-      if (onShowToast) {
-        onShowToast('Erstellung fehlgeschlagen · Bitte erneut versuchen', 'error');
-      } else {
-        alert('Fehler beim Erstellen der Watchlist');
-      }
     }
   };
 

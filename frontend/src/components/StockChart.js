@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import '../styles/skeletons.css';
 import {
   LineChart,
@@ -21,7 +20,7 @@ import VolumeProfileOverlay from './VolumeProfileOverlay';
 import { StochasticChart } from './AdvancedCharts';
 import './StockChart.css';
 
-import API_BASE from '../config';
+import { useApi } from '../hooks/useApi';
 import { formatPrice } from '../utils/currencyUtils';
 
 // Time period options
@@ -138,8 +137,8 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   };
 
   
-    // React Query client for shared/cached requests (dedupe identical URLs)
-    const queryClient = useQueryClient();
+    // useApi hook for standardized fetch calls
+    const { fetchApi } = useApi();
 
     // Fetch chart data
   const fetchChartData = useCallback(async () => {
@@ -151,33 +150,25 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
       const interval = periodConfig?.interval || '1d';
       
       // Build URL with period or custom dates
-      let chartUrl = `${API_BASE}/stock-data/${stock.id}/chart?interval=${interval}&include_volume=true`;
+      let chartEndpoint = `/stock-data/${stock.id}/chart?interval=${interval}&include_volume=true`;
       
       if (period === 'custom' && customStartDate && customEndDate) {
-        chartUrl += `&start=${customStartDate}&end=${customEndDate}`;
+        chartEndpoint += `&start=${customStartDate}&end=${customEndDate}`;
       } else {
-        chartUrl += `&period=${period}`;
+        chartEndpoint += `&period=${period}`;
       }
       
-      // Fetch main chart data via React Query to dedupe identical requests
-      const chartJson = await queryClient.fetchQuery(['api', chartUrl], async () => {
-        const r = await fetch(chartUrl);
-        if (!r.ok) throw new Error('Failed to fetch chart data');
-        return r.json();
-      }, { staleTime: 60000 });
+      // Fetch main chart data via useApi
+      const chartJson = await fetchApi(chartEndpoint, { staleTime: 60000 });
       
   // Fetch only the SMA indicators initially (keep payload small). Other indicators are
   // fetched lazily when the user toggles them on.
   let indicatorsJson = null;
   const initialIndicatorsList = ['sma_50', 'sma_200'];
       
-      const indicatorsUrl = `${API_BASE}/stock-data/${stock.id}/technical-indicators?period=${period}&${initialIndicatorsList.map(i => `indicators=${i}`).join('&')}`;
+      const indicatorsEndpoint = `/stock-data/${stock.id}/technical-indicators?period=${period}&${initialIndicatorsList.map(i => `indicators=${i}`).join('&')}`;
       try {
-        indicatorsJson = await queryClient.fetchQuery(['api', indicatorsUrl], async () => {
-          const r = await fetch(indicatorsUrl);
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json();
-        }, { staleTime: 60000 });
+        indicatorsJson = await fetchApi(indicatorsEndpoint, { staleTime: 60000 });
       } catch (e) {
         indicatorsJson = null;
       }
@@ -323,14 +314,9 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         });
       }
       
-      // Fetch crossover / calculated metrics data via React Query to enable dedupe
+      // Fetch crossover / calculated metrics data
       try {
-        const calcUrl = `${API_BASE}/stock-data/${stock.id}/calculated-metrics`;
-        const crossoverJson = await queryClient.fetchQuery(['api', calcUrl], async () => {
-          const r = await fetch(calcUrl);
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json();
-        }, { staleTime: 60000 });
+        const crossoverJson = await fetchApi(`/stock-data/${stock.id}/calculated-metrics`, { staleTime: 60000 });
 
         const smaCrossovers = crossoverJson?.metrics?.basic_indicators?.sma_crossovers;
         if (smaCrossovers && smaCrossovers.all_crossovers) {
@@ -362,14 +348,9 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         setSupportResistanceData(null);
       }
       
-      // Fetch divergence data via React Query to allow dedupe with other components
+      // Fetch divergence data
       try {
-        const divUrl = `${API_BASE}/stock-data/${stock.id}/divergence-analysis`;
-        const divergenceJson = await queryClient.fetchQuery(['api', divUrl], async () => {
-          const r = await fetch(divUrl);
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json();
-        }, { staleTime: 60000 });
+        const divergenceJson = await fetchApi(`/stock-data/${stock.id}/divergence-analysis`, { staleTime: 60000 });
         if (divergenceJson?.rsi_divergence || divergenceJson?.macd_divergence) {
           setDivergenceData(divergenceJson);
         } else {
@@ -387,7 +368,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
     } finally {
       setLoading(false);
     }
-  }, [stock.id, period, customStartDate, customEndDate, onLatestVwap, queryClient]); // Include all dependencies
+  }, [stock.id, period, customStartDate, customEndDate, onLatestVwap, fetchApi]); // Include all dependencies
 
   useEffect(() => {
     fetchChartData();
@@ -409,9 +390,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
       // Mark as in-flight
       toFetch.forEach(n => inFlightIndicatorsRef.current.add(n));
 
-      const resp = await fetch(`${API_BASE}/stock-data/${stock.id}/technical-indicators?period=${period}&${toFetch.map(i => `indicators=${i}`).join('&')}`);
-      if (!resp.ok) return;
-      const json = await resp.json();
+      const json = await fetchApi(`/stock-data/${stock.id}/technical-indicators?period=${period}&${toFetch.map(i => `indicators=${i}`).join('&')}`);
       const newInd = json?.indicators || {};
 
       // Merge into cached indicators
@@ -461,7 +440,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
       // make sure to clear in-flight markers on error to allow retries
       indicatorNames.forEach(n => inFlightIndicatorsRef.current.delete(n));
     }
-  }, [stock.id, period]);
+  }, [stock.id, period, fetchApi]);
 
   // Refs to track latest indicators state and in-flight fetches to avoid races/loops
   const indicatorsRef = useRef(indicators);

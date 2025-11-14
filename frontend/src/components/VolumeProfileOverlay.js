@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import './VolumeProfileOverlay.css';
 import '../styles/skeletons.css';
 
-import API_BASE from '../config';
+import { useApi } from '../hooks/useApi';
 import { formatPrice } from '../utils/currencyUtils';
 
 /**
@@ -29,22 +28,19 @@ function VolumeProfileOverlay({
 }) {
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const queryClient = useQueryClient();
+  const { fetchApi } = useApi();
 
   useEffect(() => {
     if (!stockId) return;
 
     const fetchVolumeProfile = async () => {
       setLoading(true);
-      const url = `${API_BASE}/stock-data/${stockId}/volume-profile?period_days=${period}&num_bins=${numBins}`;
       try {
-        const data = await queryClient.fetchQuery(['api', url], async () => {
-          const r = await fetch(url);
-          if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
-          const j = await r.json();
-          if (j.error) throw new Error(j.error);
-          return j;
-        }, { staleTime: 60000 });
+        const data = await fetchApi(`/stock-data/${stockId}/volume-profile?period_days=${period}&num_bins=${numBins}`, {
+          staleTime: 60000
+        });
+
+        if (data.error) throw new Error(data.error);
 
         setProfileData(data);
         if (onProfileLoad) {
@@ -58,7 +54,7 @@ function VolumeProfileOverlay({
     };
 
     fetchVolumeProfile();
-  }, [stockId, period, numBins, onProfileLoad, queryClient]);
+  }, [stockId, period, numBins, onProfileLoad, fetchApi]);
 
   // Separate useEffect to call onProfileLoad when data changes
   useEffect(() => {

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import '../styles/skeletons.css';
-import API_BASE from '../config';
 import { formatPrice } from '../utils/currencyUtils';
 import ObservationFields from './ObservationFields';
+import { useApi } from '../hooks/useApi';
 
 const createInitialManualForm = () => ({
   isin: '',
@@ -26,6 +26,7 @@ function StockModal({ watchlistId, onClose, onStockAdded, onShowToast }) {
   const [observationReasons, setObservationReasons] = useState([]);
   const [observationNotes, setObservationNotes] = useState('');
   
+  const { fetchApi } = useApi();
 
   const handleModeChange = (nextMode) => {
     setMode(nextMode);
@@ -73,8 +74,15 @@ function StockModal({ watchlistId, onClose, onStockAdded, onShowToast }) {
 
     try {
       setSearching(true);
-      const response = await fetch(`${API_BASE}/stocks/search/${tickerInput.toUpperCase()}`);
-      const data = await response.json();
+      const data = await fetchApi(`/stocks/search/${tickerInput.toUpperCase()}`, {
+        onError: (err) => {
+          if (onShowToast) {
+            onShowToast('Fehler bei der Suche', 'error');
+          } else {
+            alert('Fehler bei der Suche');
+          }
+        }
+      });
       
       if (data.found) {
         setSearchResult(data.stock);
@@ -91,11 +99,6 @@ function StockModal({ watchlistId, onClose, onStockAdded, onShowToast }) {
       }
     } catch (error) {
       console.error('Error searching stock:', error);
-      if (onShowToast) {
-        onShowToast('Fehler bei der Suche', 'error');
-      } else {
-        alert('Fehler bei der Suche');
-      }
     } finally {
       setSearching(false);
     }
@@ -115,42 +118,25 @@ function StockModal({ watchlistId, onClose, onStockAdded, onShowToast }) {
         payload.observation_notes = trimmedNotes;
       }
 
-      const response = await fetch(`${API_BASE}/stocks/add-by-ticker`, {
+      await fetchApi(`/stocks/add-by-ticker`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: payload,
+        onError: (err) => {
+          if (onShowToast) {
+            onShowToast(err.message || 'Fehler beim Hinzufügen der Aktie', 'error');
+          } else {
+            alert(err.message || 'Fehler beim Hinzufügen der Aktie');
+          }
+        }
       });
 
-      if (response.ok) {
-        resetModalState();
-        onStockAdded();
-        if (onShowToast) {
-          onShowToast('Aktie zur Watchlist hinzugefügt', 'success');
-        }
-      } else {
-        let message = 'Fehler beim Hinzufügen der Aktie';
-        try {
-          const error = await response.json();
-          if (error?.detail) {
-            message = error.detail;
-          }
-        } catch (parseError) {
-          console.warn('addStockByTicker: konnte Fehlermeldung nicht parsen', parseError);
-        }
-
-        if (onShowToast) {
-          onShowToast(message, 'error');
-        } else {
-          alert(message);
-        }
+      resetModalState();
+      onStockAdded();
+      if (onShowToast) {
+        onShowToast('Aktie zur Watchlist hinzugefügt', 'success');
       }
     } catch (error) {
       console.error('Error adding stock:', error);
-      if (onShowToast) {
-        onShowToast('Fehler beim Hinzufügen der Aktie', 'error');
-      } else {
-        alert('Fehler beim Hinzufügen der Aktie');
-      }
     }
   };
 
@@ -170,42 +156,25 @@ function StockModal({ watchlistId, onClose, onStockAdded, onShowToast }) {
         payload.observation_notes = trimmedNotes;
       }
 
-      const response = await fetch(`${API_BASE}/stocks/`, {
+      await fetchApi(`/stocks/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: payload,
+        onError: (err) => {
+          if (onShowToast) {
+            onShowToast(err.message || 'Fehler beim Hinzufügen der Aktie', 'error');
+          } else {
+            alert(err.message || 'Fehler beim Hinzufügen der Aktie');
+          }
+        }
       });
 
-      if (response.ok) {
-        resetModalState();
-        onStockAdded();
-        if (onShowToast) {
-          onShowToast('Aktie zur Watchlist hinzugefügt', 'success');
-        }
-      } else {
-        let message = 'Fehler beim Hinzufügen der Aktie';
-        try {
-          const error = await response.json();
-          if (error?.detail) {
-            message = error.detail;
-          }
-        } catch (parseError) {
-          console.warn('handleManualSubmit: konnte Fehlermeldung nicht parsen', parseError);
-        }
-
-        if (onShowToast) {
-          onShowToast(message, 'error');
-        } else {
-          alert(message);
-        }
+      resetModalState();
+      onStockAdded();
+      if (onShowToast) {
+        onShowToast('Aktie zur Watchlist hinzugefügt', 'success');
       }
     } catch (error) {
       console.error('Error adding stock:', error);
-      if (onShowToast) {
-        onShowToast('Fehler beim Hinzufügen der Aktie', 'error');
-      } else {
-        alert('Fehler beim Hinzufügen der Aktie');
-      }
     }
   };
 
@@ -237,39 +206,36 @@ function StockModal({ watchlistId, onClose, onStockAdded, onShowToast }) {
     try {
       setBulkSubmitting(true);
       setBulkResults(null);
-      const response = await fetch(`${API_BASE}/stocks/bulk-add`, {
+      const data = await fetchApi(`/stocks/bulk-add`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           watchlist_id: watchlistId,
           identifiers,
           identifier_type: bulkIdentifierMode
-        })
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        setBulkResults(data);
-        if (data.created_count > 0) {
-          onStockAdded();
+        },
+        onError: (err) => {
+          setBulkSubmitting(false);
           if (onShowToast) {
-            onShowToast(`${data.created_count} Aktien hinzugefügt`, 'success');
+            onShowToast(err.message || 'Fehler beim Hinzufügen', 'error');
+          } else {
+            alert(err.message || 'Fehler beim Hinzufügen');
           }
         }
+      });
 
-        if (data.exists_count > 0 && onShowToast) {
-          onShowToast(`${data.exists_count} Aktien waren bereits vorhanden`, 'info');
-        }
-        if (data.errors && data.errors.length > 0 && onShowToast) {
-          onShowToast(`${data.errors.length} Einträge konnten nicht hinzugefügt werden`, 'warning');
-        }
-      } else {
-        const message = data.detail || 'Fehler beim Hinzufügen der Aktien';
+      setBulkResults(data);
+      if (data.created_count > 0) {
+        onStockAdded();
         if (onShowToast) {
-          onShowToast(message, 'error');
-        } else {
-          alert(message);
+          onShowToast(`${data.created_count} Aktien hinzugefügt`, 'success');
         }
+      }
+
+      if (data.exists_count > 0 && onShowToast) {
+        onShowToast(`${data.exists_count} Aktien waren bereits vorhanden`, 'info');
+      }
+      if (data.errors && data.errors.length > 0 && onShowToast) {
+        onShowToast(`${data.errors.length} Einträge konnten nicht hinzugefügt werden`, 'warning');
       }
     } catch (error) {
       console.error('Error during bulk add:', error);

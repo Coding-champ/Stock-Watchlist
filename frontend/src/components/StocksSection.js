@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import API_BASE from '../config';
 import '../styles/skeletons.css';
 import { formatPrice } from '../utils/currencyUtils';
 import { parseCSV, exportCSV } from '../utils/csvUtils';
 import { createPortal } from 'react-dom';
 import StockTable from './StockTable';
 import StockModal from './StockModal';
+import { useApi } from '../hooks/useApi';
 
 
 function StocksSection({ watchlist, watchlists, onShowToast, onOpenStock }) {
@@ -25,6 +25,8 @@ function StocksSection({ watchlist, watchlists, onShowToast, onOpenStock }) {
   // in this component so ignore the first tuple item to avoid unused-variable lint.
   const [, setUpdatingIds] = useState(new Set());
   const [, setFailedIds] = useState(new Set());
+  
+  const { fetchApi } = useApi();
 
   const dismissToast = useCallback(() => {
     if (toastTimeoutRef.current) {
@@ -64,10 +66,7 @@ function StocksSection({ watchlist, watchlists, onShowToast, onOpenStock }) {
 
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/stocks/?watchlist_id=${watchlist.id}`, {
-        cache: 'no-store' // Prevent browser caching to always get fresh data
-      });
-      const data = await response.json();
+      const data = await fetchApi(`/stocks/?watchlist_id=${watchlist.id}`, { useCache: false });
       setStocks(data);
     } catch (error) {
       console.error('Error loading stocks:', error);
@@ -75,7 +74,7 @@ function StocksSection({ watchlist, watchlists, onShowToast, onOpenStock }) {
     } finally {
       setLoading(false);
     }
-  }, [watchlist?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [watchlist?.id, fetchApi]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Use useMemo instead of useEffect to avoid unnecessary re-renders
   const filteredStocks = useMemo(() => {
@@ -195,26 +194,23 @@ function StocksSection({ watchlist, watchlists, onShowToast, onOpenStock }) {
       }
 
       showToast(`Importiere ${identifiers.length} Einträge...`, 'info');
-      const response = await fetch(`${API_BASE}/stocks/bulk-add`, {
+      const data = await fetchApi(`/stocks/bulk-add`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ watchlist_id: watchlist.id, identifiers, identifier_type: 'auto' })
+        body: { watchlist_id: watchlist.id, identifiers, identifier_type: 'auto' },
+        onError: (err) => {
+          showToast(err.message || 'Fehler beim Import', 'error');
+        }
       });
-      const data = await response.json();
-      if (response.ok) {
-        if (data.created_count > 0) {
-          showToast(`${data.created_count} Aktien hinzugefügt`, 'success');
-          loadStocks();
-        }
-        if (data.exists_count > 0) {
-          showToast(`${data.exists_count} waren bereits vorhanden`, 'info');
-        }
-        if (data.failed_count > 0) {
-          showToast(`${data.failed_count} Einträge konnten nicht hinzugefügt werden`, 'warning');
-        }
-      } else {
-        const message = data.detail || 'Fehler beim Import';
-        showToast(message, 'error');
+      
+      if (data.created_count > 0) {
+        showToast(`${data.created_count} Aktien hinzugefügt`, 'success');
+        loadStocks();
+      }
+      if (data.exists_count > 0) {
+        showToast(`${data.exists_count} waren bereits vorhanden`, 'info');
+      }
+      if (data.failed_count > 0) {
+        showToast(`${data.failed_count} Einträge konnten nicht hinzugefügt werden`, 'warning');
       }
     } catch (err) {
       console.error('Error importing CSV:', err);
@@ -278,134 +274,72 @@ function StocksSection({ watchlist, watchlists, onShowToast, onOpenStock }) {
 
   const handleDeleteStock = async (stockId, skipToast = false) => {
     try {
-      const response = await fetch(`${API_BASE}/stocks/${stockId}?watchlist_id=${watchlist.id}`, {
-        method: 'DELETE'
-      });
-
-      if (response.ok) {
-        loadStocks();
-        if (!skipToast) {
-          showToast('Aktie gelöscht', 'success');
-        }
-      } else {
-        let message = 'Fehler beim Löschen der Aktie';
-        try {
-          const errorData = await response.json();
-          if (errorData?.detail) {
-            message = errorData.detail;
+      await fetchApi(`/stocks/${stockId}?watchlist_id=${watchlist.id}`, {
+        method: 'DELETE',
+        onError: (err) => {
+          if (!skipToast) {
+            showToast(err.message || 'Fehler beim Löschen der Aktie', 'error');
           }
-        } catch (parseError) {
-          console.warn('Delete stock: konnte Fehlermeldung nicht parsen', parseError);
         }
-        if (!skipToast) {
-          showToast(message, 'error');
-        }
-        throw new Error(message);
+      });
+      
+      loadStocks();
+      if (!skipToast) {
+        showToast('Aktie gelöscht', 'success');
       }
     } catch (error) {
       console.error('Error deleting stock:', error);
-      if (!skipToast) {
-        showToast('Fehler beim Löschen der Aktie', 'error');
-      }
       throw error;
     }
   };
 
   const handleMoveStock = async (stockId, targetWatchlistId) => {
     try {
-      const response = await fetch(`${API_BASE}/stocks/${stockId}/move?source_watchlist_id=${watchlist.id}`, {
+      await fetchApi(`/stocks/${stockId}/move?source_watchlist_id=${watchlist.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target_watchlist_id: targetWatchlistId })
-      });
-
-      if (response.ok) {
-        loadStocks();
-        showToast('Aktie erfolgreich verschoben!', 'success');
-        return;
-      }
-
-      let fallbackMessage = 'Fehler beim Verschieben der Aktie';
-      let responseBody = null;
-
-      try {
-        responseBody = await response.json();
-      } catch (parseError) {
-        console.warn('Move stock: konnte Fehlermeldung nicht parsen', parseError);
-      }
-
-      if (responseBody) {
-        const detailMessage = responseBody.detail || responseBody.message || responseBody.error;
-        if (typeof detailMessage === 'string' && detailMessage.trim().length > 0) {
-          const normalized = detailMessage.toLowerCase();
-          if (
-            normalized.includes('already') &&
-            normalized.includes('watchlist')
-          ) {
-            fallbackMessage = 'Aktie ist schon in der Ziel-Watchlist vorhanden!';
+        body: { target_watchlist_id: targetWatchlistId },
+        onError: (err) => {
+          const message = err.message || 'Fehler beim Verschieben der Aktie';
+          const normalized = message.toLowerCase();
+          if (normalized.includes('already') && normalized.includes('watchlist')) {
+            showToast('Aktie ist schon in der Ziel-Watchlist vorhanden!', 'error');
           } else {
-            fallbackMessage = detailMessage;
+            showToast(message, 'error');
           }
         }
-      } else if (response.status === 409) {
-        fallbackMessage = 'Aktie ist schon in der Ziel-Watchlist vorhanden!';
-      }
-
-      showToast(fallbackMessage, 'error');
+      });
+      
+      loadStocks();
+      showToast('Aktie erfolgreich verschoben!', 'success');
     } catch (error) {
       console.error('Error moving stock:', error);
-      showToast('Fehler beim Verschieben der Aktie', 'error');
     }
   };
 
   const handleCopyStock = async (stockId, targetWatchlistId) => {
     try {
-      const response = await fetch(`${API_BASE}/stocks/${stockId}/copy?source_watchlist_id=${watchlist.id}`, {
+      await fetchApi(`/stocks/${stockId}/copy?source_watchlist_id=${watchlist.id}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target_watchlist_id: targetWatchlistId })
-      });
-
-      if (response.ok) {
-        loadStocks();
-        const stockName = stocks.find((stock) => stock.id === stockId)?.name;
-        showToast(
-          `Aktie kopiert${stockName ? ` · ${stockName}` : ''}`,
-          'success'
-        );
-        return;
-      }
-
-      let fallbackMessage = 'Fehler beim Kopieren der Aktie';
-      let responseBody = null;
-
-      try {
-        responseBody = await response.json();
-      } catch (parseError) {
-        console.warn('Copy stock: konnte Fehlermeldung nicht parsen', parseError);
-      }
-
-      if (responseBody) {
-        const detailMessage = responseBody.detail || responseBody.message || responseBody.error;
-        if (typeof detailMessage === 'string' && detailMessage.trim().length > 0) {
-          const normalized = detailMessage.toLowerCase();
-          if (
-            normalized.includes('already') &&
-            normalized.includes('watchlist')
-          ) {
-            fallbackMessage = 'Aktie ist schon in der Ziel-Watchlist vorhanden!';
+        body: { target_watchlist_id: targetWatchlistId },
+        onError: (err) => {
+          const message = err.message || 'Fehler beim Kopieren der Aktie';
+          const normalized = message.toLowerCase();
+          if (normalized.includes('already') && normalized.includes('watchlist')) {
+            showToast('Aktie ist schon in der Ziel-Watchlist vorhanden!', 'error');
           } else {
-            fallbackMessage = detailMessage;
+            showToast(message, 'error');
           }
         }
-      } else if (response.status === 409) {
-        fallbackMessage = 'Aktie ist schon in der Ziel-Watchlist vorhanden!';
-      }
-
-      showToast(fallbackMessage, 'error');
+      });
+      
+      loadStocks();
+      const stockName = stocks.find((stock) => stock.id === stockId)?.name;
+      showToast(
+        `Aktie kopiert${stockName ? ` · ${stockName}` : ''}`,
+        'success'
+      );
     } catch (error) {
       console.error('Error copying stock:', error);
-      showToast('Fehler beim Kopieren der Aktie', 'error');
     }
   };
 
@@ -424,24 +358,36 @@ function StocksSection({ watchlist, watchlists, onShowToast, onOpenStock }) {
     // mark the stock in local state as updating (so StockTable can read latest_data.__updating)
     setStocks(prev => prev.map(s => s.id === stockId ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: true, __failed: false } } : s));
     try {
-      const response = await fetch(`${API_BASE}/stocks/${stockId}/update-market-data`, {
-        method: 'POST'
+      const result = await fetchApi(`/stocks/${stockId}/update-market-data`, {
+        method: 'POST',
+        onError: (err) => {
+          setUpdatingIds(prev => {
+            const s = new Set(prev);
+            s.delete(stockId);
+            return s;
+          });
+          setFailedIds(prev => {
+            const s = new Set(prev);
+            s.add(stockId);
+            return s;
+          });
+          setStocks(prev => prev.map(s => s.id === stockId ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: false, __failed: true } } : s));
+          showToast(err.message || 'Fehler beim Aktualisieren der Marktdaten', 'error');
+        }
       });
 
-      if (response.ok) {
-        // success -> clear updating and failed state
-        setUpdatingIds(prev => {
-          const s = new Set(prev);
-          s.delete(stockId);
-          return s;
-        });
-        setFailedIds(prev => {
-          const s = new Set(prev);
-          s.delete(stockId);
-          return s;
-        });
-        setStocks(prev => prev.map(s => s.id === stockId ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: false, __failed: false } } : s));
-        const result = await response.json();
+      // success -> clear updating and failed state
+      setUpdatingIds(prev => {
+        const s = new Set(prev);
+        s.delete(stockId);
+        return s;
+      });
+      setFailedIds(prev => {
+        const s = new Set(prev);
+        s.delete(stockId);
+        return s;
+      });
+      setStocks(prev => prev.map(s => s.id === stockId ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: false, __failed: false } } : s));
   const priceNum = typeof result?.data?.current_price === 'number' ? result.data.current_price : null;
   const pe = typeof result?.data?.pe_ratio === 'number' ? result.data.pe_ratio.toFixed(2) : 'N/A';
   showToast(`Marktdaten aktualisiert · Kurs ${formatPrice(priceNum, stocks.find(s => s.id === stockId))} · KGV ${pe}`, 'success');
@@ -475,32 +421,8 @@ function StocksSection({ watchlist, watchlists, onShowToast, onOpenStock }) {
           setStocks(prev => prev.map(s => s.id === stockId ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: false, __failed: true } } : s));
           showToast('Konnte die lokale Aktualisierung nicht anwenden. Bitte erneut versuchen.', 'warning');
         }
-      } else {
-        // mark failed
-        setUpdatingIds(prev => {
-          const s = new Set(prev);
-          s.delete(stockId);
-          return s;
-        });
-        setFailedIds(prev => {
-          const s = new Set(prev);
-          s.add(stockId);
-          return s;
-        });
-        setStocks(prev => prev.map(s => s.id === stockId ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: false, __failed: true } } : s));
-        let errorMessage = 'Fehler beim Aktualisieren der Marktdaten';
-        try {
-          const error = await response.json();
-          if (error?.detail) {
-            errorMessage = error.detail;
-          }
-        } catch (parseError) {
-          console.warn('Update market data: konnte Fehlermeldung nicht parsen', parseError);
-        }
-        showToast(errorMessage, 'error');
-      }
     } catch (error) {
-      // network/other error -> mark failed
+      console.error('Error updating market data:', error);
       setUpdatingIds(prev => {
         const s = new Set(prev);
         s.delete(stockId);
@@ -512,8 +434,6 @@ function StocksSection({ watchlist, watchlists, onShowToast, onOpenStock }) {
         return s;
       });
       setStocks(prev => prev.map(s => s.id === stockId ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: false, __failed: true } } : s));
-      console.error('Error updating market data:', error);
-      showToast('Fehler beim Aktualisieren der Marktdaten', 'error');
     }
   };
 
@@ -535,38 +455,26 @@ function StocksSection({ watchlist, watchlists, onShowToast, onOpenStock }) {
       // mark this stock as updating in local state
       setStocks(prev => prev.map(s => s.id === stock.id ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: true, __failed: false } } : s));
       try {
-        const response = await fetch(`${API_BASE}/stocks/${stock.id}/update-market-data`, {
+        const result = await fetchApi(`/stocks/${stock.id}/update-market-data`, {
           method: 'POST'
         });
 
-        if (response.ok) {
-          successCount++;
-          try {
-            const result = await response.json();
-            const updatedData = result?.data || {};
-            // Apply the update to the single stock in local state
-            setStocks((prev) => prev.map((s) => {
-              if (s.id !== stock.id) return s;
-              const prevLatest = s.latest_data || s.latestData || {};
-              const newLatest = {
-                ...prevLatest,
-                current_price: typeof updatedData.current_price === 'number' ? updatedData.current_price : prevLatest.current_price,
-                pe_ratio: typeof updatedData.pe_ratio === 'number' ? updatedData.pe_ratio : prevLatest.pe_ratio,
-                timestamp: (updatedData.timestamp || updatedData.date) ? (updatedData.timestamp || updatedData.date) : prevLatest.timestamp,
-                __updating: false,
-                __failed: false
-              };
-              return { ...s, latest_data: newLatest };
-            }));
-          } catch (err) {
-            console.warn(`Updated ${stock.ticker_symbol} but could not apply local update`, err);
-            setStocks(prev => prev.map(s => s.id === stock.id ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: false } } : s));
-          }
-        } else {
-          failCount++;
-          console.warn(`Failed to update ${stock.ticker_symbol}`);
-          setStocks(prev => prev.map(s => s.id === stock.id ? { ...s, latest_data: { ...(s.latest_data||s.latestData||{}), __updating: false, __failed: true } } : s));
-        }
+        successCount++;
+        const updatedData = result?.data || {};
+        // Apply the update to the single stock in local state
+        setStocks((prev) => prev.map((s) => {
+          if (s.id !== stock.id) return s;
+          const prevLatest = s.latest_data || s.latestData || {};
+          const newLatest = {
+            ...prevLatest,
+            current_price: typeof updatedData.current_price === 'number' ? updatedData.current_price : prevLatest.current_price,
+            pe_ratio: typeof updatedData.pe_ratio === 'number' ? updatedData.pe_ratio : prevLatest.pe_ratio,
+            timestamp: (updatedData.timestamp || updatedData.date) ? (updatedData.timestamp || updatedData.date) : prevLatest.timestamp,
+            __updating: false,
+            __failed: false
+          };
+          return { ...s, latest_data: newLatest };
+        }));
 
         // Small delay between requests to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 200));
