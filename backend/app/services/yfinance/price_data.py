@@ -12,7 +12,7 @@ import logging
 from .client import _get_extended_period, _clean_for_json
 
 # Import core indicator calculations
-from backend.app.services.indicators_core import calculate_sma
+from backend.app.services.indicators_core import calculate_sma, calculate_stochastic
 
 # Import unified time series utilities
 from backend.app.utils.time_series_utils import (
@@ -500,27 +500,20 @@ def get_chart_data(
                         except Exception:
                             indicators_result['indicators']['atr'] = None
                     elif 'stochastic' in name or 'stoch' in name:
-                        # Slow Stochastic: %K smoothed and %D = SMA of smoothed %K
+                        # Slow Stochastic using centralized calculation
                         try:
-                            period = 14
-                            smooth_k = 3
-                            smooth_d = 3
-                            low = hist['Low']
-                            high = hist['High']
-                            close = hist['Close']
-
-                            lowest_low = low.rolling(window=period).min()
-                            highest_high = high.rolling(window=period).max()
-                            k_raw = 100 * ((close - lowest_low) / (highest_high - lowest_low))
-                            if smooth_k > 1:
-                                k_series = k_raw.rolling(window=smooth_k).mean()
-                            else:
-                                k_series = k_raw
-                            d_series = k_series.rolling(window=smooth_d).mean()
+                            stoch_df = calculate_stochastic(
+                                high=hist['High'],
+                                low=hist['Low'],
+                                close=hist['Close'],
+                                period=14,
+                                smooth_k=3,
+                                smooth_d=3
+                            )
 
                             # Convert NaN to None for JSON serialization
-                            k_list = [None if pd.isna(v) else float(v) for v in k_series.tolist()]
-                            d_list = [None if pd.isna(v) else float(v) for v in d_series.tolist()]
+                            k_list = [None if pd.isna(v) else float(v) for v in stoch_df['k_percent'].tolist()]
+                            d_list = [None if pd.isna(v) else float(v) for v in stoch_df['d_percent'].tolist()]
 
                             indicators_result['indicators']['stochastic'] = {
                                 'k_percent': k_list,

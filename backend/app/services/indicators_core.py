@@ -47,6 +47,52 @@ def calculate_bollinger_bands(series: Union[pd.Series, list], window: int = 20, 
     })
 
 
+def calculate_stochastic(
+    high: Union[pd.Series, list],
+    low: Union[pd.Series, list],
+    close: Union[pd.Series, list],
+    period: int = 14,
+    smooth_k: int = 3,
+    smooth_d: int = 3
+) -> pd.DataFrame:
+    """
+    Berechnet Stochastic Oscillator (%K und %D).
+    
+    Args:
+        high: High prices
+        low: Low prices
+        close: Close prices
+        period: Lookback period for %K (default: 14)
+        smooth_k: Smoothing period for %K (default: 3)
+        smooth_d: Smoothing period for %D (default: 3)
+        
+    Returns:
+        DataFrame with columns 'k_percent' and 'd_percent'
+    """
+    high_s = pd.Series(high)
+    low_s = pd.Series(low)
+    close_s = pd.Series(close)
+    
+    # Calculate raw %K
+    lowest_low = low_s.rolling(window=period, min_periods=period).min()
+    highest_high = high_s.rolling(window=period, min_periods=period).max()
+    k_raw = 100 * ((close_s - lowest_low) / (highest_high - lowest_low))
+    
+    # Apply smoothing to %K
+    if smooth_k > 1:
+        k_percent = calculate_sma(k_raw, smooth_k)
+    else:
+        k_percent = k_raw
+    
+    # Calculate %D (signal line)
+    d_percent = calculate_sma(k_percent, smooth_d)
+    
+    return pd.DataFrame({
+        'k_percent': k_percent,
+        'd_percent': d_percent
+    })
+
+
 def calculate_ichimoku(
     high: Union[pd.Series, list],
     low: Union[pd.Series, list],

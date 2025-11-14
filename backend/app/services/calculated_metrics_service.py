@@ -19,7 +19,7 @@ from backend.app.services.technical_indicators_service import (
 )
 
 # Import core indicator calculations
-from backend.app.services.indicators_core import calculate_sma
+from backend.app.services.indicators_core import calculate_sma, calculate_stochastic
 
 # Import unified signal interpretation utilities
 from backend.app.utils.signal_interpretation import interpret_rsi, interpret_macd
@@ -747,23 +747,19 @@ def calculate_stochastic_oscillator(high_prices: pd.Series,
         return result
     
     try:
-        # Lowest low und highest high über period
-        lowest_low = low_prices.rolling(window=period).min()
-        highest_high = high_prices.rolling(window=period).max()
-        
-        # %K berechnen
-        k_percent = 100 * ((close_prices - lowest_low) / (highest_high - lowest_low))
-        
-        # %K smoothing using centralized SMA calculation
-        if smooth_k > 1:
-            k_percent = calculate_sma(k_percent, smooth_k)
-        
-        # %D (Signal Line) using centralized SMA calculation
-        d_percent = calculate_sma(k_percent, smooth_d)
+        # Use centralized stochastic calculation
+        stoch_df = calculate_stochastic(
+            high=high_prices,
+            low=low_prices,
+            close=close_prices,
+            period=period,
+            smooth_k=smooth_k,
+            smooth_d=smooth_d
+        )
         
         # Aktuelle Werte
-        result['k_percent'] = float(k_percent.iloc[-1])
-        result['d_percent'] = float(d_percent.iloc[-1])
+        result['k_percent'] = float(stoch_df['k_percent'].iloc[-1])
+        result['d_percent'] = float(stoch_df['d_percent'].iloc[-1])
         
         # Signale
         if result['k_percent'] >= 80:
