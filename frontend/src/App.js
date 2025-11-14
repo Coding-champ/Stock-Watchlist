@@ -2,11 +2,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 import WatchlistSection from './components/WatchlistSection';
 import StocksSection from './components/StocksSection';
-import AlertDashboard from './components/AlertDashboard';
 import StockSearchBar from './components/StockSearchBar';
 import { useAlerts } from './hooks/useAlerts';
 import ScreenerView from './components/screener/ScreenerView';
 import EarningsView from './components/earnings/EarningsView';
+import AlertsView from './components/alerts/AlertsView';
 import StockDetailPage from './components/StockDetailPage';
 
 import API_BASE from './config';
@@ -17,7 +17,6 @@ function App() {
   const [currentWatchlist, setCurrentWatchlist] = useState(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
-  const [showAlertDashboard, setShowAlertDashboard] = useState(false);
   const [activeView, setActiveView] = useState('watchlist');
   const [selectedStock, setSelectedStock] = useState(null);
   const toastTimeoutRef = useRef(null);
@@ -151,37 +150,6 @@ function App() {
           <p className="app-header__subtitle">
             Synchronisiere deine Watchlists mit aktuellen Kursen und behalte Chancen im Blick.
           </p>
-          
-          {/* Alert Dashboard Button */}
-          <button
-            onClick={() => setShowAlertDashboard(true)}
-            style={{
-              marginTop: '12px',
-              padding: '10px 20px',
-              background: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '0.9rem',
-              fontWeight: '600',
-              boxShadow: '0 4px 12px rgba(124, 58, 237, 0.2)',
-              transition: 'all var(--motion-short)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-            onMouseOver={(e) => {
-              e.target.style.transform = 'translateY(-1px)';
-              e.target.style.boxShadow = '0 6px 16px rgba(124, 58, 237, 0.3)';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = '0 4px 12px rgba(124, 58, 237, 0.2)';
-            }}
-          >
-            📊 Alarm-Dashboard
-          </button>
         </header>
 
         {/* Top Navigation */}
@@ -226,11 +194,9 @@ function App() {
               Earnings
             </button>
             <button
-              className="topnav__item"
-              onClick={() => setShowAlertDashboard(true)}
+              className={`topnav__item ${activeView === 'alerts' ? 'is-active' : ''}`}
+              onClick={() => setActiveView('alerts')}
               type="button"
-              aria-haspopup="dialog"
-              aria-controls="alert-dashboard"
             >
               Alerts
             </button>
@@ -297,6 +263,35 @@ function App() {
             </aside>
             <main className="layout__content">
               <EarningsView />
+            </main>
+          </div>
+        )}
+
+        {activeView === 'alerts' && (
+          <div className={`layout ${sidebarCollapsed ? 'layout--sidebar-collapsed' : ''}`}>
+            <aside className={`layout__sidebar ${sidebarCollapsed ? 'layout__sidebar--collapsed' : ''}`}>
+              <button
+                type="button"
+                className="sidebar-toggle"
+                aria-label={sidebarCollapsed ? 'Sidebar ausklappen' : 'Sidebar einklappen'}
+                onClick={() => setSidebarCollapsed((s) => !s)}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" fill="currentColor" />
+                </svg>
+              </button>
+              <WatchlistSection
+                watchlists={watchlists}
+                currentWatchlist={currentWatchlist}
+                onWatchlistSelect={handleWatchlistSelectAndCollapse}
+                onWatchlistsChange={loadWatchlists}
+                onShowToast={showToast}
+                collapsed={sidebarCollapsed}
+                onToggleCollapsed={() => setSidebarCollapsed((s) => !s)}
+              />
+            </aside>
+            <main className="layout__content">
+              <AlertsView showToast={showToast} />
             </main>
           </div>
         )}
@@ -396,14 +391,6 @@ function App() {
           </main>
         )}
       </div>
-      
-      {/* Alert Dashboard Modal */}
-      {showAlertDashboard && (
-        <AlertDashboard 
-          onClose={() => setShowAlertDashboard(false)}
-          showToast={showToast}
-        />
-      )}
     </div>
   );
 }
