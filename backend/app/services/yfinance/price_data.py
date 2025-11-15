@@ -332,7 +332,8 @@ def get_chart_data(
     start: Optional[str] = None,
     end: Optional[str] = None,
     include_dividends: bool = False,
-    include_volume: bool = True
+    include_volume: bool = True,
+    include_earnings: bool = False
 ) -> Optional[Dict[str, Any]]:
     """
     Get comprehensive chart data including price history and technical indicators.
@@ -346,6 +347,7 @@ def get_chart_data(
         end: End date (overrides period)
         include_dividends: Whether to include dividend data
         include_volume: Whether to include volume data
+        include_earnings: Whether to include earnings events data
         
     Returns:
         Dictionary with chart data or None
@@ -697,6 +699,137 @@ def get_chart_data(
         except Exception:
             # non-fatal: leave chart_data without atr entries
             pass
+        
+        # Add dividends and splits data if requested
+        if include_dividends or include_earnings:
+            try:
+                # Determine the date range for filtering
+                if dates:
+                    start_date = pd.to_datetime(dates[0])
+                    end_date = pd.to_datetime(dates[-1])
+                else:
+                    start_date = hist.index[0] if not hist.empty else None
+                    end_date = hist.index[-1] if not hist.empty else None
+                
+                # Get dividends
+                dividends = ticker.dividends
+                dividend_data = []
+                dividends_by_year = {}
+                
+                if not dividends.empty and start_date and end_date:
+                    # Filter dividends within date range
+                    filtered_divs = dividends[(dividends.index >= start_date) & (dividends.index <= end_date)]
+                    
+                    for date, amount in filtered_divs.items():
+                        dividend_data.append({
+                            'date': date.isoformat(),
+                            'amount': float(amount)
+                        })
+                        
+                        # Aggregate by year for annual totals
+                        year = date.year
+                        if year not in dividends_by_year:
+                            dividends_by_year[year] = {'total': 0.0, 'count': 0, 'dates': []}
+                        dividends_by_year[year]['total'] += float(amount)
+                        dividends_by_year[year]['count'] += 1
+                        dividends_by_year[year]['dates'].append(date.isoformat())
+                
+                # Create annual dividend summary (positioned on Dec 31st)
+                dividends_annual = []
+                for year, data in sorted(dividends_by_year.items()):
+                    dividends_annual.append({
+                        'year': year,
+                        'date': f"{year}-12-31T00:00:00",
+                        'total_amount': round(data['total'], 4),
+                        'count': data['count'],
+                        'individual_dates': data['dates']
+                    })
+                
+                result['dividends'] = dividend_data
+                result['dividends_annual'] = dividends_annual
+                
+                # Get splits
+                splits = ticker.splits
+                split_data = []
+                
+                if not splits.empty and start_date and end_date:
+                    # Filter splits within date range
+                    filtered_splits = splits[(splits.index >= start_date) & (splits.index <= end_date)]
+                    
+                    for date, ratio in filtered_splits.items():
+                        split_data.append({
+                            'date': date.isoformat(),
+                            'ratio': float(ratio)
+                        })
+                
+                result['splits'] = split_data
+                
+                # Get earnings data if requested
+                if include_earnings and start_date and end_date:
+                    try:
+                        # Fetch earnings dates with EPS data
+                        earnings_dates_df = ticker.earnings_dates
+                        earnings_data = []
+                        
+                        if earnings_dates_df is not None and not earnings_dates_df.empty:
+                            # Filter by date range
+                            filtered_earnings = earnings_dates_df[
+                                (earnings_dates_df.index >= start_date) & 
+                                (earnings_dates_df.index <= end_date)
+                            ]
+                            
+                            for date, row in filtered_earnings.iterrows():
+                                # Extract EPS data if available
+                                eps_estimate = None
+                                eps_actual = None
+                                
+                                # Try different column names for EPS estimate
+                                for col in ['EPS Estimate', 'Reported EPS', 'epsEstimate', 'Surprise(%)', 'Estimated EPS']:
+                                    if col in row and pd.notna(row[col]):
+                                        if 'Estimate' in col or 'estimate' in col.lower():
+                                            eps_estimate = float(row[col])
+                                        break
+                                
+                                # Try different column names for actual EPS
+                                for col in ['Reported EPS', 'EPS Estimate', 'reportedEPS', 'Actual EPS']:
+                                    if col in row and pd.notna(row[col]):
+                                        if 'Reported' in col or 'Actual' in col or 'reported' in col.lower():
+                                            eps_actual = float(row[col])
+                                        elif eps_actual is None:  # Fallback
+                                            eps_actual = float(row[col])
+                                        break
+                                
+                                earnings_data.append({
+                                    'date': date.isoformat(),
+                                    'eps_estimate': eps_estimate,
+                                    'eps_actual': eps_actual
+                                })
+                        
+                        result['earnings'] = earnings_data
+                    except Exception as e:
+                        logger.warning(f"Could not fetch earnings data for {ticker_symbol}: {e}")
+                        result['earnings'] = []
+                
+                # Add metadata
+                if 'metadata' not in result:
+                    result['metadata'] = {}
+                result['metadata'].update({
+                    'symbol': ticker_symbol,
+                    'period': period,
+                    'interval': interval,
+                    'first_date': dates[0] if dates else None,
+                    'last_date': dates[-1] if dates else None,
+                    'data_points': len(dates) if dates else 0
+                })
+                
+            except Exception as e:
+                logger.warning(f"Error adding dividends/splits/earnings data: {e}")
+                # Add empty arrays to prevent frontend errors
+                result['dividends'] = []
+                result['dividends_annual'] = []
+                result['splits'] = []
+                if include_earnings:
+                    result['earnings'] = []
         
         return _clean_for_json(result)
         

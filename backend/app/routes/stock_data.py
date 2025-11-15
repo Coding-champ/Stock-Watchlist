@@ -81,6 +81,7 @@ def get_stock_chart_data(
     period: str = Query("1y", description="Time period: 1d, 5d, 1mo, 3mo, 6mo, 1y, 3y, 5y, max"),
     interval: str = Query("1d", description="Data interval: 1m, 5m, 15m, 30m, 1h, 1d, 1wk, 1mo"),
     include_volume: bool = Query(True, description="Include volume data"),
+    include_earnings: bool = Query(False, description="Include earnings, dividends, and splits data"),
     indicators: List[str] = Query([], description="Optional list of indicators to calculate (e.g. stochastic, rsi, macd)"),
     start: Optional[str] = Query(None, description="Custom start date (YYYY-MM-DD)"),
     end: Optional[str] = Query(None, description="Custom end date (YYYY-MM-DD)"),
@@ -97,6 +98,7 @@ def get_stock_chart_data(
             period=period,
             interval=interval,
             include_volume=include_volume,
+            include_earnings=include_earnings,
             start=start,
             end=end,
             indicators=indicators

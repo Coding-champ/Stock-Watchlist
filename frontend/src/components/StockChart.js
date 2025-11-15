@@ -13,7 +13,8 @@ import {
   Legend,
   ResponsiveContainer,
   ReferenceLine,
-  ReferenceArea
+  ReferenceArea,
+  ReferenceDot
 } from 'recharts';
 import VolumeProfile from './VolumeProfile';
 import VolumeProfileOverlay from './VolumeProfileOverlay';
@@ -74,6 +75,11 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   const [showVWAP, setShowVWAP] = useState(false);
   const [showCrossovers, setShowCrossovers] = useState(false);
   const [showDivergences, setShowDivergences] = useState(false);
+  
+  // Event marker toggles
+  const [showDividends, setShowDividends] = useState(false);
+  const [showSplits, setShowSplits] = useState(false);
+  const [showEarnings, setShowEarnings] = useState(false);
   
   // Fibonacci toggles
   const [showFibonacci, setShowFibonacci] = useState(false);
@@ -157,6 +163,11 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
       // Build URL with period or custom dates
       let chartEndpoint = `/stock-data/${stock.id}/chart?interval=${interval}&include_volume=true`;
       
+      // Include earnings/dividends/splits data if any event toggle is enabled
+      if (showDividends || showSplits || showEarnings) {
+        chartEndpoint += '&include_earnings=true';
+      }
+      
       if (period === 'custom' && customStartDate && customEndDate) {
         chartEndpoint += `&start=${customStartDate}&end=${customEndDate}`;
       } else {
@@ -189,45 +200,52 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   const sourceIndicators = { ...fetchedIndicators, ...chartIndicators };
       
       // Transform data for Recharts
-      const transformedData = chartJson.dates.map((date, index) => ({
-        date: new Date(date).toLocaleDateString('de-DE', { 
-          month: 'short', 
-          day: 'numeric',
-          ...(period === 'max' || period === '1y' ? { year: '2-digit' } : {})
-        }),
-        fullDate: date,
-        open: chartJson.open[index],
-        high: chartJson.high[index],
-        low: chartJson.low[index],
-        close: chartJson.close[index],
-        volume: chartJson.volume ? chartJson.volume[index] : null,
-        sma50: sourceIndicators?.sma_50?.[index],
-        sma200: sourceIndicators?.sma_200?.[index],
-        rsi: sourceIndicators?.rsi?.[index],
-        // Stochastic series (k_percent and d_percent) if provided by backend
-        k_percent: sourceIndicators?.stochastic?.k_percent?.[index],
-        d_percent: sourceIndicators?.stochastic?.d_percent?.[index],
-        macd: sourceIndicators?.macd?.macd?.[index] ?? sourceIndicators?.macd?.macd?.[index],
-        macdSignal: sourceIndicators?.macd?.signal?.[index] ?? sourceIndicators?.macd?.signal?.[index],
-        // support both 'hist' and 'histogram' keys returned by different codepaths
-        macdHistogram: sourceIndicators?.macd?.histogram?.[index] ?? sourceIndicators?.macd?.hist?.[index],
-        bollingerUpper: sourceIndicators?.bollinger?.upper?.[index],
-        bollingerMiddle: sourceIndicators?.bollinger?.middle?.[index] ?? sourceIndicators?.bollinger?.sma?.[index],
-        bollingerLower: sourceIndicators?.bollinger?.lower?.[index],
-        bollingerPercentB: sourceIndicators?.bollinger?.percent_b?.[index],
-        bollingerBandwidth: sourceIndicators?.bollinger?.bandwidth?.[index],
-        atr: sourceIndicators?.atr?.[index],
-        vwap: sourceIndicators?.vwap?.[index],
-        // prefer server-provided volume moving averages if present
-        volumeMA10: sourceIndicators?.volumeMA10?.[index],
-        volumeMA20: sourceIndicators?.volumeMA20?.[index],
-        // Ichimoku series (if provided by backend)
-        ichimoku_conversion: sourceIndicators?.ichimoku?.conversion?.[index],
-        ichimoku_base: sourceIndicators?.ichimoku?.base?.[index],
-        ichimoku_span_a: sourceIndicators?.ichimoku?.span_a?.[index],
-        ichimoku_span_b: sourceIndicators?.ichimoku?.span_b?.[index],
-        ichimoku_chikou: sourceIndicators?.ichimoku?.chikou?.[index]
-      }));
+      const transformedData = chartJson.dates.map((date, index) => {
+        // Extract date part to avoid timezone conversion issues
+        const datePart = date.split('T')[0];
+        const dateObj = new Date(datePart + 'T12:00:00Z');
+        
+        return {
+          date: dateObj.toLocaleDateString('de-DE', { 
+            month: 'short', 
+            day: 'numeric',
+            year: '2-digit',
+            timeZone: 'UTC'
+          }),
+          fullDate: date,
+          open: chartJson.open[index],
+          high: chartJson.high[index],
+          low: chartJson.low[index],
+          close: chartJson.close[index],
+          volume: chartJson.volume ? chartJson.volume[index] : null,
+          sma50: sourceIndicators?.sma_50?.[index],
+          sma200: sourceIndicators?.sma_200?.[index],
+          rsi: sourceIndicators?.rsi?.[index],
+          // Stochastic series (k_percent and d_percent) if provided by backend
+          k_percent: sourceIndicators?.stochastic?.k_percent?.[index],
+          d_percent: sourceIndicators?.stochastic?.d_percent?.[index],
+          macd: sourceIndicators?.macd?.macd?.[index] ?? sourceIndicators?.macd?.macd?.[index],
+          macdSignal: sourceIndicators?.macd?.signal?.[index] ?? sourceIndicators?.macd?.signal?.[index],
+          // support both 'hist' and 'histogram' keys returned by different codepaths
+          macdHistogram: sourceIndicators?.macd?.histogram?.[index] ?? sourceIndicators?.macd?.hist?.[index],
+          bollingerUpper: sourceIndicators?.bollinger?.upper?.[index],
+          bollingerMiddle: sourceIndicators?.bollinger?.middle?.[index] ?? sourceIndicators?.bollinger?.sma?.[index],
+          bollingerLower: sourceIndicators?.bollinger?.lower?.[index],
+          bollingerPercentB: sourceIndicators?.bollinger?.percent_b?.[index],
+          bollingerBandwidth: sourceIndicators?.bollinger?.bandwidth?.[index],
+          atr: sourceIndicators?.atr?.[index],
+          vwap: sourceIndicators?.vwap?.[index],
+          // prefer server-provided volume moving averages if present
+          volumeMA10: sourceIndicators?.volumeMA10?.[index],
+          volumeMA20: sourceIndicators?.volumeMA20?.[index],
+          // Ichimoku series (if provided by backend)
+          ichimoku_conversion: sourceIndicators?.ichimoku?.conversion?.[index],
+          ichimoku_base: sourceIndicators?.ichimoku?.base?.[index],
+          ichimoku_span_a: sourceIndicators?.ichimoku?.span_a?.[index],
+          ichimoku_span_b: sourceIndicators?.ichimoku?.span_b?.[index],
+          ichimoku_chikou: sourceIndicators?.ichimoku?.chikou?.[index]
+        };
+      });
 
       // If the technical-indicators endpoint didn't provide VWAP series,
       // compute a simple rolling VWAP (20-period) from close and volume
@@ -294,6 +312,15 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
       };
       const sharedTicks = computeTicks(transformedData, 6);
       setXAxisTicks(sharedTicks);
+      
+      // Add events data to first element for easy access in rendering functions
+      if (transformedData.length > 0) {
+        transformedData[0].dividends_annual = chartJson.dividends_annual || [];
+        transformedData[0].dividends = chartJson.dividends || [];
+        transformedData[0].splits = chartJson.splits || [];
+        transformedData[0].earnings = chartJson.earnings || [];
+      }
+      
       setChartData(transformedData);
       // Notify parent about latest VWAP single-value so siblings can use the same source of truth
       try {
@@ -373,7 +400,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
     } finally {
       setLoading(false);
     }
-  }, [stock.id, period, customStartDate, customEndDate, onLatestVwap, fetchApi]); // Include all dependencies
+  }, [stock.id, period, customStartDate, customEndDate, showDividends, showSplits, showEarnings, onLatestVwap, fetchApi]); // Include all dependencies
 
   useEffect(() => {
     fetchChartData();
@@ -537,6 +564,28 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
 
     return (
       <div className="custom-tooltip" style={{ background: 'white', padding: '8px', border: '1px solid #ddd', borderRadius: 6 }}>
+        {/* Date and Price Information */}
+        <p style={{ fontWeight: 'bold', marginBottom: '8px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>
+          <span className="tooltip-label">{label}</span>
+        </p>
+        {data.close != null && (
+          <p>
+            <span className="tooltip-label" style={{ color: '#2196F3' }}>Preis:</span>
+            {' '}
+            <span className="tooltip-value" style={{ fontWeight: 'bold' }}>{formatPrice(data.close, stock)}</span>
+          </p>
+        )}
+        {data.high != null && data.low != null && (
+          <p style={{ fontSize: '12px', color: '#666' }}>
+            H: {formatPrice(data.high, stock)} / L: {formatPrice(data.low, stock)}
+          </p>
+        )}
+        {data.volume != null && (
+          <p style={{ fontSize: '12px', color: '#666', marginBottom: '8px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>
+            Vol: {(data.volume / 1000000).toFixed(2)}M
+          </p>
+        )}
+        
         {showSMA50 && data.sma50 != null && (
           <p>
             <span className="tooltip-label" style={{ color: '#ff7f0e' }}>SMA 50:</span>
@@ -923,6 +972,322 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
     });
   };
 
+  // Render Event Icons (Dividends, Splits, Earnings)
+  const renderEventIcons = () => {
+    if (!chartData || chartData.length === 0) return null;
+    
+    const events = [];
+    
+    // Helper function to format date consistently with chart (MUST match line 203-208 logic)
+    const formatEventDate = (dateStr) => {
+      // Extract the date part before timezone to avoid timezone conversion issues
+      // "2025-05-28T16:00:00-04:00" -> use just the date part "2025-05-28"
+      const datePart = dateStr.split('T')[0]; // Get "2025-05-28"
+      const date = new Date(datePart + 'T12:00:00Z'); // Add noon UTC to avoid timezone issues
+      
+      const options = { 
+        month: 'short', 
+        day: 'numeric',
+        year: '2-digit',
+        timeZone: 'UTC'  // Force UTC to prevent timezone conversion
+      };
+      
+      return date.toLocaleDateString('de-DE', options);
+    };
+    
+    // Create a Set of all available chart dates for quick lookup
+    const availableDates = new Set(chartData.map(d => d.date));
+    
+    // Process dividends (quarterly for <=1Y, annual for longer periods)
+    if (showDividends) {
+      // Treat short ranges (<= 1 year) as quarterly; longer ranges as annual aggregates
+      const shortPeriods = new Set(['1d', '5d', '1mo', '3mo', '6mo', '6m', 'ytd', '1y']);
+      const useQuarterly = shortPeriods.has(period);
+      const dividendData = useQuarterly 
+        ? chartData[0]?.dividends 
+        : chartData[0]?.dividends_annual;
+      
+      if (dividendData && dividendData.length > 0) {
+        
+        dividendData.forEach((div) => {
+          const eventDate = formatEventDate(div.date);
+          const rawDate = new Date(div.date);
+          
+          // Try to find closest date if exact match doesn't exist
+          if (!availableDates.has(eventDate)) {
+            // Look for dates within +/- 7 days
+            const targetTime = rawDate.getTime();
+            const closestDate = chartData.reduce((closest, point) => {
+              const pointDate = new Date(point.fullDate);
+              const diff = Math.abs(pointDate.getTime() - targetTime);
+              const closestDiff = closest ? Math.abs(new Date(closest.fullDate).getTime() - targetTime) : Infinity;
+              return diff < closestDiff ? point : closest;
+            }, null);
+            
+            if (closestDate) {
+              const closestDiff = Math.abs(new Date(closestDate.fullDate).getTime() - targetTime);
+              const daysDiff = closestDiff / (1000 * 60 * 60 * 24);
+              
+              if (daysDiff <= 7) {
+                events.push({
+                  date: closestDate.date,
+                  fullDate: div.date,
+                  type: 'dividend',
+                  data: div,
+                  priority: 3,
+                  isQuarterly: useQuarterly
+                });
+              }
+            }
+          } else {
+            events.push({
+              date: eventDate,
+              fullDate: div.date,
+              type: 'dividend',
+              data: div,
+              priority: 3,
+              isQuarterly: useQuarterly
+            });
+          }
+        });
+      }
+    }
+    
+    // Process splits
+    if (showSplits && chartData[0]?.splits && chartData[0].splits.length > 0) {
+      const splits = chartData[0].splits;
+      
+      splits.forEach((split) => {
+        const eventDate = formatEventDate(split.date);
+        const rawDate = new Date(split.date);
+        
+        // Try to find closest date if exact match doesn't exist
+        if (!availableDates.has(eventDate)) {
+          const targetTime = rawDate.getTime();
+          const closestDate = chartData.reduce((closest, point) => {
+            const pointDate = new Date(point.fullDate);
+            const diff = Math.abs(pointDate.getTime() - targetTime);
+            const closestDiff = closest ? Math.abs(new Date(closest.fullDate).getTime() - targetTime) : Infinity;
+            return diff < closestDiff ? point : closest;
+          }, null);
+          
+          if (closestDate) {
+            const closestDiff = Math.abs(new Date(closestDate.fullDate).getTime() - targetTime);
+            const daysDiff = closestDiff / (1000 * 60 * 60 * 24);
+            
+            if (daysDiff <= 7) {
+              events.push({
+                date: closestDate.date,
+                fullDate: split.date,
+                type: 'split',
+                data: split,
+                priority: 2
+              });
+            }
+          }
+        } else {
+          events.push({
+            date: eventDate,
+            fullDate: split.date,
+            type: 'split',
+            data: split,
+            priority: 2
+          });
+        }
+      });
+    }
+    
+    // Process earnings
+    if (showEarnings && chartData[0]?.earnings && chartData[0].earnings.length > 0) {
+      const earnings = chartData[0].earnings;
+      
+      earnings.forEach((earning) => {
+        const eventDate = formatEventDate(earning.date);
+        const rawDate = new Date(earning.date);
+        
+        // Try to find closest date if exact match doesn't exist
+        if (!availableDates.has(eventDate)) {
+          const targetTime = rawDate.getTime();
+          const closestDate = chartData.reduce((closest, point) => {
+            const pointDate = new Date(point.fullDate);
+            const diff = Math.abs(pointDate.getTime() - targetTime);
+            const closestDiff = closest ? Math.abs(new Date(closest.fullDate).getTime() - targetTime) : Infinity;
+            return diff < closestDiff ? point : closest;
+          }, null);
+          
+          if (closestDate) {
+            const closestDiff = Math.abs(new Date(closestDate.fullDate).getTime() - targetTime);
+            const daysDiff = closestDiff / (1000 * 60 * 60 * 24);
+            
+            if (daysDiff <= 7) {
+              events.push({
+                date: closestDate.date,
+                fullDate: earning.date,
+                type: 'earnings',
+                data: earning,
+                priority: 1
+              });
+            }
+          }
+        } else {
+          events.push({
+            date: eventDate,
+            fullDate: earning.date,
+            type: 'earnings',
+            data: earning,
+            priority: 1
+          });
+        }
+      });
+    }
+    
+    if (events.length === 0) return null;
+    
+    // Deduplicate earnings by ORIGINAL ISO calendar day (not chart-mapped date)
+    // This avoids collapsing different years/weeks that map to the same chart tick.
+    const earningsDedup = new Map();
+    events.forEach(event => {
+      if (event.type === 'earnings') {
+        // Prefer original fullDate (YYYY-MM-DDTHH:mm...) truncated to day; fallback to chart label
+        const key = (event.fullDate?.split?.('T')?.[0]) || event.date;
+        if (!earningsDedup.has(key)) {
+          earningsDedup.set(key, event);
+        } else {
+          // Keep the one with more complete data (both estimate and actual)
+          const existing = earningsDedup.get(key);
+          const hasEstAndAct = event.data.eps_estimate != null && event.data.eps_actual != null;
+          const existingHasEstAndAct = existing.data.eps_estimate != null && existing.data.eps_actual != null;
+          if (hasEstAndAct && !existingHasEstAndAct) {
+            earningsDedup.set(key, event);
+          }
+        }
+      }
+    });
+    
+    // Replace earnings with deduplicated ones
+    const dedupedEvents = events.filter(e => e.type !== 'earnings');
+    earningsDedup.forEach(e => dedupedEvents.push(e));
+    
+    // Group events by date
+    const eventsByDate = dedupedEvents.reduce((acc, event) => {
+      const key = event.fullDate;
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(event);
+      return acc;
+    }, {});
+    
+    // Render using ReferenceLine with custom labels positioned at bottom
+    const iconSize = 20;
+    const spacing = 4;
+    
+    const markers = [];
+    
+    Object.entries(eventsByDate).forEach(([fullDate, dateEvents]) => {
+      // Sort by priority
+      dateEvents.sort((a, b) => a.priority - b.priority);
+      
+      dateEvents.forEach((event, stackIndex) => {
+        // Format the ORIGINAL event date for tooltip display (not the matched chart date)
+        const originalEventDate = formatEventDate(event.fullDate);
+        const originalIsoDate = event.fullDate.split('T')[0];
+        
+        // Determine color and letter
+        let color = '#9ca3af';
+        let letter = '?';
+        let tooltipText = '';
+        
+        if (event.type === 'earnings') {
+          letter = 'E';
+          const { eps_estimate, eps_actual } = event.data;
+          
+          if (eps_estimate != null && eps_actual != null) {
+            color = eps_actual >= eps_estimate ? '#22c55e' : '#ef4444';
+            tooltipText = `Est: $${eps_estimate.toFixed(2)} / Act: $${eps_actual.toFixed(2)}`;
+          } else if (eps_actual != null) {
+            color = '#9ca3af';
+            tooltipText = `EPS: $${eps_actual.toFixed(2)}`;
+          } else {
+            tooltipText = 'Earnings';
+          }
+        } else if (event.type === 'split') {
+          letter = 'S';
+          color = '#f97316';
+          tooltipText = `Split ${event.data.ratio}:1`;
+        } else if (event.type === 'dividend') {
+          letter = 'D';
+          color = '#3b82f6';
+          if (event.isQuarterly) {
+            // Quarterly dividend
+            tooltipText = `Dividend: $${event.data.amount.toFixed(2)}`;
+          } else {
+            // Annual aggregate
+            const year = event.data.year;
+            const total = event.data.total_amount;
+            const count = event.data.count;
+            tooltipText = `Jahresdividende (kumuliert) ${year}: $${total.toFixed(2)}${count ? ` aus ${count} Zahlungen` : ''}`;
+          }
+        }
+        
+        markers.push(
+          <ReferenceLine
+            key={`event-${event.type}-${fullDate}-${stackIndex}`}
+            x={event.date}
+            stroke={color}
+            strokeWidth={0}
+            label={{
+              value: letter,
+              position: 'bottom',
+              fill: 'white',
+              fontSize: 12,
+              fontWeight: 'bold',
+              offset: 15 + (stackIndex * (iconSize + spacing)),
+              content: (props) => {
+                const { viewBox } = props;
+                if (!viewBox || !viewBox.x) return null;
+                const cx = viewBox.x;
+                // Move icons closer to X-axis (reduce offset from 20 to 30 for more spacing from bottom)
+                const cy = viewBox.y + viewBox.height - 2 - (stackIndex * (iconSize + spacing));
+                
+                return (
+                  <g>
+                    <circle 
+                      cx={cx} 
+                      cy={cy} 
+                      r={iconSize / 2} 
+                      fill={color} 
+                      stroke="white" 
+                      strokeWidth={2}
+                    />
+                    <text 
+                      x={cx} 
+                      y={cy} 
+                      textAnchor="middle" 
+                      dominantBaseline="central"
+                      fill="white"
+                      fontSize={12}
+                      fontWeight="bold"
+                    >
+                      {letter}
+                    </text>
+                    <title>
+                      {originalEventDate}
+                      {'\n'}
+                      {tooltipText}
+                    </title>
+                  </g>
+                );
+              }
+            }}
+          />
+        );
+      });
+    });
+    
+    return markers;
+  };
+
   // Candlestick custom shape for Bar component
   const Candlestick = (props) => {
     const { x, y, width, height } = props;
@@ -1267,6 +1632,30 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
                 onChange={(e) => setShowDivergences(e.target.checked)}
               />
               <span>🔺 RSI/MACD Divergenzen</span>
+            </label>
+            <label className="checkbox-label" style={{ color: '#3b82f6' }}>
+              <input
+                type="checkbox"
+                checked={showDividends}
+                onChange={(e) => setShowDividends(e.target.checked)}
+              />
+              <span>💰 Dividenden</span>
+            </label>
+            <label className="checkbox-label" style={{ color: '#f97316' }}>
+              <input
+                type="checkbox"
+                checked={showSplits}
+                onChange={(e) => setShowSplits(e.target.checked)}
+              />
+              <span>✂️ Aktiensplits</span>
+            </label>
+            <label className="checkbox-label" style={{ color: '#22c55e' }}>
+              <input
+                type="checkbox"
+                checked={showEarnings}
+                onChange={(e) => setShowEarnings(e.target.checked)}
+              />
+              <span>📊 Earnings</span>
             </label>
             
             {/* Fibonacci Controls */}
@@ -1821,6 +2210,9 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
               
               {/* Divergence Markers */}
               {renderDivergenceMarkers()}
+              
+              {/* Event Icons (Dividends, Splits, Earnings) */}
+              {renderEventIcons()}
             </ComposedChart>
           ) : (
             <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -1995,6 +2387,9 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
               
               {/* Divergence Markers */}
               {renderDivergenceMarkers()}
+              
+              {/* Event Icons (Dividends, Splits, Earnings) */}
+              {renderEventIcons()}
             </ComposedChart>
           )}
         </ResponsiveContainer>

@@ -32,7 +32,8 @@ class ChartDataService:
         include_volume: bool,
         start: Optional[str],
         end: Optional[str],
-        indicators: Optional[list] = None
+        indicators: Optional[list] = None,
+        include_earnings: bool = False
     ) -> Dict[str, Any]:
         from backend.app.services.chart_core import get_chart_with_indicators
         stock = self._get_stock(stock_id)
@@ -54,6 +55,7 @@ class ChartDataService:
                 period=period if use_cache else None,
                 interval=interval,
                 include_volume=include_volume,
+                include_earnings=include_earnings,
                 start=start,
                 end=end,
                 indicators=indicators

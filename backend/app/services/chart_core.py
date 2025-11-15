@@ -21,6 +21,7 @@ def get_chart_with_indicators(
     interval: str = "1d",
     indicators: Optional[List[str]] = None,
     include_volume: bool = True,
+    include_earnings: bool = False,
     start: Optional[str] = None,
     end: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
@@ -37,6 +38,7 @@ def get_chart_with_indicators(
         end=end,
         include_dividends=True,
         include_volume=include_volume,
+        include_earnings=include_earnings,
         indicators=indicators,
     )
     # Accept multiple possible keys for price data
@@ -68,7 +70,13 @@ def get_chart_with_indicators(
         'volume': volume,
         'indicators': {},
         # pass through volume summary if backend provided it
-        'volume_data': chart_data.get('volume_data') if chart_data and isinstance(chart_data, dict) and chart_data.get('volume_data') else None
+        'volume_data': chart_data.get('volume_data') if chart_data and isinstance(chart_data, dict) and chart_data.get('volume_data') else None,
+        # pass through dividends, splits, earnings if provided
+        'dividends': chart_data.get('dividends', []) if chart_data and isinstance(chart_data, dict) else [],
+        'dividends_annual': chart_data.get('dividends_annual', []) if chart_data and isinstance(chart_data, dict) else [],
+        'splits': chart_data.get('splits', []) if chart_data and isinstance(chart_data, dict) else [],
+        'earnings': chart_data.get('earnings', []) if chart_data and isinstance(chart_data, dict) else [],
+        'metadata': chart_data.get('metadata', {}) if chart_data and isinstance(chart_data, dict) else {}
     }
     # If the fetched chart_data already contains precomputed indicators (with warmup), use them
     if chart_data and chart_data.get('indicators'):
