@@ -2092,7 +2092,8 @@ def get_stock_with_calculated_metrics(
             # Calculate all metrics
             metrics_dict = calculated_metrics_service.calculate_all_metrics(
                 stock_data,
-                historical_prices
+                historical_prices,
+                display_period=period
             )
             
             # Convert to schema

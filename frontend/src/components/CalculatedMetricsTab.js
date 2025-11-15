@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import MetricTooltip from './MetricTooltip';
+import DrawdownChartTooltip from './DrawdownChartTooltip';
 import './CalculatedMetrics.css';
 import '../styles/skeletons.css';
 
@@ -821,7 +822,11 @@ function CalculatedMetricsTab({ stockId, isActive = true, prefetch = false, char
                   </span>
                 </div>
                 <div className="metric-item">
-                  <span className="metric-item-label">Max Drawdown</span>
+                  <span className="metric-item-label">
+                    <DrawdownChartTooltip stockId={stockId} maxDrawdown={advancedAnalysis.max_drawdown}>
+                      <span>Max Drawdown</span>
+                    </DrawdownChartTooltip>
+                  </span>
                   <span className="metric-item-value">{formatNumber(advancedAnalysis.max_drawdown, 2, '%')}</span>
                 </div>
                 <div className="metric-item">

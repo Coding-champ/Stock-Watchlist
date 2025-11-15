@@ -1273,7 +1273,8 @@ def calculate_risk_adjusted_performance_score(sharpe_ratio: Optional[float],
 # ============================================================================
 
 def calculate_all_metrics(stock_data: Dict[str, Any], 
-                         historical_prices: Optional[pd.DataFrame] = None) -> Dict[str, Any]:
+                         historical_prices: Optional[pd.DataFrame] = None,
+                         display_period: Optional[str] = None) -> Dict[str, Any]:
     """
     Berechnet alle verfügbaren Metriken
     
@@ -1428,15 +1429,53 @@ def calculate_all_metrics(stock_data: Dict[str, Any],
                 period=14
             )
             result['advanced_analysis'].update(atr_metrics)
-        # Volatility Metrics - merge the dict into advanced_analysis
+        # Volatility & Drawdown Metrics - computed on requested display period (if provided)
         if 'Close' in historical_prices.columns:
-            volatility_metrics = calculate_volatility_metrics(
-                historical_prices['Close']
-            )
+            close_series = historical_prices['Close']
+            close_for_period = close_series
+            try:
+                if display_period and isinstance(close_series.index, pd.DatetimeIndex):
+                    period = (display_period or '').lower()
+                    cutoff = None
+                    now_ts = pd.Timestamp.utcnow()
+                    # Map common periods to pandas DateOffset
+                    if period in ['1mo', '1m']:
+                        cutoff = now_ts - pd.DateOffset(months=1)
+                    elif period in ['3mo', '3m']:
+                        cutoff = now_ts - pd.DateOffset(months=3)
+                    elif period in ['6mo', '6m']:
+                        cutoff = now_ts - pd.DateOffset(months=6)
+                    elif period in ['1y']:
+                        cutoff = now_ts - pd.DateOffset(years=1)
+                    elif period in ['2y']:
+                        cutoff = now_ts - pd.DateOffset(years=2)
+                    elif period in ['3y']:
+                        cutoff = now_ts - pd.DateOffset(years=3)
+                    elif period in ['5y']:
+                        cutoff = now_ts - pd.DateOffset(years=5)
+                    elif period in ['10y']:
+                        cutoff = now_ts - pd.DateOffset(years=10)
+                    elif period in ['ytd']:
+                        year_start = pd.Timestamp(year=now_ts.year, month=1, day=1)
+                        cutoff = year_start
+                    # 'max' or unknown -> no cutoff
+                    if cutoff is not None:
+                        # Normalize timezone awareness
+                        cutoff = cutoff.tz_localize(None) if cutoff.tzinfo else cutoff
+                        idx_is_tz = getattr(close_series.index, 'tz', None) is not None
+                        if idx_is_tz:
+                            # If index is tz-aware, make cutoff UTC
+                            cutoff = cutoff.tz_localize('UTC') if cutoff.tzinfo is None else cutoff
+                        close_for_period = close_series[close_series.index >= cutoff]
+                        # Ensure we still have data; fallback to full if empty
+                        if close_for_period is None or len(close_for_period) < 2:
+                            close_for_period = close_series
+            except Exception:
+                close_for_period = close_series
+
+            volatility_metrics = calculate_volatility_metrics(close_for_period)
             result['advanced_analysis'].update(volatility_metrics)
-            drawdown_metrics = calculate_maximum_drawdown(
-                historical_prices['Close']
-            )
+            drawdown_metrics = calculate_maximum_drawdown(close_for_period)
             result['advanced_analysis'].update(drawdown_metrics)
             # Beta-Adjusted Metrics - merge the dict into advanced_analysis
             beta_adjusted = calculate_beta_adjusted_metrics(

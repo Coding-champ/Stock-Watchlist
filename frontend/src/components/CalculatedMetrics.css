@@ -13,6 +13,10 @@
   border-bottom: 1px dotted #999;
 }
 
+.metric-tooltip-container.has-chart-tooltip {
+  position: static;
+}
+
 .metric-tooltip-popup {
   position: absolute;
   bottom: 100%;
@@ -30,6 +34,39 @@
   font-size: 13px;
   line-height: 1.5;
   animation: tooltipFadeIn var(--motion-short) ease-out;
+}
+
+/* Drawdown Chart Tooltip */
+.drawdown-chart-tooltip-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ffffff;
+  border: 2px solid #007bff;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  padding: 16px 20px;
+  width: 520px;
+  max-width: 90vw;
+  z-index: 10000;
+  font-size: 13px;
+  line-height: 1.5;
+  animation: tooltipFadeIn var(--motion-short) ease-out;
+  pointer-events: auto;
+}
+
+.drawdown-chart-tooltip-popup::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid #007bff;
 }
 
 @keyframes tooltipFadeIn {
