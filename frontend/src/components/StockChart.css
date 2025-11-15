@@ -153,6 +153,15 @@
   font-weight: 500;
 }
 
+.checkbox-label.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.checkbox-label.disabled input[type="checkbox"] {
+  cursor: not-allowed;
+}
+
 /* Collapsible Panels */
 .collapsible-panel {
   margin-top: 10px;

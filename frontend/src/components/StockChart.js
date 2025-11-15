@@ -111,6 +111,65 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   const [volumeProfileLevels, setVolumeProfileLevels] = useState(null);
   const [xAxisTicks, setXAxisTicks] = useState(null);
 
+  // Scale and mode toggles (persisted)
+  const [isLogScale, setIsLogScale] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('chart:isLogScale') || 'false'); } catch { return false; }
+  });
+  const [isPercentageView, setIsPercentageView] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('chart:isPercentageView') || 'false'); } catch { return false; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('chart:isLogScale', JSON.stringify(!!isLogScale)); } catch {}
+  }, [isLogScale]);
+  useEffect(() => {
+    try { localStorage.setItem('chart:isPercentageView', JSON.stringify(!!isPercentageView)); } catch {}
+  }, [isPercentageView]);
+
+  // Snapshot of price overlay toggles for restore after percentage mode
+  const overlaysSnapshotRef = useRef(null);
+  useEffect(() => {
+    if (isPercentageView) {
+      // Save current overlay states once
+      if (!overlaysSnapshotRef.current) {
+        overlaysSnapshotRef.current = {
+          sma50: showSMA50,
+          sma200: showSMA200,
+          bollinger: showBollinger,
+          ichimoku: showIchimoku,
+          vwap: showVWAP,
+          volumeProfileOverlay: showVolumeProfileOverlay
+        };
+      }
+      // Deactivate only price overlays while in percentage mode
+      if (showSMA50) setShowSMA50(false);
+      if (showSMA200) setShowSMA200(false);
+      if (showBollinger) setShowBollinger(false);
+      if (showIchimoku) setShowIchimoku(false);
+      if (showVWAP) setShowVWAP(false);
+      if (showVolumeProfileOverlay) setShowVolumeProfileOverlay(false);
+    } else {
+      // Restore overlays from snapshot if available
+      if (overlaysSnapshotRef.current) {
+        const snap = overlaysSnapshotRef.current;
+        setShowSMA50(!!snap.sma50);
+        setShowSMA200(!!snap.sma200);
+        setShowBollinger(!!snap.bollinger);
+        setShowIchimoku(!!snap.ichimoku);
+        setShowVWAP(!!snap.vwap);
+        setShowVolumeProfileOverlay(!!snap.volumeProfileOverlay);
+        overlaysSnapshotRef.current = null;
+      }
+    }
+  }, [isPercentageView]);
+
+  // Turn off percentage view when switching to candlesticks (not supported for candles)
+  useEffect(() => {
+    if (chartType === CHART_TYPES.CANDLESTICK && isPercentageView) {
+      setIsPercentageView(false);
+    }
+  }, [chartType, isPercentageView]);
+
   // Collapsible panel states
   const [fibonacciPanelExpanded, setFibonacciPanelExpanded] = useState(true);
   const [supportResistancePanelExpanded, setSupportResistancePanelExpanded] = useState(true);
@@ -528,9 +587,22 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   }, [showStochastic, fetchIndicators]);
 
   // Export functions
-  const exportToPNG = () => {
-    // TODO: Implement PNG export using html2canvas
-    alert('PNG Export wird implementiert...');
+  const chartCaptureRef = useRef(null);
+  const exportToPNG = async () => {
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const node = chartCaptureRef.current;
+      if (!node) return;
+      const canvas = await html2canvas(node, { backgroundColor: '#ffffff', scale: 2, useCORS: true });
+      const dataUrl = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `${stock.ticker_symbol}_${period}_chart.png`;
+      a.click();
+    } catch (e) {
+      console.error('PNG export failed', e);
+      alert('PNG Export fehlgeschlagen. Bitte Abhängigkeit html2canvas installieren.');
+    }
   };
 
   const exportToCSV = () => {
@@ -561,6 +633,18 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload || payload.length === 0) return null;
     const data = payload[0].payload;
+    const isPct = isPercentageView && chartType === CHART_TYPES.LINE;
+    const pctText = (() => {
+      try {
+        const idx = data && typeof data.displayClose === 'number' ? data.displayClose : null;
+        if (idx != null && isFinite(idx)) {
+          const pct = (idx - 1) * 100;
+          const sign = pct > 0 ? '+' : '';
+          return `${sign}${pct.toFixed(2)}%`;
+        }
+      } catch {}
+      return null;
+    })();
 
     return (
       <div className="custom-tooltip" style={{ background: 'white', padding: '8px', border: '1px solid #ddd', borderRadius: 6 }}>
@@ -572,7 +656,14 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
           <p>
             <span className="tooltip-label" style={{ color: '#2196F3' }}>Preis:</span>
             {' '}
-            <span className="tooltip-value" style={{ fontWeight: 'bold' }}>{formatPrice(data.close, stock)}</span>
+            {isPct && pctText ? (
+              <>
+                <span className="tooltip-value" style={{ fontWeight: 'bold' }}>{pctText}</span>
+                <span> ({formatPrice(data.close, stock)})</span>
+              </>
+            ) : (
+              <span className="tooltip-value" style={{ fontWeight: 'bold' }}>{formatPrice(data.close, stock)}</span>
+            )}
           </p>
         )}
         {data.high != null && data.low != null && (
@@ -1378,6 +1469,50 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
     max: maxPrice 
   }), [minPrice, maxPrice]);
 
+  // Derived data for line chart (percentage view support)
+  // MUST be called before early returns (React Hooks rule)
+  const displayData = useMemo(() => {
+    if (!chartData || chartData.length === 0) return chartData;
+    if (!isPercentageView || chartType !== CHART_TYPES.LINE) {
+      return chartData.map(d => ({ ...d, displayClose: d.close }));
+    }
+    let baseline = null;
+    for (let i = 0; i < chartData.length; i++) {
+      const c = chartData[i]?.close;
+      if (typeof c === 'number' && isFinite(c) && c > 0) { baseline = c; break; }
+    }
+    if (!baseline) {
+      return chartData.map(d => ({ ...d, displayClose: d.close }));
+    }
+    return chartData.map(d => {
+      const c = d?.close;
+      const idx = (typeof c === 'number' && isFinite(c) && c > 0) ? (c / baseline) : null;
+      return { ...d, displayClose: idx };
+    });
+  }, [chartData, isPercentageView, chartType]);
+
+  const displayDomain = useMemo(() => {
+    if (!chartData || chartData.length === 0) return [0, 1];
+    if (!isPercentageView || chartType !== CHART_TYPES.LINE) return [minPrice, maxPrice];
+    // compute domain for index values (>0)
+    const values = chartData
+      .map(d => d && typeof d.close === 'number' && isFinite(d.close) && d.close > 0 ? d.close : null)
+      .filter(v => v != null);
+    if (values.length === 0) return [0.5, 1.5];
+    const baseline = values[0];
+    let minIdx = Infinity, maxIdx = -Infinity;
+    for (const v of values) {
+      const idx = v / baseline;
+      if (isFinite(idx) && idx > 0) {
+        if (idx < minIdx) minIdx = idx;
+        if (idx > maxIdx) maxIdx = idx;
+      }
+    }
+    if (!isFinite(minIdx) || !isFinite(maxIdx)) return [0.5, 1.5];
+    const pad = 0.02;
+    return [Math.max(0.01, minIdx * (1 - pad)), maxIdx * (1 + pad)];
+  }, [chartData, isPercentageView, chartType, minPrice, maxPrice]);
+
   // Early returns AFTER all hooks
   if (loading) {
     // Render a skeleton-styled placeholder instead of the global spinner.
@@ -1519,6 +1654,39 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
             >
               📊 Candlestick
             </button>
+          </div>
+        </div>
+
+        <div className="control-group">
+          <label>Skalierung:</label>
+          <div className="indicator-toggles">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={isLogScale}
+                onChange={(e) => setIsLogScale(e.target.checked)}
+              />
+              <span>Logarithmisch</span>
+            </label>
+            {chartType === CHART_TYPES.CANDLESTICK ? (
+              <label className="checkbox-label disabled">
+                <input
+                  type="checkbox"
+                  checked={false}
+                  disabled
+                />
+                <span>Prozent (nur Line)</span>
+              </label>
+            ) : (
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={isPercentageView}
+                  onChange={(e) => setIsPercentageView(e.target.checked)}
+                />
+                <span>Prozent</span>
+              </label>
+            )}
           </div>
         </div>
 
@@ -1942,7 +2110,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
       </div>
 
       {/* Main Price Chart */}
-      <div className="chart-section" style={{ position: 'relative' }}>
+      <div className="chart-section" style={{ position: 'relative' }} ref={chartCaptureRef}>
         <h3 className="chart-title">
           {stock.name} ({stock.ticker_symbol}) - {period ? period.toUpperCase() : 'N/A'}
         </h3>
@@ -1963,7 +2131,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         
         <ResponsiveContainer width="100%" height={400}>
           {chartType === CHART_TYPES.LINE ? (
-            <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+            <ComposedChart data={displayData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#007bff" stopOpacity={0.3}/>
@@ -1979,9 +2147,12 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
                 minTickGap={50}
               />
               <YAxis 
-                domain={[minPrice, maxPrice]}
+                domain={displayDomain}
                 tick={{ fontSize: 12 }}
-                tickFormatter={(value) => formatPrice(value, stock)}
+                scale={isLogScale ? 'log' : undefined}
+                tickFormatter={(value) => isPercentageView
+                  ? `${value === 1 ? '0.0%' : `${((value - 1) * 100 > 0 ? '+' : '')}${((value - 1) * 100).toFixed(1)}%`}`
+                  : formatPrice(value, stock)}
               />
               <Tooltip 
                 content={<CustomTooltip />}
@@ -1991,30 +2162,40 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
               />
               <Legend />
               
-              {/* Starting price reference line */}
-              {chartData && chartData.length > 0 && chartData[0].close && (
+              {/* Baseline reference line */}
+              {isPercentageView ? (
                 <ReferenceLine
-                  y={chartData[0].close}
+                  y={1}
                   stroke="#000000"
                   strokeDasharray="5 5"
                   strokeWidth={1.5}
-                  label={{
-                    value: formatPrice(chartData[0]?.close, stock) || 'N/A',
-                    position: 'right',
-                    fill: '#000000',
-                    fontSize: 10,
-                    fontWeight: 'bold'
-                  }}
+                  label={{ value: '0%', position: 'right', fill: '#000000', fontSize: 10, fontWeight: 'bold' }}
                 />
+              ) : (
+                chartData && chartData.length > 0 && chartData[0].close && (
+                  <ReferenceLine
+                    y={chartData[0].close}
+                    stroke="#000000"
+                    strokeDasharray="5 5"
+                    strokeWidth={1.5}
+                    label={{
+                      value: formatPrice(chartData[0]?.close, stock) || 'N/A',
+                      position: 'right',
+                      fill: '#000000',
+                      fontSize: 10,
+                      fontWeight: 'bold'
+                    }}
+                  />
+                )
               )}
               
               <Area
                 type="monotone"
-                dataKey="close"
+                dataKey={isPercentageView ? 'displayClose' : 'close'}
                 stroke="#007bff"
                 strokeWidth={2}
                 fill="url(#colorPrice)"
-                name="Price"
+                name={isPercentageView ? 'Price (%)' : 'Price'}
               />
               
               {showSMA50 && (
@@ -2227,6 +2408,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
               <YAxis 
                 domain={[minPrice, maxPrice]}
                 tick={{ fontSize: 12 }}
+                scale={isLogScale ? 'log' : undefined}
                 tickFormatter={(value) => formatPrice(value, stock)}
               />
               <Tooltip 
