@@ -12,10 +12,21 @@ from sqlalchemy import (
     Date,
     BigInteger,
     Index,
+    Enum,
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from backend.app.database import Base
+import enum
+
+
+class AssetType(enum.Enum):
+    """Asset type enumeration for asset_price_data"""
+    STOCK = "stock"
+    INDEX = "index"
+    ETF = "etf"
+    BOND = "bond"
+    CRYPTO = "crypto"
 
 
 class Watchlist(Base):
@@ -212,3 +223,78 @@ class ExtendedStockDataCache(Base):
 
     # Relationships
     stock = relationship("Stock", back_populates="extended_cache")
+
+
+class AssetPriceData(Base):
+    """Universal price data table for all asset types (stocks, indices, ETFs, bonds, crypto)"""
+    __tablename__ = "asset_price_data"
+    __table_args__ = (
+        UniqueConstraint("asset_type", "ticker_symbol", "date", name="uq_asset_price_date"),
+        Index("idx_asset_type_ticker_date", "asset_type", "ticker_symbol", "date"),
+        Index("idx_asset_type_ticker_date_desc", "asset_type", "ticker_symbol", "date", postgresql_ops={"date": "DESC"}),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    asset_type = Column(Enum(AssetType), nullable=False, index=True)
+    ticker_symbol = Column(String, nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+    
+    # OHLCV data
+    open = Column(Float, nullable=True)
+    high = Column(Float, nullable=True)
+    low = Column(Float, nullable=True)
+    close = Column(Float, nullable=False)
+    volume = Column(BigInteger, nullable=True)
+    adjusted_close = Column(Float, nullable=True)
+    
+    # Corporate actions (primarily for stocks)
+    dividends = Column(Float, nullable=True, default=0.0)
+    stock_splits = Column(Float, nullable=True)
+    
+    # Market metadata
+    exchange = Column(String, nullable=True)
+    currency = Column(String, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class MarketIndex(Base):
+    """Market index metadata and information"""
+    __tablename__ = "market_indices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticker_symbol = Column(String, nullable=False, unique=True, index=True)  # e.g., "^GSPC", "^DJI", "^GDAXI"
+    name = Column(String, nullable=False)  # e.g., "S&P 500", "DAX 40"
+    region = Column(String, nullable=True)  # e.g., "US", "Germany", "Global"
+    index_type = Column(String, nullable=True)  # e.g., "broad_market", "sector", "style"
+    calculation_method = Column(String, nullable=True)  # e.g., "market_cap_weighted", "price_weighted"
+    benchmark_index = Column(String, nullable=True)  # Parent index (e.g., "^GSPC" for sector indices)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    constituents = relationship("IndexConstituent", back_populates="index", cascade="all, delete-orphan")
+
+
+class IndexConstituent(Base):
+    """Relationship between indices and their constituent stocks with history"""
+    __tablename__ = "index_constituents"
+    __table_args__ = (
+        Index("idx_index_stock_status", "index_id", "stock_id", "status"),
+        Index("idx_index_date_added", "index_id", "date_added"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    index_id = Column(Integer, ForeignKey("market_indices.id", ondelete="CASCADE"), nullable=False)
+    stock_id = Column(Integer, ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False)
+    weight = Column(Float, nullable=True)  # Percentage weight in index (if applicable)
+    status = Column(String, nullable=False, default="active")  # 'active', 'removed'
+    date_added = Column(Date, nullable=False)
+    date_removed = Column(Date, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    index = relationship("MarketIndex", back_populates="constituents")
+    stock = relationship("Stock")

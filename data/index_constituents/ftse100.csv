@@ -1,0 +1,21 @@
+symbol,name,weight
+SHEL.L,Shell plc,8.5
+AZN.L,AstraZeneca PLC,7.2
+HSBA.L,HSBC Holdings plc,6.8
+ULVR.L,Unilever PLC,4.9
+DGE.L,Diageo plc,4.2
+BP.L,BP p.l.c.,4.0
+GSK.L,GSK plc,3.8
+RIO.L,Rio Tinto Group,3.5
+BATS.L,British American Tobacco p.l.c.,3.2
+LSEG.L,London Stock Exchange Group plc,3.0
+REL.L,RELX PLC,2.8
+NG.L,National Grid plc,2.5
+BARC.L,Barclays PLC,2.3
+PRU.L,Prudential plc,2.2
+AAL.L,Anglo American plc,2.0
+LLOY.L,Lloyds Banking Group plc,1.9
+VOD.L,Vodafone Group Public Limited Company,1.8
+GLEN.L,Glencore plc,1.7
+SSE.L,SSE plc,1.6
+CRH.L,CRH plc,1.5

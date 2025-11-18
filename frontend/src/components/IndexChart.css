@@ -1,0 +1,103 @@
+.index-chart-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.index-chart-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.indicator-toggles {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.indicator-toggle {
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  background: #f8f8f8;
+}
+
+.indicator-toggle.is-active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.chart-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chart-panel {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 8px 4px;
+}
+
+.chart-panel--price { order: 1; }
+.chart-panel--volume { order: 2; }
+.chart-panel--rsi { order: 3; }
+.chart-panel--macd { order: 4; }
+
+.chart-loading, .chart-error, .chart-empty {
+  padding: 40px 20px;
+  text-align: center;
+  font-size: 14px;
+  color: #666;
+}
+
+.chart-error { color: #c62828; }
+
+/* Skeleton states */
+.chart-loading-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+.skeleton-bar {
+  height: 14px;
+  background: linear-gradient(90deg, #f3f4f6 0%, #e5e7eb 50%, #f3f4f6 100%);
+  background-size: 200% 100%;
+  animation: skeletonPulse 1.2s ease-in-out infinite;
+  border-radius: 6px;
+}
+.skeleton-rect {
+  width: 100%;
+  background: linear-gradient(90deg, #f3f4f6 0%, #e5e7eb 50%, #f3f4f6 100%);
+  background-size: 200% 100%;
+  animation: skeletonPulse 1.2s ease-in-out infinite;
+  border-radius: 8px;
+}
+@keyframes skeletonPulse {
+  0% { background-position: 0% 0%; }
+  100% { background-position: -200% 0%; }
+}
+
+.retry-btn {
+  margin-left: 12px;
+  padding: 6px 12px;
+  font-size: 13px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.retry-btn:hover { background: #1d4ed8; }

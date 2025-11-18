@@ -1,0 +1,80 @@
+.index-card {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.index-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: #007bff;
+}
+
+.index-card-header {
+  margin-bottom: 12px;
+}
+
+.index-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.index-symbol {
+  font-size: 12px;
+  color: #999;
+  font-family: monospace;
+}
+
+.index-card-body {
+  margin: 16px 0;
+}
+
+.index-price {
+  font-size: 24px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 6px;
+}
+
+.index-change {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.index-change.positive {
+  color: #4caf50;
+}
+
+.index-change.negative {
+  color: #f44336;
+}
+
+.index-date {
+  font-size: 12px;
+  color: #999;
+}
+
+.no-data {
+  font-size: 14px;
+  color: #999;
+  font-style: italic;
+}
+
+.index-card-footer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.index-type {
+  font-size: 12px;
+  color: #666;
+  text-transform: capitalize;
+}

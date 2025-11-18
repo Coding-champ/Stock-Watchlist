@@ -8,6 +8,8 @@ import ScreenerView from './components/screener/ScreenerView';
 import EarningsView from './components/earnings/EarningsView';
 import AlertsView from './components/alerts/AlertsView';
 import StockDetailPage from './components/StockDetailPage';
+import IndexOverview from './components/IndexOverview';
+import IndexDetailPage from './components/IndexDetailPage';
 
 import API_BASE from './config';
 import { useQueryClient } from '@tanstack/react-query';
@@ -19,6 +21,7 @@ function App() {
   const [toast, setToast] = useState(null);
   const [activeView, setActiveView] = useState('watchlist');
   const [selectedStock, setSelectedStock] = useState(null);
+  const [selectedIndex, setSelectedIndex] = useState(null);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   // Default period changed to 1y per user request
   const [galleryPeriod, setGalleryPeriod] = useState('1y');
@@ -202,6 +205,13 @@ function App() {
               type="button"
             >
               Alerts
+            </button>
+            <button
+              className={`topnav__item ${activeView === 'indices' ? 'is-active' : ''}`}
+              onClick={() => setActiveView('indices')}
+              type="button"
+            >
+              Indizes
             </button>
             {/* Gallery trigger icon at the far right */}
             <button
@@ -445,6 +455,30 @@ function App() {
               </div>
               <div style={{marginTop: '16px', color: 'var(--text-muted)'}}>Kommt bald.</div>
             </div>
+          </main>
+        )}
+
+        {activeView === 'indices' && (
+          <main className="layout__content">
+            <IndexOverview 
+              onIndexClick={(index) => {
+                setSelectedIndex(index);
+                setActiveView('index-detail');
+                showToast(`Index geöffnet · ${index.name}`, 'info');
+              }}
+            />
+          </main>
+        )}
+
+        {activeView === 'index-detail' && selectedIndex && (
+          <main className="layout__content">
+            <IndexDetailPage 
+              index={selectedIndex}
+              onBack={() => {
+                setActiveView('indices');
+                setSelectedIndex(null);
+              }}
+            />
           </main>
         )}
       </div>
