@@ -2201,7 +2201,7 @@ def get_stock_price_history(
 @router.get("/{stock_id}/seasonality")
 def get_stock_seasonality(
     stock_id: int,
-    years_back: Optional[int] = Query(15, description="Years to look back (use None for all)"),
+    years_back: Optional[int] = Query(None, description="Years to look back (None = all available)"),
     include_series: bool = Query(False, description="Include per-year monthly close series (up to 10 years)"),
     debug: bool = Query(False, description="Return debugging information in the response (dev only)"),
     db: Session = Depends(get_db)

@@ -39,12 +39,14 @@ function SeasonalityTab({ stockId }) {
   useEffect(() => {
     setLoading(true);
     setError(null);
-  // Always send a valid years_back value; for 'all', use a sensible default (e.g., 15)
-  // If forcedYearsBack is set we use that to trigger a single refetch with the
-  // exact number of available years (so include_series can be true for <=10 years).
-  const yearsBack = forcedYearsBack ? String(forcedYearsBack) : (selectedPeriod === 'all' ? '15' : selectedPeriod.replace('y', ''));
-    const includeSeries = Number(yearsBack) <= 10;
-    const url = `${API_BASE}/stocks/${stockId}/seasonality?years_back=${yearsBack}${includeSeries ? '&include_series=true' : ''}`;
+  // Determine years_back: for 'all' initially send none so backend returns full history.
+  // If forcedYearsBack is set (<=10) we refetch with that exact number to include per-year series.
+  const yearsBack = forcedYearsBack ? String(forcedYearsBack) : (selectedPeriod === 'all' ? null : selectedPeriod.replace('y', ''));
+  const includeSeries = yearsBack !== null && Number(yearsBack) <= 10;
+  const params = [];
+  if (yearsBack !== null) params.push(`years_back=${yearsBack}`);
+  if (includeSeries) params.push('include_series=true');
+  const url = `${API_BASE}/stocks/${stockId}/seasonality${params.length ? '?' + params.join('&') : ''}`;
     queryClient.fetchQuery(['api', url], async () => {
       const res = await fetch(url);
       if (!res.ok) {
@@ -82,8 +84,8 @@ function SeasonalityTab({ stockId }) {
         try {
           if (!forcedYearsBack && selectedPeriod === 'all' && data && Array.isArray(data.available_years)) {
             const availCount = data.available_years.length;
-            if (availCount > 0 && availCount <= 10 && String(availCount) !== yearsBack) {
-              // schedule a one-time refetch
+            if (availCount > 0 && availCount <= 10 && (yearsBack === null || String(availCount) !== yearsBack)) {
+              // schedule a one-time refetch with exact available years (<=10) to include series
               setForcedYearsBack(String(availCount));
             }
           }
@@ -387,10 +389,10 @@ function SeasonalityTab({ stockId }) {
   };
 
   const periods = [
-    { key: 'all', label: 'Gesamt' },
     { key: '5y', label: '5 Jahre' },
     { key: '10y', label: '10 Jahre' },
-    { key: '15y', label: '15 Jahre' }
+    { key: '15y', label: '15 Jahre' },
+    { key: 'all', label: 'Gesamt' }
   ];
 
   // UI styles to approximate the design in the screenshot

@@ -67,6 +67,21 @@ def calculate_seasonality(monthly_returns: pd.Series, years_back: Optional[int] 
         if hasattr(monthly_returns.index, 'tz') and monthly_returns.index.tz is not None:
             cutoff_date = pd.Timestamp(cutoff_date, tz=monthly_returns.index.tz)
         monthly_returns = monthly_returns[monthly_returns.index >= cutoff_date]
+    else:
+        # For "all" data: start with the first complete year
+        if len(monthly_returns) > 0:
+            first_date = monthly_returns.index.min()
+            first_year = first_date.year
+            # Check if the first year starts in January
+            if first_date.month != 1:
+                # Skip to the next year (first complete year)
+                first_complete_year = first_year + 1
+                cutoff_date = pd.Timestamp(f'{first_complete_year}-01-01')
+                # Ensure timezone-awareness if needed
+                if hasattr(monthly_returns.index, 'tz') and monthly_returns.index.tz is not None:
+                    cutoff_date = cutoff_date.tz_localize(monthly_returns.index.tz)
+                monthly_returns = monthly_returns[monthly_returns.index >= cutoff_date]
+    
     df = pd.DataFrame({
         'return': monthly_returns.values,
         'month': monthly_returns.index.month,
@@ -95,9 +110,9 @@ def calculate_seasonality(monthly_returns: pd.Series, years_back: Optional[int] 
 def get_all_seasonalities(df: pd.DataFrame, price_col: str = 'Close') -> Dict[str, pd.DataFrame]:
     monthly_returns = calculate_monthly_returns(df, price_col)
     results = {
-        'all': calculate_seasonality(monthly_returns, years_back=None),
         '5y': calculate_seasonality(monthly_returns, years_back=5),
         '10y': calculate_seasonality(monthly_returns, years_back=10),
-        '15y': calculate_seasonality(monthly_returns, years_back=15)
+        '15y': calculate_seasonality(monthly_returns, years_back=15),
+        'all': calculate_seasonality(monthly_returns, years_back=None)
     }
     return results
