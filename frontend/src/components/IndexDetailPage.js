@@ -1,14 +1,18 @@
 import React from 'react';
 import { useIndexDetails, useIndexConstituents } from '../hooks/useIndices';
 import { useIndexStatistics } from '../hooks/useIndexStatistics';
+import { useApi } from '../hooks/useApi';
 import IndexChart from './IndexChart';
 import SectorBreakdown from './SectorBreakdown';
+import TopFlopsPanel from './TopFlopsPanel';
+import MarketBreadthDashboard from './MarketBreadthDashboard';
 import './IndexDetailPage.css';
 
-function IndexDetailPage({ index, onBack }) {
+function IndexDetailPage({ index, onBack, onOpenStock }) {
   const { data: indexDetails, isLoading: detailsLoading, error: detailsError } = useIndexDetails(index.ticker_symbol);
   const { data: constituentsData, isLoading: constituentsLoading, error: constituentsError } = useIndexConstituents(index.ticker_symbol);
   const { data: statistics, isLoading: statsLoading, error: statsError } = useIndexStatistics(index.ticker_symbol);
+  const { fetchApi } = useApi();
 
   if (detailsLoading) {
     return (
@@ -40,6 +44,18 @@ function IndexDetailPage({ index, onBack }) {
   const details = indexDetails || index;
   const constituents = constituentsData?.constituents || [];
 
+  const handleStockClick = async (ticker) => {
+    if (!onOpenStock) return;
+    try {
+      const stocks = await fetchApi(`/stocks/search-db/?q=${encodeURIComponent(ticker)}&limit=1`);
+      if (stocks && stocks.length > 0) {
+        onOpenStock(stocks[0]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch stock:', err);
+    }
+  };
+
   return (
     <div className="index-detail-page">
       {/* Header */}
@@ -64,7 +80,7 @@ function IndexDetailPage({ index, onBack }) {
           {details.latest_price && (
             <div className="index-price-section">
               <div className="current-price">
-                {formatPrice(details.latest_price.close, details.latest_price.currency)}
+                {formatPrice(details.latest_price.close, details.latest_price.currency, details.ticker_symbol)}
               </div>
               <div className="price-date">
                 {new Date(details.latest_price.date).toLocaleDateString('de-DE')}
@@ -304,7 +320,13 @@ function IndexDetailPage({ index, onBack }) {
                 </thead>
                 <tbody>
                   {constituents.map((constituent, idx) => (
-                    <tr key={idx}>
+                    <tr 
+                      key={idx}
+                      onClick={() => handleStockClick(constituent.ticker_symbol)}
+                      style={{ cursor: 'pointer' }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg, #f8f9fa)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
                       <td className="ticker">{constituent.ticker_symbol}</td>
                       <td className="name">{constituent.name}</td>
                       <td className="weight">
@@ -326,18 +348,29 @@ function IndexDetailPage({ index, onBack }) {
           )}
         </div>
       )}
+
+      {/* Tops / Flops des Tages: direkt vor Marktbreite */}
+      <TopFlopsPanel symbol={details.ticker_symbol} onOpenStock={onOpenStock} />
+
+      {/* Marktbreite separat unterhalb der Bestandteile */}
+      <div className="market-breadth-section" style={{ marginTop: '32px' }}>
+        <h2>Marktbreite</h2>
+        <MarketBreadthDashboard symbol={details.ticker_symbol} days={30} />
+      </div>
     </div>
   );
 }
 
-function formatPrice(price, currency = 'USD') {
+function formatPrice(price, currency = 'USD', tickerSymbol = '') {
   if (price == null) return '-';
-  
   const formatted = new Intl.NumberFormat('de-DE', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   }).format(price);
-  
+  const t = (tickerSymbol || '').toUpperCase();
+  if (t.startsWith('^')) {
+    return `${formatted} Punkte`;
+  }
   return `${formatted} ${currency || ''}`.trim();
 }
 

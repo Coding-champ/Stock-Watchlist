@@ -13,6 +13,8 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import API_BASE from '../config';
 import { OBSERVATION_REASON_OPTIONS } from './ObservationFields';
+import { useBenchmarkComparison, inferDefaultBenchmark, BENCHMARK_PERIODS } from '../hooks/useBenchmarkComparison';
+import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 function StockDetailPage({ stock, onBack }) {
   const [chartLatestVwap, setChartLatestVwap] = useState(null);
@@ -25,6 +27,14 @@ function StockDetailPage({ stock, onBack }) {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('chart');
   const [alertModalConfig, setAlertModalConfig] = useState(null);
+  const [benchmarkSymbol, setBenchmarkSymbol] = useState(() => inferDefaultBenchmark(stock.country));
+  const [benchmarkPeriod, setBenchmarkPeriod] = useState('1y');
+  const { data: benchmarkData, isLoading: benchmarkLoading, error: benchmarkError } = useBenchmarkComparison(
+    stock.id,
+    benchmarkSymbol,
+    benchmarkPeriod,
+    activeTab === 'market_context'
+  );
 
   const loadExtendedData = useCallback(async () => {
     try {
@@ -334,12 +344,107 @@ function StockDetailPage({ stock, onBack }) {
             >
               Unternehmensinfo
             </button>
+            <button
+              className={`tab-button ${activeTab === 'market_context' ? 'active' : ''}`}
+              onClick={() => setActiveTab('market_context')}
+            >
+              Market Context
+            </button>
           </div>
 
           <div className="tab-content">
             {activeTab === 'chart' && (
               <div className="tab-panel">
                 <StockChart stock={stock} isEmbedded={false} onLatestVwap={setChartLatestVwap} />
+              </div>
+            )}
+
+            {activeTab === 'market_context' && (
+              <div className="tab-panel">
+                <div style={{ display:'flex', flexWrap:'wrap', gap:'12px', marginBottom:'16px' }}>
+                  <div>
+                    <label style={{ fontSize:'0.75rem', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em' }}>Benchmark</label><br />
+                    <input
+                      value={benchmarkSymbol}
+                      onChange={e => setBenchmarkSymbol(e.target.value.trim())}
+                      style={{ padding:'6px 10px', border:'1px solid var(--border-color)', borderRadius:6 }}
+                      placeholder="^GSPC"
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:'0.75rem', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em' }}>Zeitraum</label><br />
+                    <select
+                      value={benchmarkPeriod}
+                      onChange={e => setBenchmarkPeriod(e.target.value)}
+                      style={{ padding:'6px 10px', border:'1px solid var(--border-color)', borderRadius:6 }}
+                    >
+                      {BENCHMARK_PERIODS.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {benchmarkLoading && <div>Lade Benchmark Daten…</div>}
+                {benchmarkError && <div style={{ color:'var(--danger-color)' }}>Fehler: {String(benchmarkError.message || benchmarkError)}</div>}
+
+                {benchmarkData && !benchmarkLoading && !benchmarkError && (
+                  <>
+                    <div className="data-section">
+                      <h3>Relative Performance</h3>
+                      <div style={{ width:'100%', height:300 }}>
+                        <ResponsiveContainer>
+                          <LineChart data={benchmarkData.relative_performance_series} margin={{ top:10, right:20, left:0, bottom:0 }}>
+                            <CartesianGrid stroke="#eee" strokeDasharray="3 3" />
+                            <XAxis dataKey="date" tick={{ fontSize:12 }} minTickGap={24} />
+                            <YAxis tick={{ fontSize:12 }} domain={['auto','auto']} />
+                            <Tooltip formatter={(val, name) => [val, name]} />
+                            <Legend />
+                            <Line type="monotone" dataKey="stock" stroke="#2563eb" dot={false} name={stock.ticker_symbol} />
+                            <Line type="monotone" dataKey="benchmark" stroke="#9333ea" dot={false} name={benchmarkSymbol} />
+                            <Line type="monotone" dataKey="relative" stroke="#16a34a" dot={false} name="Outperformance" />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    <div className="data-section">
+                      <h3>Benchmark Kennzahlen</h3>
+                      <div className="detail-grid">
+                        <div className="detail-item">
+                          <strong>Beta</strong>
+                          {benchmarkData.beta != null ? benchmarkData.beta.toFixed(2) : '—'}
+                        </div>
+                        <div className="detail-item">
+                          <strong>Beta Klassifizierung</strong>
+                          {benchmarkData.beta_class || '—'}
+                        </div>
+                        <div className="detail-item">
+                          <strong>Korrelation</strong>
+                          {benchmarkData.correlation != null ? benchmarkData.correlation.toFixed(2) : '—'}
+                        </div>
+                        <div className="detail-item">
+                          <strong>Korrelation Stärke</strong>
+                          {benchmarkData.correlation_class || '—'}
+                        </div>
+                        <div className="detail-item">
+                          <strong>Outperformance</strong>
+                          {benchmarkData.outperformance != null ? `${benchmarkData.outperformance >= 0 ? '+' : ''}${benchmarkData.outperformance.toFixed(2)}` : '—'}
+                        </div>
+                        <div className="detail-item">
+                          <strong>Max Drawdown Aktie</strong>
+                          {benchmarkData.drawdown_comparison?.stock_max_drawdown != null ? `${(benchmarkData.drawdown_comparison.stock_max_drawdown * 100).toFixed(2)}%` : '—'}
+                        </div>
+                        <div className="detail-item">
+                          <strong>Max Drawdown Benchmark</strong>
+                          {benchmarkData.drawdown_comparison?.benchmark_max_drawdown != null ? `${(benchmarkData.drawdown_comparison.benchmark_max_drawdown * 100).toFixed(2)}%` : '—'}
+                        </div>
+                        <div className="detail-item">
+                          <strong>Datenpunkte</strong>
+                          {benchmarkData.data_points}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 

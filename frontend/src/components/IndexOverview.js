@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useIndices } from '../hooks/useIndices';
 import IndexCard from './IndexCard';
 import './IndexOverview.css';

@@ -34,6 +34,7 @@ from backend.app.services.fundamental_data_service import FundamentalDataService
 from backend.app.services.technical_indicators_service import calculate_rsi as ta_calculate_rsi, calculate_macd as ta_calculate_macd
 from backend.app.utils.signal_interpretation import interpret_rsi as ta_interpret_rsi, interpret_macd as ta_interpret_macd
 from backend.app.services.stock_query_service import StockQueryService
+from backend.app.services.comparison_service import ComparisonService
 from backend.app.utils.url_utils import normalize_website_url
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
@@ -2568,3 +2569,27 @@ def get_stock_data_quality(
         "fundamental_data": fundamental_summary,
         "overall_status": "complete" if price_quality.get("has_data") and fundamental_summary.get("has_data") else "incomplete"
     }
+
+
+@router.get("/{stock_id}/benchmark-comparison", response_model=Dict[str, Any])
+def get_benchmark_comparison(
+    stock_id: int,
+    index_symbol: str = Query("^GSPC", description="Benchmark index ticker (e.g. ^GSPC)"),
+    period: str = Query("1y", description="Period window (1mo,3mo,6mo,1y,2y,5y)"),
+    db: Session = Depends(get_db)
+):
+    """Return benchmark comparison metrics: beta, correlation, relative performance series, drawdowns.
+
+    Period is mapped to trading day approximations. If insufficient data is available an error message is returned.
+    """
+    try:
+        comparison_service = ComparisonService(db)
+        result = comparison_service.benchmark_comparison(stock_id=stock_id, index_symbol=index_symbol, period=period)
+        if result.get("error"):
+            raise HTTPException(status_code=404, detail=result["error"])
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Error in benchmark comparison: {e}")
+        raise HTTPException(status_code=500, detail="Internal error calculating benchmark comparison")

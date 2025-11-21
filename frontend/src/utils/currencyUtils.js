@@ -219,6 +219,18 @@ export function getCurrencyCodeForStock(stock) {
 export function formatPrice(value, stock, decimals = 2) {
   if (value === null || value === undefined || isNaN(value)) return '-';
 
+  // Leitindizes: Ticker beginnt mit '^' => Einheit Punkte, keine Währung
+  const ticker = stock && stock.ticker_symbol ? String(stock.ticker_symbol).toUpperCase() : '';
+  const isIndex = ticker.startsWith('^');
+  if (isIndex) {
+    try {
+      const nf = new Intl.NumberFormat('de-DE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+      return nf.format(Number(value)) + ' Punkte';
+    } catch (e) {
+      return Number(value).toFixed(decimals) + ' Punkte';
+    }
+  }
+
   // Determine ISO currency code and use Intl for German localization
   const iso = getCurrencyCodeForStock(stock);
   try {
@@ -239,8 +251,10 @@ export function formatPrice(value, stock, decimals = 2) {
  * @returns {Array} Array von Alarm-Typen mit Labels und Einheiten
  */
 export function getAlertTypesForStock(stock) {
+  const ticker = stock && stock.ticker_symbol ? String(stock.ticker_symbol).toUpperCase() : '';
+  const isIndex = ticker.startsWith('^');
   return [
-    { value: 'price', label: 'Preis', unit: getCurrencyForStock(stock) },
+    { value: 'price', label: 'Preis', unit: isIndex ? 'Punkte' : getCurrencyForStock(stock) },
     { value: 'pe_ratio', label: 'KGV (P/E Ratio)', unit: '' },
     { value: 'rsi', label: 'RSI', unit: '' },
     { value: 'volatility', label: 'Volatilität', unit: '%' },
@@ -292,9 +306,11 @@ export function getConditionLabel(condition) {
  * @returns {string} Die Einheit (z.B. '$', '%', '')
  */
 export function getUnitForAlertType(alertType, stock) {
+  const ticker = stock && stock.ticker_symbol ? String(stock.ticker_symbol).toUpperCase() : '';
+  const isIndex = ticker.startsWith('^');
   switch (alertType) {
     case 'price':
-      return getCurrencyForStock(stock);
+      return isIndex ? 'Punkte' : getCurrencyForStock(stock);
     case 'volatility':
     case 'price_change_percent':
       return '%';

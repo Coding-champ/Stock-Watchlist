@@ -10,6 +10,7 @@ import AlertsView from './components/alerts/AlertsView';
 import StockDetailPage from './components/StockDetailPage';
 import IndexOverview from './components/IndexOverview';
 import IndexDetailPage from './components/IndexDetailPage';
+import CorrelationHeatmap from './components/CorrelationHeatmap';
 
 import API_BASE from './config';
 import { useQueryClient } from '@tanstack/react-query';
@@ -467,6 +468,17 @@ function App() {
                 showToast(`Index geöffnet · ${index.name}`, 'info');
               }}
             />
+            {/* Korrelationsmatrix unterhalb der Indizes-Übersicht */}
+            <div style={{ marginTop: '32px' }}>
+              <div className="panel">
+                <div className="panel__title-group">
+                  <div className="panel__eyebrow">Analyse</div>
+                  <div className="panel__title">Index-Korrelationen</div>
+                  <div className="panel__subtitle">Vergleich der täglichen Renditen wichtiger Leitindizes</div>
+                </div>
+              </div>
+              <CorrelationHeatmap />
+            </div>
           </main>
         )}
 
@@ -477,6 +489,10 @@ function App() {
               onBack={() => {
                 setActiveView('indices');
                 setSelectedIndex(null);
+              }}
+              onOpenStock={(stock) => { 
+                setSelectedStock(stock); 
+                setActiveView('stock'); 
               }}
             />
           </main>

@@ -17,6 +17,8 @@ from backend.app.services.index_constituent_service import IndexConstituentServi
 from backend.app.services.statistics_service import StatisticsService
 from backend.app.services.chart_core import get_chart_with_indicators
 from backend.app.models import MarketIndex, IndexConstituent
+from backend.app.services.comparison_service import ComparisonService
+from backend.app.services.market_breadth_service import MarketBreadthService
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +101,32 @@ def create_index(
     except Exception as e:
         logger.error(f"Error creating index: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== Correlation Matrix ====================
+
+@router.get("/correlation-matrix")
+def get_index_correlation_matrix(
+    symbols: str = Query(..., description="Comma-separated index ticker symbols (e.g. ^GSPC,^IXIC,^GDAXI)"),
+    period: str = Query("1y", description="Period window (1mo,3mo,6mo,1y,2y,5y)"),
+    db: Session = Depends(get_db)
+):
+    """Return correlation matrix for provided indices.
+
+    Uses daily returns over the specified period approximation. Requires at least two symbols and sufficient overlapping data.
+    """
+    try:
+        symbol_list = [s.strip() for s in symbols.split(',') if s.strip()]
+        service = ComparisonService(db)
+        result = service.get_correlation_matrix(symbol_list, period=period)
+        if result.get("error"):
+            raise HTTPException(status_code=400, detail=result["error"])
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating correlation matrix: {e}")
+        raise HTTPException(status_code=500, detail="Internal error generating correlation matrix")
 
 
 @router.get("/{ticker_symbol}")
@@ -559,6 +587,29 @@ def get_index_statistics(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+# ==================== Top/Flops ====================
+
+@router.get("/{ticker_symbol}/top-flops")
+def get_index_top_flops(
+    ticker_symbol: str,
+    limit: int = Query(5, ge=1, le=20, description="Number of items for top/flops each"),
+    db: Session = Depends(get_db)
+):
+    """Return top and flop movers for the given index using daily percent change."""
+    try:
+        index_service = IndexService(db)
+        result = index_service.get_index_top_flops(ticker_symbol, limit=limit)
+        if result.get("error"):
+            raise HTTPException(status_code=404, detail=result["error"])
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error computing top/flops for {ticker_symbol}: {e}")
+        raise HTTPException(status_code=500, detail="Internal error computing top/flops")
+
+
 @router.get("/{ticker_symbol}/sector-breakdown")
 def get_index_sector_breakdown(
     ticker_symbol: str,
@@ -633,4 +684,69 @@ def get_index_sector_breakdown(
     except Exception as e:
         logger.error(f"Error calculating sector breakdown for {ticker_symbol}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== Market Breadth ====================
+
+@router.get("/{ticker_symbol}/breadth")
+def get_index_breadth(
+    ticker_symbol: str,
+    date_param: Optional[str] = Query(None, description="Date (YYYY-MM-DD) for point-in-time breadth; defaults to today"),
+    db: Session = Depends(get_db)
+):
+    """Return advance/decline and new highs/lows snapshot for an index."""
+    try:
+        index_service = IndexService(db)
+        index = index_service.get_index_by_symbol(ticker_symbol)
+        if not index:
+            raise HTTPException(status_code=404, detail="Index not found")
+        target_date = None
+        if date_param:
+            from datetime import datetime as _dt
+            try:
+                target_date = _dt.strptime(date_param, "%Y-%m-%d").date()
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid date format; expected YYYY-MM-DD")
+        service = MarketBreadthService(db)
+        adv_dec = service.calculate_advance_decline(index.id, target_date)
+        highs_lows = service.get_new_highs_lows(index.id, target_date)
+        return {
+            "index": ticker_symbol,
+            "advance_decline": adv_dec,
+            "new_highs_lows": highs_lows
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error calculating breadth for {ticker_symbol}: {e}")
+        raise HTTPException(status_code=500, detail="Internal error calculating breadth")
+
+
+@router.get("/{ticker_symbol}/breadth/history")
+def get_index_breadth_history(
+    ticker_symbol: str,
+    days: int = Query(30, description="Number of days for breadth history (max 90)"),
+    include_mcclellan: bool = Query(False, description="Include McClellan oscillator data"),
+    db: Session = Depends(get_db)
+):
+    """Return historical breadth (advancing vs declining) counts for the index."""
+    try:
+        index_service = IndexService(db)
+        index = index_service.get_index_by_symbol(ticker_symbol)
+        if not index:
+            raise HTTPException(status_code=404, detail="Index not found")
+        service = MarketBreadthService(db)
+        history = service.calculate_advance_decline_history(index.id, days=days)
+        if history.get("error"):
+            raise HTTPException(status_code=400, detail=history["error"])
+        if include_mcclellan:
+            osc = service.calculate_mcclellan_oscillator(index.id, days=min(days, 90))
+            if "mcclellan" in osc:
+                history["mcclellan_oscillator"] = osc["mcclellan"]
+        return history
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error calculating breadth history for {ticker_symbol}: {e}")
+        raise HTTPException(status_code=500, detail="Internal error calculating breadth history")
 

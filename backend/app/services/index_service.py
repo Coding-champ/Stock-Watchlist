@@ -6,11 +6,13 @@ Service for managing market indices and their operations
 from datetime import date, datetime
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from sqlalchemy import and_, desc
 import logging
 
 from backend.app.models import MarketIndex, AssetType
 from backend.app.services.asset_price_service import AssetPriceService
+from backend.app.services.index_constituent_service import IndexConstituentService
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,7 @@ class IndexService:
     def __init__(self, db: Session):
         self.db = db
         self.asset_price_service = AssetPriceService(db)
+        self.constituent_service = IndexConstituentService(db)
     
     def create_index(
         self,
@@ -83,9 +86,21 @@ class IndexService:
         Returns:
             MarketIndex or None
         """
-        return self.db.query(MarketIndex).filter(
+        index = self.db.query(MarketIndex).filter(
             MarketIndex.ticker_symbol == ticker_symbol
         ).first()
+        if not index and ticker_symbol:
+            # Fallback: Try with/without leading caret to be lenient ("^GSPC" vs "GSPC")
+            alt_symbol = ticker_symbol[1:] if ticker_symbol.startswith("^") else f"^{ticker_symbol}"
+            index = self.db.query(MarketIndex).filter(
+                MarketIndex.ticker_symbol == alt_symbol
+            ).first()
+        if not index and ticker_symbol:
+            # Fallback: case-insensitive match
+            index = self.db.query(MarketIndex).filter(
+                func.lower(MarketIndex.ticker_symbol) == ticker_symbol.lower()
+            ).first()
+        return index
     
     def get_index_by_id(self, index_id: int) -> Optional[MarketIndex]:
         """
@@ -279,3 +294,60 @@ class IndexService:
             }
             for p in price_data
         ]
+
+    def get_index_top_flops(
+        self,
+        ticker_symbol: str,
+        limit: int = 5
+    ) -> Dict[str, Any]:
+        """Return top and flop movers for an index based on daily % change.
+
+        Uses last two available daily closes for each active constituent.
+        """
+        index = self.get_index_by_symbol(ticker_symbol)
+        if not index:
+            return {"error": "Index not found"}
+
+        constituents = self.constituent_service.get_active_constituents(index.id)
+        movers = []
+        latest_ref_date = None
+
+        for c in constituents:
+            sym = c.stock.ticker_symbol
+            recs = self.asset_price_service.get_price_data(
+                ticker_symbol=sym,
+                asset_type=AssetType.STOCK,
+                limit=2
+            )
+            if not recs or len(recs) < 2:
+                continue
+            last, prev = recs[0], recs[1]
+            if last.close is None or prev.close in (None, 0):
+                continue
+            try:
+                change_pct = float((last.close / prev.close - 1.0) * 100.0)
+            except Exception:
+                continue
+            latest_ref_date = latest_ref_date or last.date
+            movers.append({
+                "ticker": sym,
+                "name": c.stock.name,
+                "sector": c.stock.sector,
+                "industry": c.stock.industry,
+                "last_price": float(last.close),
+                "currency": last.currency,
+                "change_pct": round(change_pct, 2),
+            })
+
+        # Sort and slice
+        movers_sorted = sorted(movers, key=lambda x: x["change_pct"], reverse=True)
+        top = movers_sorted[: max(0, limit)]
+        flops = sorted(movers, key=lambda x: x["change_pct"])[: max(0, limit)]
+
+        return {
+            "date": latest_ref_date.isoformat() if latest_ref_date else None,
+            "limit": limit,
+            "count_scanned": len(movers),
+            "top": top,
+            "flops": flops,
+        }

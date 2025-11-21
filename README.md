@@ -57,6 +57,20 @@ Comprehensive stock analysis with 3-phase metric calculation:
 - **Database**: PostgreSQL with SQLAlchemy ORM
 - **Frontend**: React
 
+## Index-Einheiten (Leitindizes)
+
+Leitindizes (z. B. `^GSPC`, `^NDX`, `^GDAXI`, `^STOXX50E`) werden im Frontend nicht mit einer Währung, sondern in **Punkten** angezeigt. Die Erkennung erfolgt über Ticker, die mit einem `^` beginnen.
+
+- Preisformatierung: `1234,56 Punkte` statt `€1.234,56` oder `$1,234.56`
+- Alarm-Einheit für Preisalarme: `Punkte` statt Währungssymbol
+- Prozent- und Verhältnis-Metriken (z. B. RSI, Volatilität) bleiben unverändert
+
+Handelbare Assets (Aktien, ETFs, Derivate) ohne führendes `^` nutzen weiterhin eine lokalisierte Währungsdarstellung basierend auf Länder- und Börsen-Suffix-Heuristiken.
+
+Implementierung: Siehe `frontend/src/utils/currencyUtils.js` – Funktionen `formatPrice`, `getAlertTypesForStock`, `getUnitForAlertType` enthalten die Index-Logik.
+
+Hinweis: Sektor-/Themen-Indizes ohne führendes `^` werden (sofern als handelbares Asset erfasst) mit Währung angezeigt.
+
 ## Data Models
 
 1. **Watchlist**: Organizes stocks into groups
