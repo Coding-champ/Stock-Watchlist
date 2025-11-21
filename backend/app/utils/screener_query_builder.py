@@ -9,7 +9,7 @@ Functions:
 from typing import Dict, Any, List, Tuple
 
 
-def build_query_parts(filters: Dict[str, Any], engine=None) -> Tuple[str, str, Dict[str, Any]]:
+def build_query_parts(filters: Dict[str, Any], engine=None) -> Tuple[str, str, Dict[str, Any], Dict[str, bool]]:
     """
     Build dynamic SQL parts: optional CTEs, JOINs, and WHERE clause based on filters.
     
@@ -22,6 +22,7 @@ def build_query_parts(filters: Dict[str, Any], engine=None) -> Tuple[str, str, D
             - cte_sql: WITH clause SQL (includes trailing newline if non-empty)
             - where_sql_with_joins: JOIN clauses + WHERE clause (combined string)
             - params: Dict of named parameters for SQL execution
+            - flags: Dict indicating which optional tables/CTEs are included (e.g., {"has_technical_indicators": True})
     """
     clauses: List[str] = []
     joins: List[str] = []
@@ -115,6 +116,51 @@ def build_query_parts(filters: Dict[str, Any], engine=None) -> Tuple[str, str, D
     add_max("debt_to_equity_max", "lf.debt_to_equity")
     add_max("total_liabilities_max", "lf.total_liabilities")
 
+    # Extended data filters (from extended_stock_data_cache JSON)
+    # NOTE: Extended JSON is nested; we fall back over multiple possible locations/legacy keys.
+    # Helper SQL fragments (Postgres JSON path casts). For other dialects these may need adaptation.
+    market_cap_sql = "COALESCE( (e.extended_data->'market_data'->>'market_cap')::numeric, (e.extended_data->'financial_ratios'->>'market_cap')::numeric, (e.extended_data->>'marketCap')::numeric )"
+    pe_sql = "COALESCE( (e.extended_data->'financial_ratios'->>'pe_ratio')::numeric, (e.extended_data->>'trailingPE')::numeric, (e.extended_data->>'forwardPE')::numeric )"
+    ps_sql = "COALESCE( (e.extended_data->'financial_ratios'->>'price_to_sales')::numeric, (e.extended_data->>'priceToSalesTrailing12Months')::numeric )"
+    earnings_growth_sql = "COALESCE( (e.extended_data->'financial_ratios'->>'earnings_growth')::numeric, (e.extended_data->>'earningsGrowth')::numeric )"
+    revenue_growth_sql = "COALESCE( (e.extended_data->'financial_ratios'->>'revenue_growth')::numeric, (e.extended_data->>'revenueGrowth')::numeric )"
+    beta_sql = "COALESCE( (e.extended_data->'risk_metrics'->>'beta')::numeric, (e.extended_data->>'beta')::numeric )"
+
+    if (mc_min := filters.get("market_cap_min")) is not None:
+        clauses.append(f"( {market_cap_sql} >= :market_cap_min )")
+        params["market_cap_min"] = float(mc_min)
+    if (mc_max := filters.get("market_cap_max")) is not None:
+        clauses.append(f"( {market_cap_sql} <= :market_cap_max )")
+        params["market_cap_max"] = float(mc_max)
+
+    if (pe_min := filters.get("pe_ratio_min")) is not None:
+        clauses.append(f"( {pe_sql} >= :pe_ratio_min )")
+        params["pe_ratio_min"] = float(pe_min)
+    if (pe_max := filters.get("pe_ratio_max")) is not None:
+        clauses.append(f"( {pe_sql} <= :pe_ratio_max )")
+        params["pe_ratio_max"] = float(pe_max)
+
+    if (ps_min := filters.get("price_to_sales_min")) is not None:
+        clauses.append(f"( {ps_sql} >= :price_to_sales_min )")
+        params["price_to_sales_min"] = float(ps_min)
+    if (ps_max := filters.get("price_to_sales_max")) is not None:
+        clauses.append(f"( {ps_sql} <= :price_to_sales_max )")
+        params["price_to_sales_max"] = float(ps_max)
+
+    if (eg_min := filters.get("earnings_growth_min")) is not None:
+        clauses.append(f"( {earnings_growth_sql} >= :earnings_growth_min )")
+        params["earnings_growth_min"] = float(eg_min)
+    if (eg_max := filters.get("earnings_growth_max")) is not None:
+        clauses.append(f"( {earnings_growth_sql} <= :earnings_growth_max )")
+        params["earnings_growth_max"] = float(eg_max)
+
+    if (rg_min := filters.get("revenue_growth_min")) is not None:
+        clauses.append(f"( {revenue_growth_sql} >= :revenue_growth_min )")
+        params["revenue_growth_min"] = float(rg_min)
+    if (rg_max := filters.get("revenue_growth_max")) is not None:
+        clauses.append(f"( {revenue_growth_sql} <= :revenue_growth_max )")
+        params["revenue_growth_max"] = float(rg_max)
+
     # Technical filters (price vs SMA50/SMA200)
     needs_price = False
     if (p50 := filters.get("price_vs_sma50")) in ("above", "below"):
@@ -125,6 +171,72 @@ def build_query_parts(filters: Dict[str, Any], engine=None) -> Tuple[str, str, D
         needs_price = True
         op = ">=" if p200 == "above" else "<="
         clauses.append(f"(pc.close {op} pc.sma200)")
+
+    # RSI filters
+    needs_rsi = False
+    if (rsi_min := filters.get("rsi_min")) is not None:
+        needs_rsi = True
+        clauses.append("(ti.rsi >= :rsi_min)")
+        params["rsi_min"] = float(rsi_min)
+    if (rsi_max := filters.get("rsi_max")) is not None:
+        needs_rsi = True
+        clauses.append("(ti.rsi <= :rsi_max)")
+        params["rsi_max"] = float(rsi_max)
+
+    # Stochastic filters
+    needs_stochastic = False
+    stoch_status = filters.get("stochastic_status")  # "oversold", "overbought", "neutral"
+    if stoch_status:
+        needs_stochastic = True
+        if stoch_status == "oversold":
+            clauses.append("(ti.stoch_k <= 20)")
+        elif stoch_status == "overbought":
+            clauses.append("(ti.stoch_k >= 80)")
+        elif stoch_status == "neutral":
+            clauses.append("(ti.stoch_k > 20 AND ti.stoch_k < 80)")
+
+    # Add technical indicators CTE if needed
+    if needs_rsi or needs_stochastic:
+        # Calculate RSI and Stochastic from recent price data
+        ctes.append(
+            """
+            technical_indicators AS (
+              SELECT
+                stock_id,
+                -- RSI calculation (14-period)
+                CASE
+                  WHEN SUM(CASE WHEN gain > 0 THEN gain ELSE 0 END) OVER w = 0 THEN 0
+                  WHEN SUM(CASE WHEN loss > 0 THEN loss ELSE 0 END) OVER w = 0 THEN 100
+                  ELSE 100 - (100 / (1 + (
+                    SUM(CASE WHEN gain > 0 THEN gain ELSE 0 END) OVER w /
+                    NULLIF(SUM(CASE WHEN loss > 0 THEN loss ELSE 0 END) OVER w, 0)
+                  )))
+                END AS rsi,
+                -- Stochastic %K (14-period)
+                CASE
+                  WHEN MAX(high) OVER w14 - MIN(low) OVER w14 = 0 THEN 50
+                  ELSE 100 * (close - MIN(low) OVER w14) / NULLIF(MAX(high) OVER w14 - MIN(low) OVER w14, 0)
+                END AS stoch_k,
+                ROW_NUMBER() OVER (PARTITION BY stock_id ORDER BY date DESC) AS rn
+              FROM (
+                SELECT
+                  stock_id,
+                  date,
+                  close,
+                  high,
+                  low,
+                  GREATEST(close - LAG(close) OVER (PARTITION BY stock_id ORDER BY date), 0) AS gain,
+                  GREATEST(LAG(close) OVER (PARTITION BY stock_id ORDER BY date) - close, 0) AS loss
+                FROM stock_price_data
+                WHERE date >= CURRENT_DATE - INTERVAL '60 days'
+              ) price_changes
+              WINDOW
+                w AS (PARTITION BY stock_id ORDER BY date ROWS BETWEEN 13 PRECEDING AND CURRENT ROW),
+                w14 AS (PARTITION BY stock_id ORDER BY date ROWS BETWEEN 13 PRECEDING AND CURRENT ROW)
+            )
+            """
+        )
+        joins.append("LEFT JOIN technical_indicators ti ON ti.stock_id = s.id AND ti.rn = 1")
 
     if needs_price:
         ctes.append(
@@ -148,4 +260,11 @@ def build_query_parts(filters: Dict[str, Any], engine=None) -> Tuple[str, str, D
     where_sql = ("WHERE " + " AND ".join(clauses)) if clauses else ""
     join_sql = ("\n" + "\n".join(joins)) if joins else ""
     cte_sql = ("WITH " + ",\n".join(ctes) + "\n") if ctes else ""
-    return cte_sql, join_sql + ("\n" + where_sql if where_sql else ""), params
+    
+    # Return flags indicating which optional parts are included
+    flags = {
+        "has_technical_indicators": needs_rsi or needs_stochastic,
+        "has_price_calc": needs_price
+    }
+    
+    return cte_sql, join_sql + ("\n" + where_sql if where_sql else ""), params, flags

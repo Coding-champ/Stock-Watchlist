@@ -13,9 +13,23 @@ const ScreenerView = () => {
     // technical
     price_vs_sma50: '', // above|below
     price_vs_sma200: '', // above|below
+    rsi_min: '',
+    rsi_max: '',
+    stochastic_status: '', // oversold|overbought|neutral
     // beta
     beta_min: '',
     beta_max: '',
+    // extended fundamentals / valuation
+    market_cap_min: '',
+    market_cap_max: '',
+    pe_ratio_min: '',
+    pe_ratio_max: '',
+    price_to_sales_min: '',
+    price_to_sales_max: '',
+    earnings_growth_min: '',
+    earnings_growth_max: '',
+    revenue_growth_min: '',
+    revenue_growth_max: '',
     // fundamentals
     profit_margin_min: '',
     roe_min: '',
@@ -69,9 +83,23 @@ const ScreenerView = () => {
     // technical
     setIf('price_vs_sma50', filters.price_vs_sma50);
     setIf('price_vs_sma200', filters.price_vs_sma200);
+    setIf('rsi_min', filters.rsi_min);
+    setIf('rsi_max', filters.rsi_max);
+    setIf('stochastic_status', filters.stochastic_status);
     // beta
     setIf('beta_min', filters.beta_min);
     setIf('beta_max', filters.beta_max);
+    // extended fundamentals / valuation
+    setIf('market_cap_min', filters.market_cap_min);
+    setIf('market_cap_max', filters.market_cap_max);
+    setIf('pe_ratio_min', filters.pe_ratio_min);
+    setIf('pe_ratio_max', filters.pe_ratio_max);
+    setIf('price_to_sales_min', filters.price_to_sales_min);
+    setIf('price_to_sales_max', filters.price_to_sales_max);
+    setIf('earnings_growth_min', filters.earnings_growth_min);
+    setIf('earnings_growth_max', filters.earnings_growth_max);
+    setIf('revenue_growth_min', filters.revenue_growth_min);
+    setIf('revenue_growth_max', filters.revenue_growth_max);
     // fundamentals
     setIf('profit_margin_min', filters.profit_margin_min);
     setIf('roe_min', filters.roe_min);
@@ -145,7 +173,10 @@ const ScreenerView = () => {
   const clearFilters = () => {
     setFilters({
       q: '', country: '', sector: '', industry: '', observation_reason: '',
-      price_vs_sma50: '', price_vs_sma200: '', beta_min: '', beta_max: '',
+      price_vs_sma50: '', price_vs_sma200: '', rsi_min: '', rsi_max: '', stochastic_status: '',
+      beta_min: '', beta_max: '',
+      market_cap_min: '', market_cap_max: '', pe_ratio_min: '', pe_ratio_max: '', price_to_sales_min: '', price_to_sales_max: '',
+      earnings_growth_min: '', earnings_growth_max: '', revenue_growth_min: '', revenue_growth_max: '',
       profit_margin_min: '', roe_min: '', current_ratio_min: '', quick_ratio_min: '',
       operating_cashflow_min: '', free_cashflow_min: '', shareholders_equity_min: '',
       total_assets_min: '', debt_to_equity_max: '', total_liabilities_max: '',
@@ -214,10 +245,43 @@ const ScreenerView = () => {
                   <option value="above">Über SMA200</option>
                   <option value="below">Unter SMA200</option>
                 </select>
+                <input title="Relative Strength Index: Werte <30 oft überverkauft" type="number" inputMode="decimal" step="1" placeholder="RSI ≥" value={filters.rsi_min}
+                  onChange={(e)=>{ setPage(1); setFilters({ ...filters, rsi_min: e.target.value }); }} style={{maxWidth:120}} />
+                <input title="RSI >70 oft überkauft" type="number" inputMode="decimal" step="1" placeholder="RSI ≤" value={filters.rsi_max}
+                  onChange={(e)=>{ setPage(1); setFilters({ ...filters, rsi_max: e.target.value }); }} style={{maxWidth:120}} />
+                <select value={filters.stochastic_status} onChange={(e)=>{ setPage(1); setFilters({ ...filters, stochastic_status: e.target.value }); }}>
+                  <option value="">Stoch. Zustand</option>
+                  <option value="oversold">Überverkauft (≤20)</option>
+                  <option value="overbought">Überkauft (≥80)</option>
+                  <option value="neutral">Neutral</option>
+                </select>
                 <input type="number" inputMode="decimal" step="0.1" placeholder="β min" value={filters.beta_min}
                   onChange={(e)=>{ setPage(1); setFilters({ ...filters, beta_min: e.target.value }); }} style={{maxWidth: 120}} />
                 <input type="number" inputMode="decimal" step="0.1" placeholder="β max" value={filters.beta_max}
                   onChange={(e)=>{ setPage(1); setFilters({ ...filters, beta_max: e.target.value }); }} style={{maxWidth: 120}} />
+              </div>
+
+              <div className="panel__toolbar-row">
+                <input type="number" inputMode="decimal" step="100000000" placeholder="Market Cap ≥" value={filters.market_cap_min}
+                  onChange={(e)=>{ setPage(1); setFilters({ ...filters, market_cap_min: e.target.value }); }} style={{maxWidth:160}} />
+                <input type="number" inputMode="decimal" step="100000000" placeholder="Market Cap ≤" value={filters.market_cap_max}
+                  onChange={(e)=>{ setPage(1); setFilters({ ...filters, market_cap_max: e.target.value }); }} style={{maxWidth:160}} />
+                <input type="number" inputMode="decimal" step="0.1" placeholder="KGV ≥" value={filters.pe_ratio_min}
+                  onChange={(e)=>{ setPage(1); setFilters({ ...filters, pe_ratio_min: e.target.value }); }} style={{maxWidth:120}} />
+                <input type="number" inputMode="decimal" step="0.1" placeholder="KGV ≤" value={filters.pe_ratio_max}
+                  onChange={(e)=>{ setPage(1); setFilters({ ...filters, pe_ratio_max: e.target.value }); }} style={{maxWidth:120}} />
+                <input type="number" inputMode="decimal" step="0.1" placeholder="KUV ≥" value={filters.price_to_sales_min}
+                  onChange={(e)=>{ setPage(1); setFilters({ ...filters, price_to_sales_min: e.target.value }); }} style={{maxWidth:120}} />
+                <input type="number" inputMode="decimal" step="0.1" placeholder="KUV ≤" value={filters.price_to_sales_max}
+                  onChange={(e)=>{ setPage(1); setFilters({ ...filters, price_to_sales_max: e.target.value }); }} style={{maxWidth:120}} />
+                <input title="Jahres-Wachstum Gewinn (Dezimal, 0.15 = 15%)" type="number" inputMode="decimal" step="0.01" placeholder="Earnings Growth ≥" value={filters.earnings_growth_min}
+                  onChange={(e)=>{ setPage(1); setFilters({ ...filters, earnings_growth_min: e.target.value }); }} style={{maxWidth:160}} />
+                <input title="Obergrenze Gewinnwachstum" type="number" inputMode="decimal" step="0.01" placeholder="Earnings Growth ≤" value={filters.earnings_growth_max}
+                  onChange={(e)=>{ setPage(1); setFilters({ ...filters, earnings_growth_max: e.target.value }); }} style={{maxWidth:160}} />
+                <input title="Jahres-Wachstum Umsatz (Dezimal)" type="number" inputMode="decimal" step="0.01" placeholder="Revenue Growth ≥" value={filters.revenue_growth_min}
+                  onChange={(e)=>{ setPage(1); setFilters({ ...filters, revenue_growth_min: e.target.value }); }} style={{maxWidth:160}} />
+                <input title="Obergrenze Umsatzwachstum" type="number" inputMode="decimal" step="0.01" placeholder="Revenue Growth ≤" value={filters.revenue_growth_max}
+                  onChange={(e)=>{ setPage(1); setFilters({ ...filters, revenue_growth_max: e.target.value }); }} style={{maxWidth:160}} />
               </div>
 
               <div className="panel__toolbar-row">
@@ -271,29 +335,51 @@ const ScreenerView = () => {
                     <th role="button" onClick={() => toggleSort('country')}>Land {sort==='country' ? (order==='asc'?'▲':'▼') : ''}</th>
                     <th role="button" onClick={() => toggleSort('sector')}>Sektor {sort==='sector' ? (order==='asc'?'▲':'▼') : ''}</th>
                     <th role="button" onClick={() => toggleSort('industry')}>Industrie {sort==='industry' ? (order==='asc'?'▲':'▼') : ''}</th>
+                    <th role="button" onClick={() => toggleSort('e_market_cap')}>MCap {sort==='e_market_cap' ? (order==='asc'?'▲':'▼') : ''}</th>
+                    <th role="button" onClick={() => toggleSort('e_pe_ratio')}>KGV {sort==='e_pe_ratio' ? (order==='asc'?'▲':'▼') : ''}</th>
+                    <th role="button" onClick={() => toggleSort('e_price_to_sales')}>KUV {sort==='e_price_to_sales' ? (order==='asc'?'▲':'▼') : ''}</th>
+                    <th role="button" onClick={() => toggleSort('e_earnings_growth')}>Earnings Gr. {sort==='e_earnings_growth' ? (order==='asc'?'▲':'▼') : ''}</th>
+                    <th role="button" onClick={() => toggleSort('e_revenue_growth')}>Revenue Gr. {sort==='e_revenue_growth' ? (order==='asc'?'▲':'▼') : ''}</th>
                     <th role="button" onClick={() => toggleSort('e_beta')}>β {sort==='e_beta' ? (order==='asc'?'▲':'▼') : ''}</th>
                     <th role="button" onClick={() => toggleSort('lf_profit_margin')}>Profit Margin {sort==='lf_profit_margin' ? (order==='asc'?'▲':'▼') : ''}</th>
                     <th role="button" onClick={() => toggleSort('lf_return_on_equity')}>ROE {sort==='lf_return_on_equity' ? (order==='asc'?'▲':'▼') : ''}</th>
                     <th role="button" onClick={() => toggleSort('lf_current_ratio')}>Current Ratio {sort==='lf_current_ratio' ? (order==='asc'?'▲':'▼') : ''}</th>
+                    <th role="button" onClick={() => toggleSort('ti_rsi')}>RSI {sort==='ti_rsi' ? (order==='asc'?'▲':'▼') : ''}</th>
+                    <th role="button" onClick={() => toggleSort('ti_stoch_k')}>Stoch %K {sort==='ti_stoch_k' ? (order==='asc'?'▲':'▼') : ''}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {results.length === 0 ? (
                     <tr><td colSpan={9} style={{ color: 'var(--text-muted)', padding: '16px' }}>Keine Ergebnisse</td></tr>
                   ) : (
-                    results.map(row => (
-                      <tr key={row.id}>
-                        <td>{row.ticker_symbol}</td>
-                        <td>{row.name}</td>
-                        <td>{row.country || '-'}</td>
-                        <td>{row.sector || '-'}</td>
-                        <td>{row.industry || '-'}</td>
-                        <td>{fmtNum(row.e_beta, 2)}</td>
-                        <td>{fmtNum(row.lf_profit_margin, 2)}</td>
-                        <td>{fmtNum(row.lf_return_on_equity, 2)}</td>
-                        <td>{fmtNum(row.lf_current_ratio, 2)}</td>
-                      </tr>
-                    ))
+                    results.map(row => {
+                      const mc = row.e_market_cap;
+                      const mcDisplay = mc ? (mc >= 1e9 ? (mc/1e9).toFixed(2)+'B' : (mc/1e6).toFixed(2)+'M') : '—';
+                      const eg = row.e_earnings_growth;
+                      const egDisplay = (eg !== null && eg !== undefined && !isNaN(eg)) ? (eg*100).toFixed(1)+'%' : '—';
+                      const rg = row.e_revenue_growth;
+                      const rgDisplay = (rg !== null && rg !== undefined && !isNaN(rg)) ? (rg*100).toFixed(1)+'%' : '—';
+                      return (
+                        <tr key={row.id}>
+                          <td>{row.ticker_symbol}</td>
+                          <td>{row.name}</td>
+                          <td>{row.country || '-'}</td>
+                          <td>{row.sector || '-'}</td>
+                          <td>{row.industry || '-'}</td>
+                          <td>{mcDisplay}</td>
+                          <td>{fmtNum(row.e_pe_ratio, 2)}</td>
+                          <td>{fmtNum(row.e_price_to_sales, 2)}</td>
+                          <td>{egDisplay}</td>
+                          <td>{rgDisplay}</td>
+                          <td>{fmtNum(row.e_beta, 2)}</td>
+                          <td>{fmtNum(row.lf_profit_margin, 2)}</td>
+                          <td>{fmtNum(row.lf_return_on_equity, 2)}</td>
+                          <td>{fmtNum(row.lf_current_ratio, 2)}</td>
+                          <td>{fmtNum(row.ti_rsi, 0)}</td>
+                          <td>{fmtNum(row.ti_stoch_k, 0)}</td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

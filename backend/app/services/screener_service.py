@@ -10,12 +10,17 @@ def run_screener(filters: Dict[str, Any], page: int = 1, page_size: int = 25,
     Minimal screener: filters on stocks master table.
     Later we can join to price/fundamental tables for richer filters.
     """
-    allowed_sort = {"ticker_symbol", "name", "sector", "industry", "country", "id", "e_beta", "lf_profit_margin", "lf_return_on_equity", "lf_current_ratio"}
+    allowed_sort = {
+        "ticker_symbol", "name", "sector", "industry", "country", "id",
+        "e_beta", "lf_profit_margin", "lf_return_on_equity", "lf_current_ratio",
+        "e_market_cap", "e_pe_ratio", "e_price_to_sales", "e_earnings_growth", "e_revenue_growth",
+        "ti_rsi", "ti_stoch_k"
+    }
     if sort not in allowed_sort:
         sort = "ticker_symbol"
     order = "desc" if str(order).lower() == "desc" else "asc"
 
-    cte_sql, where_with_joins, params = build_query_parts(filters, engine)
+    cte_sql, where_with_joins, params, flags = build_query_parts(filters, engine)
 
     offset = max(page - 1, 0) * max(page_size, 1)
     limit = max(min(page_size, 200), 1)
@@ -27,14 +32,28 @@ def run_screener(filters: Dict[str, Any], page: int = 1, page_size: int = 25,
         {where_with_joins}
     """
 
+    select_fields = [
+        "s.id", "s.ticker_symbol", "s.name", "s.country", "s.sector", "s.industry",
+        "COALESCE( (e.extended_data->'risk_metrics'->>'beta')::numeric, (e.extended_data->>'beta')::numeric ) AS e_beta",
+        "lf.profit_margin AS lf_profit_margin",
+        "lf.return_on_equity AS lf_return_on_equity",
+        "lf.current_ratio AS lf_current_ratio",
+        "COALESCE( (e.extended_data->'market_data'->>'market_cap')::numeric, (e.extended_data->'financial_ratios'->>'market_cap')::numeric, (e.extended_data->>'marketCap')::numeric ) AS e_market_cap",
+        "COALESCE( (e.extended_data->'financial_ratios'->>'pe_ratio')::numeric, (e.extended_data->>'trailingPE')::numeric, (e.extended_data->>'forwardPE')::numeric ) AS e_pe_ratio",
+        "COALESCE( (e.extended_data->'financial_ratios'->>'price_to_sales')::numeric, (e.extended_data->>'priceToSalesTrailing12Months')::numeric ) AS e_price_to_sales",
+        "COALESCE( (e.extended_data->'financial_ratios'->>'earnings_growth')::numeric, (e.extended_data->>'earningsGrowth')::numeric ) AS e_earnings_growth",
+        "COALESCE( (e.extended_data->'financial_ratios'->>'revenue_growth')::numeric, (e.extended_data->>'revenueGrowth')::numeric ) AS e_revenue_growth",
+    ]
+    if flags.get("has_technical_indicators"):
+        select_fields.extend([
+            "ti.rsi AS ti_rsi",
+            "ti.stoch_k AS ti_stoch_k",
+        ])
+
     data_sql = f"""
         {cte_sql}
         SELECT 
-          s.id, s.ticker_symbol, s.name, s.country, s.sector, s.industry,
-          (e.extended_data->>'beta')::numeric AS e_beta,
-          lf.profit_margin AS lf_profit_margin,
-          lf.return_on_equity AS lf_return_on_equity,
-          lf.current_ratio AS lf_current_ratio
+          {', '.join(select_fields)}
         {base_from}
         {where_with_joins}
         ORDER BY {sort} {order}
