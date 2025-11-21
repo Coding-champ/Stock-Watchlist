@@ -275,11 +275,11 @@ def main():
     
     try:
         # Step 1: Create indices
-        indices = seed_indices(db)
-        logger.info(f"\n✓ Created {len(indices)} indices")
+        #indices = seed_indices(db)
+        #logger.info(f"\n✓ Created {len(indices)} indices")
         
         # Step 2: Load price data
-        load_index_prices(db, indices)
+        #load_index_prices(db, indices)
         
         # Step 3: Import constituents (now creates missing stocks automatically)
         import_constituents(db)

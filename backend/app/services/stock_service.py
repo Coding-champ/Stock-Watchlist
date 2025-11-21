@@ -24,6 +24,58 @@ class StockService:
         self.historical_service = HistoricalPriceService(db)
         self.fundamental_service = FundamentalDataService(db)
     
+    def create_stock(
+        self,
+        ticker_symbol: str,
+        name: Optional[str] = None,
+        isin: Optional[str] = None,
+        country: Optional[str] = None,
+        industry: Optional[str] = None,
+        sector: Optional[str] = None,
+        business_summary: Optional[str] = None,
+        exchange: Optional[str] = None,
+        currency: Optional[str] = None
+    ) -> Stock:
+        """
+        Create a new stock (simple version without watchlist association)
+        
+        Args:
+            ticker_symbol: Stock ticker symbol
+            name: Stock name
+            isin: ISIN code
+            country: Country
+            industry: Industry
+            sector: Sector
+            business_summary: Business description
+            exchange: Exchange
+            currency: Currency
+        
+        Returns:
+            Created Stock object
+        """
+        # Check if stock already exists
+        existing = self.db.query(Stock).filter(Stock.ticker_symbol == ticker_symbol).first()
+        if existing:
+            logger.warning(f"Stock {ticker_symbol} already exists")
+            return existing
+        
+        stock = Stock(
+            ticker_symbol=ticker_symbol.upper(),
+            name=name or ticker_symbol,
+            isin=isin,
+            country=country,
+            industry=industry,
+            sector=sector,
+            business_summary=business_summary
+        )
+        
+        self.db.add(stock)
+        self.db.commit()
+        self.db.refresh(stock)
+        
+        logger.info(f"Created stock: {ticker_symbol} (ID: {stock.id})")
+        return stock
+    
     def create_stock_with_watchlist(
         self,
         ticker_symbol: str,

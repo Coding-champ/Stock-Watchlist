@@ -80,7 +80,7 @@ class IndexConstituentService:
         date_removed: Optional[date] = None
     ) -> bool:
         """
-        Remove a stock from an index (marks as removed, keeps history)
+        Remove a stock from an index (marks as inactive, keeps history)
         
         Args:
             index_id: Market index ID
@@ -104,7 +104,7 @@ class IndexConstituentService:
         if not constituent:
             return False
         
-        constituent.status = "removed"
+        constituent.status = "inactive"
         constituent.date_removed = date_removed
         constituent.updated_at = datetime.utcnow()
         
@@ -139,11 +139,11 @@ class IndexConstituentService:
         include_removed: bool = False
     ) -> List[IndexConstituent]:
         """
-        Get all constituents (optionally including removed)
+        Get all constituents (optionally including inactive/removed)
         
         Args:
             index_id: Market index ID
-            include_removed: Include removed constituents
+            include_removed: Include inactive constituents
         
         Returns:
             List of IndexConstituent
@@ -196,23 +196,27 @@ class IndexConstituentService:
         self,
         index_id: int,
         csv_file_path: str,
-        replace_existing: bool = False
+        replace_existing: bool = False,
+        auto_calculate_weights: bool = True,
+        weight_method: str = "market_cap"
     ) -> Dict[str, Any]:
         """
         Import constituents from CSV file
         
         Expected CSV columns:
         - ticker_symbol (required)
-        - weight (optional)
+        - weight (optional, can be omitted if auto_calculate_weights=True)
         - date_added (optional, defaults to today)
         
         Args:
             index_id: Market index ID
             csv_file_path: Path to CSV file
             replace_existing: If True, marks old constituents as removed
+            auto_calculate_weights: If True, automatically calculates weights after import
+            weight_method: Method for weight calculation ('market_cap' or 'equal')
         
         Returns:
-            Result dict with counts
+            Result dict with counts and weight calculation info
         """
         try:
             # Get index
@@ -277,12 +281,36 @@ class IndexConstituentService:
             
             logger.info(f"Imported {imported} constituents for index {index.name}")
             
-            return {
+            result = {
                 "success": True,
                 "imported": imported,
                 "skipped": skipped,
                 "errors": errors
             }
+            
+            # Auto-calculate weights if enabled
+            if auto_calculate_weights and imported > 0:
+                try:
+                    from backend.app.services.index_weight_calculator import IndexWeightCalculator
+                    
+                    calculator = IndexWeightCalculator(self.db)
+                    weight_result = calculator.calculate_market_cap_weights(
+                        index_id=index_id,
+                        refresh_market_caps=True
+                    ) if weight_method == "market_cap" else calculator.calculate_equal_weights(index_id)
+                    
+                    result["weights_calculated"] = True
+                    result["weights_method"] = weight_method
+                    result["weights_updated"] = weight_result.get("updated_count", 0)
+                    result["total_market_cap"] = weight_result.get("total_market_cap")
+                    
+                    logger.info(f"Auto-calculated weights for {weight_result.get('updated_count', 0)} constituents using {weight_method} method")
+                except Exception as e:
+                    logger.warning(f"Failed to auto-calculate weights: {e}")
+                    result["weights_calculated"] = False
+                    result["weights_error"] = str(e)
+            
+            return result
             
         except Exception as e:
             logger.error(f"Error importing constituents: {e}")

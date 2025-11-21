@@ -419,11 +419,13 @@ async def import_constituents_from_csv(
     ticker_symbol: str,
     file: UploadFile = File(...),
     replace_existing: bool = Query(False, description="Replace all existing constituents"),
+    auto_calculate_weights: bool = Query(True, description="Automatically calculate weights after import"),
+    weight_method: str = Query("market_cap", description="Weight calculation method: market_cap or equal"),
     db: Session = Depends(get_db)
 ):
     """
     Import constituents from CSV file
-    Expected columns: ticker_symbol, weight (optional), date_added (optional)
+    Expected columns: ticker_symbol, weight (optional if auto_calculate_weights=True), date_added (optional)
     """
     try:
         # Get index
@@ -445,7 +447,9 @@ async def import_constituents_from_csv(
             result = constituent_service.import_constituents_from_csv(
                 index_id=index.id,
                 csv_file_path=tmp_file_path,
-                replace_existing=replace_existing
+                replace_existing=replace_existing,
+                auto_calculate_weights=auto_calculate_weights,
+                weight_method=weight_method
             )
             
             if not result["success"]:
@@ -461,6 +465,62 @@ async def import_constituents_from_csv(
         raise
     except Exception as e:
         logger.error(f"Error importing constituents for {ticker_symbol}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{ticker_symbol}/constituents/recalculate-weights")
+def recalculate_weights(
+    ticker_symbol: str,
+    method: str = Query("market_cap", description="Weight calculation method: market_cap or equal"),
+    refresh_market_caps: bool = Query(True, description="Refresh market cap data from yfinance"),
+    db: Session = Depends(get_db)
+):
+    """
+    Recalculate constituent weights for an index
+    
+    Methods:
+    - market_cap: Weight based on market capitalization (default)
+    - equal: Equal weight for all constituents
+    """
+    try:
+        from backend.app.services.index_weight_calculator import IndexWeightCalculator
+        
+        # Get index
+        index_service = IndexService(db)
+        index = index_service.get_index_by_symbol(ticker_symbol)
+        
+        if not index:
+            raise HTTPException(status_code=404, detail="Index not found")
+        
+        # Calculate weights
+        calculator = IndexWeightCalculator(db)
+        
+        if method == "market_cap":
+            result = calculator.calculate_market_cap_weights(
+                index_id=index.id,
+                refresh_market_caps=refresh_market_caps
+            )
+        elif method == "equal":
+            result = calculator.calculate_equal_weights(index_id=index.id)
+        else:
+            raise HTTPException(status_code=400, detail="Invalid method. Use 'market_cap' or 'equal'")
+        
+        if not result.get("success", False):
+            raise HTTPException(status_code=400, detail=result.get("error", "Weight calculation failed"))
+        
+        return {
+            "success": True,
+            "index": index.name,
+            "method": method,
+            "updated_count": result.get("updated_count", 0),
+            "total_market_cap": result.get("total_market_cap"),
+            "weights": result.get("weights", [])
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error recalculating weights for {ticker_symbol}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

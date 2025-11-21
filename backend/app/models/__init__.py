@@ -289,7 +289,7 @@ class IndexConstituent(Base):
     index_id = Column(Integer, ForeignKey("market_indices.id", ondelete="CASCADE"), nullable=False)
     stock_id = Column(Integer, ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False)
     weight = Column(Float, nullable=True)  # Percentage weight in index (if applicable)
-    status = Column(String, nullable=False, default="active")  # 'active', 'removed'
+    status = Column(String, nullable=False, default="active")  # 'active', 'inactive'
     date_added = Column(Date, nullable=False)
     date_removed = Column(Date, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
