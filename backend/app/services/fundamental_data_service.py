@@ -108,8 +108,8 @@ class FundamentalDataService:
             # Process each period
             for period_date in sorted(all_periods, reverse=True):
                 try:
-                    # Extract data for this period
-                    period_str = self._format_period_string(period_date)
+                    # Extract data for this period (direct util call after removing deprecated wrapper)
+                    period_str = util_format_period(period_date)
                     period_end = period_date.date() if hasattr(period_date, 'date') else period_date
                     
                     # Check if record already exists
@@ -242,12 +242,6 @@ class FundamentalDataService:
                 setattr(record, key, value)
         record.updated_at = datetime.utcnow()
     
-    def _format_period_string(self, period_date) -> str:
-        """
-        Format period date to string like "FY2025Q3"
-        DEPRECATED: Use utils.time_series_utils.format_period_string
-        """
-        return util_format_period(period_date)
     
     def get_fundamental_data(
         self, 

@@ -29,15 +29,6 @@ router = APIRouter(prefix="/stock-data", tags=["stock-data"])
 logger = logging.getLogger(__name__)
 
 
-# DEPRECATED: Moved to utils.json_serialization
-# Kept for backwards compatibility - will be removed in future version
-def clean_json_floats(obj):
-    """
-    Recursively clean NaN and Infinity values from nested dictionaries/lists
-    for JSON serialization.
-    DEPRECATED: Use utils.json_serialization.clean_json_floats
-    """
-    return util_clean_json_floats(obj)
 
 
 @router.get("/{stock_id}", response_model=List[schemas.StockData])
@@ -103,7 +94,7 @@ def get_stock_chart_data(
             end=end,
             indicators=indicators
         )
-        return clean_json_floats(chart_data)
+        return util_clean_json_floats(chart_data)
     except ChartDataServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
@@ -232,7 +223,7 @@ def get_calculated_metrics(
             "calculated_at": datetime.utcnow().isoformat(),
             "metrics": metrics_dict
         }
-        return clean_json_floats(result)
+        return util_clean_json_floats(result)
     except HTTPException:
         raise
     except Exception as e:
@@ -304,9 +295,9 @@ def get_divergence_analysis(
             "ticker_symbol": stock.ticker_symbol,
             "lookback_days": lookback_days,
             "analyzed_at": datetime.utcnow().isoformat(),
-            "analysis": clean_json_floats(analysis),
+            "analysis": util_clean_json_floats(analysis),
             "dates": chart_data.get('dates', []),
-            "close_prices": clean_json_floats(chart_data.get('close', []))
+            "close_prices": util_clean_json_floats(chart_data.get('close', []))
         }
         
         return result

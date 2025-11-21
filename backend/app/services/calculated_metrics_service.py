@@ -23,6 +23,7 @@ from backend.app.services.indicators_core import calculate_sma, calculate_stocha
 
 # Import unified signal interpretation utilities
 from backend.app.utils.signal_interpretation import interpret_rsi, interpret_macd
+from backend.app.utils.analyst_formatting import aggregate_analyst_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -972,69 +973,11 @@ def calculate_maximum_drawdown(close_prices: pd.Series) -> Dict[str, Optional[fl
 def calculate_analyst_metrics(price_targets: Optional[Dict[str, float]],
                              current_price: Optional[float],
                              recommendations: Optional[list]) -> Dict[str, Any]:
+    """Delegates analyst metric calculation to analyst_formatting utilities.
+
+    Maintains identical return structure while centralizing logic.
     """
-    Berechnet Analystendaten-Metriken
-    
-    Returns:
-        Dict mit upside_potential, consensus_strength, rating_summary
-    """
-    result = {
-        'upside_potential': None,
-        'target_mean': None,
-        'target_high': None,
-        'target_low': None,
-        'consensus_strength': None,  # Wie einig sind sich die Analysten
-        'recommendation_score': None,  # 1-5 (1=Strong Buy, 5=Sell)
-        'number_of_analysts': None
-    }
-    
-    # Upside Potential
-    if price_targets and current_price:
-        mean_target = price_targets.get('mean')
-        if mean_target and current_price > 0:
-            result['upside_potential'] = ((mean_target - current_price) / current_price) * 100
-            result['target_mean'] = mean_target
-        
-        result['target_high'] = price_targets.get('high')
-        result['target_low'] = price_targets.get('low')
-    
-    # Consensus Strength (Standardabweichung der Kursziele)
-    if price_targets:
-        high = price_targets.get('high')
-        low = price_targets.get('low')
-        mean = price_targets.get('mean')
-        
-        if high and low and mean and mean > 0:
-            # Einfache Measure: Range relativ zum Mean
-            target_range = ((high - low) / mean) * 100
-            
-            if target_range < 20:
-                result['consensus_strength'] = 'strong'
-            elif target_range < 40:
-                result['consensus_strength'] = 'moderate'
-            else:
-                result['consensus_strength'] = 'weak'
-    
-    # Recommendation Score (aus Recommendations-Liste)
-    if recommendations:
-        result['number_of_analysts'] = len(recommendations)
-        
-        # Vereinfachte Bewertung: Zähle Buy vs Sell Empfehlungen
-        buy_count = sum(1 for r in recommendations if 'buy' in r.get('to_grade', '').lower())
-        sell_count = sum(1 for r in recommendations if 'sell' in r.get('to_grade', '').lower())
-        
-        if buy_count > sell_count * 2:
-            result['recommendation_score'] = 1.5  # Strong Buy
-        elif buy_count > sell_count:
-            result['recommendation_score'] = 2.0  # Buy
-        elif sell_count > buy_count * 2:
-            result['recommendation_score'] = 4.5  # Strong Sell
-        elif sell_count > buy_count:
-            result['recommendation_score'] = 4.0  # Sell
-        else:
-            result['recommendation_score'] = 3.0  # Hold
-    
-    return result
+    return aggregate_analyst_metrics(price_targets, current_price, recommendations)
 
 
 def calculate_beta_adjusted_metrics(close_prices: pd.Series,

@@ -15,7 +15,9 @@ backend/app/utils/
 ├── __init__.py                  # Zentrale Exports
 ├── signal_interpretation.py     # RSI/MACD Signal-Interpretation
 ├── json_serialization.py        # JSON Cleaning & Serialisierung
-└── time_series_utils.py         # Zeitreihen & Datum-Utilities
+├── time_series_utils.py         # Zeitreihen & Datum-Utilities
+├── analyst_formatting.py        # Analysten-Metriken (Upside, Consensus, Ratings)
+└── screener_query_builder.py   # SQL Query Builder für Screener
 ```
 
 ---
@@ -124,16 +126,24 @@ def _interpret_rsi(rsi: float) -> str:
 
 ## 📊 Statistiken
 
-### Eliminierte Duplikate
+### Eliminierte Duplikate (Phasen 1-2)
+
 - ✅ **2x** `_interpret_rsi()` → 1x `interpret_rsi()`
 - ✅ **2x** `_interpret_macd()` → 1x `interpret_macd()`
 - ✅ **2x** `_clean_for_json()` → 1x `clean_for_json()`
 - ✅ **4x** Zeitreihen-Funktionen konsolidiert
 
-### Code-Reduktion
-- **~80 Zeilen** duplizierter Code eliminiert
-- **4 neue Utils-Dateien** erstellt
-- **6 Service-Dateien** refactored
+### Extrahierte Logik (Phase 3)
+
+- ✅ **Analysten-Metriken:** 3 Pure Functions + 1 Aggregator extrahiert aus `calculated_metrics_service.py`
+- ✅ **Screener Query Builder:** Komplette SQL-Generierung (~130 Zeilen) extrahiert aus `screener_service.py`
+
+### Code-Reduktion (Gesamt)
+
+- **~270 Zeilen** redundanter/eingebetteter Code eliminiert
+- **6 neue Utils-Dateien** erstellt
+- **8 Service-Dateien** refactored (Services, Routes, YFinance-Module)
+- **3 neue Test-Dateien** hinzugefügt (15 Tests gesamt für Utilities)
 
 ---
 
@@ -193,25 +203,45 @@ Entfernung aller DEPRECATED Wrapper-Funktionen:
 - `_interpret_rsi`, `_interpret_macd` entfernt aus `technical_indicators_service.py` & `calculated_metrics_service.py`
 - Zeitreihen-Wrapper `_calculate_period_cutoff_date`, `_filter_indicators_by_dates`, `_estimate_required_warmup_bars` entfernt aus `yfinance/price_data.py`; direkte Nutzung der Utils
 - Deprecated JSON Helper `_clean_for_json` ersetzt durch direkten Import `clean_for_json`
+- Fundamental Wrapper `_format_period_string` entfernt aus `fundamental_data_service.py`
+- Route Wrapper `clean_json_floats` entfernt aus `routes/stock_data.py`
 - Konsolidierungs-Test angepasst (Backwards-Compatibility-Prüfung entfernt)
 - Alle Änderungen erfolgreich getestet (`tests/test_utils_consolidation.py`)
 
-### Phase 3 – PENDING
+### Phase 3 – ERLEDIGT
 
-Weitere Konsolidierung:
+Weitere Konsolidierung erfolgreich abgeschlossen:
 
-- Geplant: `analyst_formatting.py` (Upside/Consensus/Ratings kapseln)
-- Geplant: `screener_query_builder.py` (Extraktion von `_build_query_parts` aus `screener_service.py`)
+**Analyst Formatting Utility:**
+- Datei: `backend/app/utils/analyst_formatting.py`
+- Extrahierte Funktionen: `compute_upside_potential()`, `classify_consensus_strength()`, `score_recommendations()`, `aggregate_analyst_metrics()`
+- Refactored: `calculated_metrics_service.calculate_analyst_metrics()` delegiert jetzt vollständig an Utility
+- Tests: `tests/test_analyst_formatting.py` (4 Tests erfolgreich)
+
+**Screener Query Builder Utility:**
+- Datei: `backend/app/utils/screener_query_builder.py`
+- Extrahiert: `build_query_parts()` mit kompletter dynamischer SQL-Generierung aus `screener_service.py`
+- Unterstützt: CTE-Konstruktion, JOIN-Aufbau, WHERE-Klauseln für Text-, Beta-, Fundamental- und technische Filter
+- Refactored: `screener_service.run_screener()` nutzt jetzt zentrale Utility (mit engine-Parameter für Dialekt-Erkennung)
+- Tests: `tests/test_screener_query_builder.py` (7 Tests erfolgreich)
+
+**Vorteile Phase 3:**
+- ✅ Screener SQL-Logik wiederverwendbar (z.B. für zukünftige Alert-Filter)
+- ✅ Analysten-Metriken-Logik isoliert testbar (keine Service-Mocks nötig)
+- ✅ Service-Dateien reduziert: `calculated_metrics_service.py` -60 Zeilen, `screener_service.py` -130 Zeilen
+- ✅ Klare Separation of Concerns: Services orchestrieren, Utils berechnen
 
 ### Phase 4 – OFFEN
 
-Unit Tests für alle Utils (Signal, JSON, Time Series, kommende Analyst/Screener Utils)
+Unit Tests für alle Utils (Signal, JSON, Time Series, Analyst, Screener Query Builder):
+- Erweiterte Edge-Case-Tests für bestehende Utils
+- Integration Tests für Screener Query Builder mit verschiedenen Dialekten
 
 ### Phase 5 – OFFEN
 
 Data Validation & Normalisierung (zentrale `data_validation.py`, z.B. für Observation Reasons / Notes)
 
-> Nächster Schritt: Umsetzung Phase 3 (Analyst & Screener Konsolidierung) mit anschließender Dokument-Aktualisierung.
+> Nächster Schritt: Phase 4 (erweiterte Unit Test Suites) oder direkt zu Phase 5 (Data Validation Utilities).
 
 ---
 
@@ -249,6 +279,17 @@ from backend.app.utils import (
     format_period_string,
     estimate_required_warmup_bars
 )
+
+# Analyst Formatting
+from backend.app.utils.analyst_formatting import (
+    compute_upside_potential,
+    classify_consensus_strength,
+    score_recommendations,
+    aggregate_analyst_metrics
+)
+
+# Screener Query Builder
+from backend.app.utils.screener_query_builder import build_query_parts
 ```
 
 ---
