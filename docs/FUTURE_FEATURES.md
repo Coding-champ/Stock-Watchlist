@@ -28,93 +28,46 @@
 
 ---
 
-## 📊 Phase 5 - Erweiterte Technische Indikatoren
+## 🔄 Implementierungsstatus (Stand: 21.11.2025)
 
-### 5.1 Bollinger Bands ✅
-**Schwierigkeit:** ⭐⭐ Mittel  
-**Nutzen:** ⭐⭐⭐⭐ Hoch  
-**Priorität:** 🟡 Mittel  
-**Status:** ✅ Vollständig implementiert (2025-10-09)
+| Bereich | Status | Hinweise |
+|--------|--------|----------|
+| Volume Profile Overlay | ✅ Fertig | Feintuning heightAdjustment offen |
+| RSI / MACD / Bollinger | ✅ Aktiv | Backend + Chart integriert |
+| Ichimoku Cloud | ✅ Implementiert | Umschaltbar im Chart (`showIchimoku`) |
+| Divergenz-Erkennung (RSI) | ✅ Basis | Historisierung & Erfolgsauswertung fehlen |
+| Composite Alerts (AND) | ✅ Basis | Nur AND-Logik; OR/Chains fehlen |
+| Trailing Stop Alert | ✅ Implementiert | `_check_trailing_stop_alert` vorhanden |
+| Prozent-von-SMA / Volumen-Spike Alerts | ✅ Implementiert | In `alert_service.py` |
+| Screener (Basis) | ✅ Minimal | Fundamentale & einfache technische Filter |
+| Seasonality Tab | ✅ | Endpoint aktiv |
+| Sector / Peer Comparison | ✅ | `SectorComparisonTab` + Service |
+| Relative Strength / Benchmark Vergleich | ✅ | `comparison_service` |
+| Correlation Heatmap | ✅ | Frontend `CorrelationHeatmap.js` |
+| Watchlist Notizen / Gründe | ✅ Einfach | `observation_notes` / `observation_reasons` |
+| Smart Watchlists | ❌ | Phase 15 pending |
+| Multi-Condition Alerts (ODER, Chains) | ❌ Teilweise | Nur AND umgesetzt |
+| Pattern-Based Alerts (Candlestick) | ❌ | Kein Erkennungsmodul |
+| Velocity / ROC Alerts | ❌ | Keine Rate-of-Change Logik |
+| Zeitfenster / Session Alerts | ❌ | Felder `active_from/active_to` fehlen |
+| Alert-Kanäle / Webhooks | ❌ | Kein Versandadapter |
+| Portfolio Management | ❌ | Keine Tabellen/Services |
+| Historical Divergence Tracking | ❌ | Keine Persistenz |
+| Divergence Success Rate | ❌ | Keine Evaluation |
+| News Integration | ❌ | Kein `news_service` |
+| Sentiment Analysis | ❌ | Keine NLP-Pipeline |
+| Export (PDF/Excel/SVG) | ❌ | Nicht begonnen |
+| User Authentication | ❌ | Keine User-Modelle |
+| Redis / Caching Layer | ❌ | Nur Kommentare |
+| Celery / Background Queue | ❌ | Nicht vorhanden |
+| WebSockets | ❌ | Nicht vorhanden |
+| Custom Columns Builder | ❌ | Nicht vorhanden |
+| Earnings / Corporate Actions | ❌ | Keine Tabelle |
+| Options Volatilität (IV) | ❌ | Nicht vorhanden |
+| Anomalie-Erkennung (ML) | ❌ | Nicht vorhanden |
+| RRG-Light Erweiterung | ❌ | Nur Grund-RS vorhanden |
 
-**Implementierte Features:**
-- ✅ Bollinger Bands Visualisierung (Upper, Middle, Lower)
-- ✅ Bollinger %B Indikator (Position innerhalb der Bänder)
-- ✅ Bandwidth Indikator (Breite der Bänder)
-- ✅ Squeeze Detection (niedrige Volatilität, Breakout-Setup)
-- ✅ Band Walking Detection (starke Trends erkennbar)
-- ✅ Trading Signals (Overbought, Oversold, Trend)
-- ✅ Visual Alerts bei Squeeze (gelbe Markierung)
-- ✅ Tooltip mit %B und Bandwidth Werten
-- ✅ Signal-Info-Box mit Interpretationshilfe
-
-**Technische Details:**
-- Backend: `technical_indicators_service.py` - `calculate_bollinger_bands()`, `get_bollinger_signal()`
-- Frontend: `StockChart.js` - Erweiterte Visualisierung mit Signal-Anzeige
-- Squeeze Detection: Bandwidth Vergleich mit 6-Monats-Minimum
-- Band Walking: 3+ Perioden nahe am Band (>0.9 oder <0.1)
-- Signals: strong_buy, buy, sell, strong_sell, overbought, oversold, watch
-- **Dynamische Periode**: Automatische Anpassung an Zeithorizont
-  - 1d, 5d: 10-Perioden
-  - 1mo, 3mo: 15-Perioden  
-  - 1y, max: 20-Perioden (Standard)
-  - Minimum: 5 Perioden bei wenig Daten
-
----
-
-### 5.2 Stochastic Oscillator
-**Schwierigkeit:** ⭐⭐ Mittel  
-**Nutzen:** ⭐⭐⭐ Mittel  
-**Priorität:** 🟢 Niedrig
-
-**Features:**
-- %K Linie (Fast Stochastic)
-- %D Linie (Slow Stochastic, 3-SMA von %K)
-- Überkauft/Überverkauft Zonen (>80 / <20)
-- Crossover Signals
-
-**Technische Details:**
-- Backend: `calculate_stochastic(high, low, close, k_period=14, d_period=3)`
-- Frontend: Eigener Chart unter RSI
-- Range: 0-100
-
----
-
-### 5.3 Ichimoku Cloud (Ichimoku Kinko Hyo)
-**Schwierigkeit:** ⭐⭐⭐⭐ Schwer  
-**Nutzen:** ⭐⭐⭐⭐⭐ Sehr hoch  
-**Priorität:** 🔴 Hoch
-
-**Features:**
-- **Tenkan-sen (Conversion Line):** (9-Period High + 9-Period Low) / 2
-- **Kijun-sen (Base Line):** (26-Period High + 26-Period Low) / 2
-- **Senkou Span A (Leading Span A):** (Tenkan-sen + Kijun-sen) / 2, verschoben um 26 Perioden
-- **Senkou Span B (Leading Span B):** (52-Period High + 52-Period Low) / 2, verschoben um 26 Perioden
-- **Kumo (Cloud):** Fläche zwischen Senkou Span A und B
-- **Chikou Span (Lagging Span):** Schlusskurs, verschoben um 26 Perioden zurück
-
-**Trading Signals:**
-- **Bullish:** Preis über Cloud, Tenkan über Kijun, grüne Cloud (Span A > Span B)
-- **Bearish:** Preis unter Cloud, Tenkan unter Kijun, rote Cloud (Span A < Span B)
-- **TK Cross:** Tenkan kreuzt Kijun (Entry Signal)
-- **Kumo Breakout:** Preis durchbricht Cloud (starkes Signal)
-- **Chikou Span Bestätigung:** Chikou über/unter Preis von vor 26 Perioden
-
-**Warum wichtig:**
-- All-in-One Indikator (Trend, Momentum, Support/Resistance)
-- Sehr beliebt bei professionellen Tradern
-- Cloud zeigt zukünftige Support/Resistance
-- Mehrfache Bestätigung reduziert False Signals
-
-**Technische Details:**
-- Backend: `calculate_ichimoku(high, low, close, conversion=9, base=26, span_b=52, displacement=26)`
-- Frontend: Overlay auf Haupt-Chart
-- Cloud-Rendering: Fill-Area zwischen Span A und B
-- Farben: 
-  - Grüne Cloud: Bullish (Span A > Span B)
-  - Rote Cloud: Bearish (Span A < Span B)
-  - Tenkan: Rot/Blau, Kijun: Rot/Blau
-  - Chikou: Grün
-- Performance: Pre-calculate für bessere Chart-Performance
+Kurzfazit: Kern-Indikatoren & Vergleichsfunktionen stehen; nächster Hebel sind Portfolio, erweiterte Alerts & Smart-Watchlists plus Infrastruktur (Auth, Caching).
 
 ---
 
@@ -413,7 +366,7 @@ if divergence_type == 'bullish':
 ### 8.3 Portfolio Dashboard
 **Schwierigkeit:** ⭐⭐⭐ Mittel-Schwer  
 **Nutzen:** ⭐⭐⭐⭐⭐ Sehr hoch  
-**Priorität:** 🔴 Hoch
+**Priorität:** 🟡 Mittel
 
 **Visualizations:**
 - **Asset Allocation Pie Chart:** % pro Stock
@@ -437,7 +390,6 @@ if divergence_type == 'bullish':
 **Technical Filters:**
 - RSI: Range (0-100)
 - MACD: Bullish/Bearish Crossover in last X days
-- Price vs. SMA: Above/Below 50/200 SMA
 - Volume: Above/Below Average Volume
 - ATR (Volatility): High/Medium/Low
 - Recent Patterns: Golden Cross, Support Touch, etc.
@@ -446,8 +398,6 @@ if divergence_type == 'bullish':
 - Market Cap: Mega/Large/Mid/Small Cap
 - P/E Ratio: Range
 - Dividend Yield: > X %
-- Sector: Technology, Healthcare, etc.
-- Country: US, Germany, etc.
 
 **Price Action Filters:**
 - 52-Week High/Low: Within X% of High/Low
@@ -465,7 +415,7 @@ if divergence_type == 'bullish':
 ### 9.2 Pre-built Screens
 **Schwierigkeit:** ⭐⭐ Mittel  
 **Nutzen:** ⭐⭐⭐⭐ Hoch  
-**Priorität:** 🟡 Mittel
+**Priorität:** 🟢 Niedrig
 
 **Screen Templates:**
 1. **Oversold Stocks**
@@ -627,7 +577,7 @@ if divergence_type == 'bullish':
 
 ---
 
-### 12.4 Seasonality & Relative Strength (RRG-Light)
+### 12.4 Relative Strength (RRG-Light)
 
 **Schwierigkeit:** ⭐⭐⭐ Mittel  
 **Nutzen:** ⭐⭐⭐⭐ Hoch  
@@ -635,7 +585,6 @@ if divergence_type == 'bullish':
 
 **Features:**
 
-- Seasonality: Durchschnittliche Monats-/Wochen-Performance je Ticker
 - Relative Strength vs. Benchmark/Sektor (Ratio + Smoothed Change)
 - Mini-RRG-Ansicht: Quadranten (Leading, Weakening, Lagging, Improving)
 
@@ -650,7 +599,7 @@ if divergence_type == 'bullish':
 ### 13.1 Custom Layouts
 **Schwierigkeit:** ⭐⭐⭐⭐ Schwer  
 **Nutzen:** ⭐⭐⭐⭐ Hoch  
-**Priorität:** 🟡 Mittel
+**Priorität:** 🟢 Niedrig
 
 **Features:**
 - Drag & Drop Dashboard (React-Grid-Layout)
@@ -670,7 +619,7 @@ if divergence_type == 'bullish':
 ### 13.2 Export Funktionen
 **Schwierigkeit:** ⭐⭐⭐ Mittel-Schwer  
 **Nutzen:** ⭐⭐⭐⭐ Hoch  
-**Priorität:** 🟡 Mittel
+**Priorität:** 🟢 Niedrig
 
 **Features:**
 - **PDF Reports:**
@@ -698,7 +647,7 @@ if divergence_type == 'bullish':
 ### 13.3 Mobile Responsiveness
 **Schwierigkeit:** ⭐⭐⭐⭐ Schwer  
 **Nutzen:** ⭐⭐⭐⭐⭐ Sehr hoch  
-**Priorität:** 🔴 Hoch
+**Priorität:** 🟢 Niedrig
 
 **Features:**
 - Touch-optimierte Charts (Pinch-to-Zoom)
@@ -722,7 +671,7 @@ if divergence_type == 'bullish':
 
 **Schwierigkeit:** ⭐⭐ Mittel  
 **Nutzen:** ⭐⭐⭐⭐ Hoch  
-**Priorität:** 🟡 Mittel
+**Priorität:** 🟢 Niedrig
 
 **Features:**
 
@@ -737,11 +686,11 @@ if divergence_type == 'bullish':
 
 ---
 
-### 13.5 Watchlist-Heatmap & Smart-Sort
+### 13.5 Portfolio-Heatmap & Smart-Sort
 
 **Schwierigkeit:** ⭐⭐ Mittel  
 **Nutzen:** ⭐⭐⭐⭐ Hoch  
-**Priorität:** � Mittel
+**Priorität:** 🟢 Niedrig
 
 **Features:**
 
@@ -960,13 +909,7 @@ if divergence_type == 'bullish':
 ## 🎯 Prioritäts-Matrix
 
 ### 🔴 Hohe Priorität (Next Steps)
-1. **Ichimoku Cloud** (Phase 5.6)
-   - All-in-One Indikator
-   - Sehr beliebt bei professionellen Tradern
-   - Mehrfache Bestätigung
-   - **Status:** 🎯 Hohe Priorität
-
-2. **Smart-Watchlists** (Phase 15)
+1. **Smart-Watchlists** (Phase 15)
    - Regelbasierte, auto-aktualisierte Watchlists
    - Brücke zum Screener, hoher Nutzen
    - **Status:** 🎯 Hoch
@@ -986,180 +929,71 @@ if divergence_type == 'bullish':
    - Trailing, ROC, Zeitfenster, Kanäle/Webhooks
    - **Status:** 🔜 Nach 7.1
 
-### 🟡 Mittlere Priorität (Backlog)
-- Stock Screener (Phase 9) - Wird wichtiger mit mehr Nutzern
-- News Integration (Phase 11) - Guter Kontext zu Charts
-- Bollinger Bands (Phase 5.3) - Ergänzt andere Volatilitäts-Indikatoren
-- Pattern-Based Alerts (Phase 7.2) - Nach Pattern Recognition
-- Stock Comparison (Phase 12.1) - Hilfreich für Portfolio-Entscheidungen
-- Mobile Responsiveness (Phase 13.3) - Kritisch für Skalierung
-- User Authentication (Phase 14.2) - Notwendig für Multi-User
+## 🎯 Aktualisierte Prioritäts-Matrix (Stand 21.11.2025)
 
-- Notes/Tags, Heatmap, Custom Columns (13.4–13.6)
-- Seasonality & Relative Strength (12.4)
-- Earnings/Dividends Kalender (16)
+### 🔴 Hohe Priorität (Q4 2025 – Q1 2026)
+1. Portfolio Management (Phase 8) – Schema, Transaktionen, Performance
+2. Erweiterte Multi-Condition Alerts – ODER / Nested Chains, Template Library
+3. Smart-Watchlists (Phase 15) – Regel-Engine + Auto-Refresh
+4. Infrastruktur Basis – Auth (Grundlage), Redis Cache, erste Background Jobs
+5. Alert-Erweiterungen – Follow-Trailing, ROC, Zeitfenster, Kanäle/Webhooks
 
-### 🟢 Niedrige Priorität (Nice-to-Have)
-- Historical Divergence Tracking (Phase 7.4) - Für Power-User & Analytics
-- Divergence Success Rate Tracking (Phase 7.5) - Langfristige Optimierung
-- Candlestick Pattern Recognition (Phase 6) - Komplex, niedriger ROI
-- Predictive Analytics / ML (Phase 10) - Experimentell
-- Sentiment Analysis (Phase 11.2) - Nischenfunktion
-- Sector Analysis (Phase 12.3) - Für fortgeschrittene Nutzer
-- Stochastic Oscillator (Phase 5.4) - Weniger genutzt als RSI/MACD
-- Options-Volatilität (17)
-- Kollaboration & Teilen (später, optional)
+### 🟡 Mittlere Priorität
+- Screener Ausbau (technische Filter + Saved Screens)
+- News Integration (Phase 11.1)
+- Pattern-Based Alerts (Candlestick) nach Grundmodulen
+- Export Funktionen (PDF/Excel/SVG)
+- Mobile Responsiveness / PWA
+- Custom Columns Builder
+- Earnings / Corporate Actions Kalender
+- Historical Divergence Tracking (Persistenz)
+- Relative Strength Rotation (RRG-Light)
 
----
-
-## 📝 Implementierungs-Roadmap
-
-### Q1 2025 (Januar - März 2025) - AKTUELL 🎯
-**Fokus: Core Technical Indicators**
-
-1.**Phase 5.5: Volume Profile**
-   - Implementierung: 5-7 Tage
-   - Volume-at-Price Calculation
-   - POC & Value Area
-   - Horizontal Histogram Visualization
-   - **Deadline:** Ende Februar 2025
-
-2. **Phase 5.6: Ichimoku Cloud**
-   - Implementierung: 5-7 Tage
-   - Alle 6 Komponenten
-   - Cloud Rendering
-   - Signal Detection
-   - **Deadline:** Mitte März 2025
-
-**Q1 Deliverables:**
-- 4 neue professionelle Indikatoren
-- Erweiterte Chart-Funktionalität
-- Stärkere Trading-Signale
-- **Gesamtaufwand:** ~20 Entwicklungstage
+### 🟢 Niedrige Priorität
+- Divergence Success Rate Evaluation
+- Sentiment Analysis
+- Options-Volatilität / IV Tiles
+- Anomalie-Erkennung / ML
+- Feature Flags & A/B Tests
+- Kollaboration / Teilen
 
 ---
 
-### Q2 2025 (April - Juni 2025)
-**Fokus: Portfolio Management & Advanced Alerts**
+## 📝 Aktualisierte Implementierungs-Roadmap (Nov 2025 → Q1/Q2 2026)
 
-1. **Phase 8.1-8.3: Portfolio Management (Complete)**
-   - Virtuelle Portfolios erstellen
-   - Buy/Sell Transaktionen tracken
-   - Performance Analytics (ROI, Sharpe Ratio, etc.)
-   - Portfolio Dashboard mit Visualizations
-   - **Aufwand:** 15-20 Tage
+### Q4 2025 (laufend)
+Fokus: Fundament & Architektur
+- Portfolio: Datenmodell, Service-Skelett, Basis-Endpoints
+- Alerts: OR-Gruppierungen & Template-Struktur designen
+- Smart-Watchlists: Regelformat (JSON) + Scheduler-Konzept
+- Konsolidierung Indikator-/Alert-Code (Dupes reduzieren)
 
-2. **Phase 7.1: Multi-Condition Alerts**
-   - UND/ODER-Verknüpfungen
-   - Alert Condition Builder UI
-   - Template Library
-   - **Aufwand:** 8-10 Tage
+### Q1 2026
+Fokus: Nutzwert-Erweiterung
+- Portfolio Transaktionen (FIFO/Average Cost), Performance-Metriken, erste Charts
+- Alert Condition Builder (UI + Persistenz) mit Template Library
+- Smart-Watchlists Auto-Refresh + UI Builder (Reuse Screener)
+- Redis Cache (Metrics & Screener Facets)
+- Basis Auth (JWT, User Tabelle) falls nicht gestartet
 
-3. **Phase 5.3: Bollinger Bands**
-   - Als Ergänzung zu bestehenden Indikatoren
-   - Squeeze & Band Walking Detection
-   - **Aufwand:** 3-4 Tage
+### Q2 2026
+Fokus: Kontext & Distribution
+- News Feed Integration + Caching
+- Alert-Kanäle (E-Mail/Webhook MVP) + Throttling & De-Dupe
+- Export (PDF/Excel/SVG) & Chart Snapshot
+- Earnings / Corporate Actions Basis
+- Relative Strength Rotation (RRG-Light)
 
-4. **Phase 15: Smart-Watchlists (regelbasiert)**
-   - Bridge Screener ↔ Watchlist
-   - Auto-Update & UI-Builder
-   - **Aufwand:** 6-8 Tage
+### Nachgelagert
+- Candlestick Pattern Recognition & Pattern-Based Alerts
+- Historical Divergence Storage + Success Rate
+- Sentiment / ML Anomalie-Erkennung
+- Options IV / Volumen Specials
+- Feature Flags / A/B Testing
 
-**Q2 Deliverables:**
-- Portfolio-Tracker Funktionalität
-- Erweiterte Alert-Engine
-- Komplettes Technical Analysis Toolkit
-- **Gesamtaufwand:** ~30 Entwicklungstage
+### Evaluierungskriterien
+User Impact • Entwicklungsaufwand • Dependencies • Technical Debt • Markt-Relevanz
 
----
-
-### Q3 2025 (Juli - September 2025)
-**Fokus: User Experience & Multi-User Support**
-
-1. **Phase 14.2: User Authentication**
-   - Login/Registrierung
-   - JWT-based Auth
-   - Private Daten pro User
-   - **Aufwand:** 10-12 Tage
-
-2. **Phase 13.3: Mobile Responsiveness**
-   - Touch-optimierte Charts
-   - Responsive Design für alle Screens
-   - PWA Setup (optional)
-   - **Aufwand:** 8-10 Tage
-
-3. **Phase 9.1: Stock Screener (Basic)**
-   - Filter System
-   - 3-5 Pre-built Screens
-   - **Aufwand:** 10-12 Tage
-
-**Q3 Deliverables:**
-- Multi-User Support
-- Mobile-First Design
-- Stock Discovery Tools
-- **Gesamtaufwand:** ~30 Entwicklungstage
-
----
-
-### Q4 2025 (Oktober - Dezember 2025)
-**Fokus: Advanced Features & Polish**
-
-1. **Phase 11.1: News Integration**
-   - News Feed pro Stock
-   - API Integration (NewsAPI, Finnhub)
-   - **Aufwand:** 5-7 Tage
-
-2. **Phase 12.1: Stock Comparison**
-   - Multi-Stock Chart Overlay
-   - Performance Comparison Table
-   - **Aufwand:** 5-6 Tage
-
-3. **Phase 13.2: Export Funktionen**
-   - PDF Reports
-   - Excel Export
-   - Chart as Image
-   - **Aufwand:** 6-8 Tage
-
-4. **Phase 14.1: Caching & Performance**
-   - Redis Integration
-   - Background Jobs (optional)
-   - Database Optimization
-   - **Aufwand:** 8-10 Tage
-
-6. **Alerts 7.6–7.9: Kanäle/Webhooks/ROC/Time-Window**
-   - Channel-Adapter, Throttling, Backfill/Backtest (basic)
-   - **Aufwand:** 6-9 Tage
-
-5. **Polish & Bug Fixes**
-   - User Feedback Integration
-   - Performance Optimization
-   - UI/UX Improvements
-   - **Aufwand:** 5-7 Tage
-
-**Q4 Deliverables:**
-- Production-Ready App
-- News & Context Integration
-- Optimierte Performance
-- **Gesamtaufwand:** ~30 Entwicklungstage
-
----
-
-### 2026 und darüber hinaus 🚀
-**Experimentelle Features:**
-- Phase 6: Candlestick Pattern Recognition
-- Phase 7.4: Historical Divergence Tracking
-- Phase 7.5: Divergence Success Rate Tracking
-- Phase 10: Predictive Analytics / ML
-- Phase 11.2: Sentiment Analysis
-- Phase 13.1: Custom Layouts (Drag & Drop)
-- Phase 12.2-12.3: Correlation Matrix, Sector Analysis
-
-**Entscheidung basierend auf:**
-- User Feedback
-- Adoption Rates
-- ROI der bisherigen Features
-
----
 
 ## 💡 Technologie-Stack Erweiterungen
 
@@ -1167,7 +1001,6 @@ if divergence_type == 'bullish':
 - **Redis:** Caching & Session Storage
 - **Celery:** Background Task Queue
 - **WebSockets:** Real-time Updates
-- **PostgreSQL:** Upgrade von SQLite (wenn Multi-User)
 - **Docker:** Containerization für Deployment
 - **Nginx:** Reverse Proxy & Load Balancing
 - **GitHub Actions:** CI/CD Pipeline
@@ -1178,22 +1011,9 @@ if divergence_type == 'bullish':
 
 ## 📚 Nächste Schritte
 
-### Mittelfristig (Nächste 4-6 Wochen) 📊
-4. **Volume Profile**
-   - Research: Best Practices für Volume Profile
-   - Backend Implementation
-   - Horizontal Histogram Visualization
-   - POC & Value Area Markers
-   - **Geschätzter Aufwand:** 5-7 Tage
+### Mittelfristig (Nächste 4-6 Wochen)
 
-5. **Ichimoku Cloud**
-   - Alle 6 Komponenten implementieren
-   - Cloud Rendering (Fill-Area)
-   - Signal Detection & Alerts
-   - Performance Optimization
-   - **Geschätzter Aufwand:** 5-7 Tage
-
-### Langfristig (Q2 2025) 🚀
+### Langfristig (Q2 2025)
 6. **Portfolio Management Vorbereitung**
    - Database Schema Design
    - API Architecture Planning
@@ -1248,10 +1068,10 @@ Bei der Auswahl des nächsten Features berücksichtigen:
 
 ---
 
-**Stand:** 10.10.2025 (Aktualisiert – Alerts & Watchlist UX erweitert)  
-**Version:** 2.2  
-**Letztes Update:** Neue Alert-Typen (7.6–7.9), Smart-Watchlists (15), Notes/Tags & Heatmap (13.4–13.5), Seasonality/RS (12.4)  
-**Nächstes Review:** Nach Q1 2025 (Ende März)
+**Stand:** 21.11.2025 (Analyse & Status konsolidiert)  
+**Version:** 2.3  
+**Letztes Update:** Implementierungsstatus, Prioritäts-Matrix & Roadmap erneuert  
+**Nächstes Review:** Anfang Februar 2026
 
 ---
 

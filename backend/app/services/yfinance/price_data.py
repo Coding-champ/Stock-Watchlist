@@ -9,7 +9,8 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 import logging
 
-from .client import _get_extended_period, _clean_for_json
+from .client import _get_extended_period
+from backend.app.utils.json_serialization import clean_for_json
 
 # Import core indicator calculations
 from backend.app.services.indicators_core import calculate_sma, calculate_stochastic
@@ -24,28 +25,6 @@ from backend.app.utils.time_series_utils import (
 logger = logging.getLogger(__name__)
 
 
-def _calculate_period_cutoff_date(end_date: pd.Timestamp, period: str) -> pd.Timestamp:
-    """
-    Calculate the cutoff date for filtering data to the requested period.
-    DEPRECATED: Use utils.time_series_utils.calculate_period_cutoff_date
-    """
-    return util_calc_cutoff(end_date, period)
-
-
-def _filter_indicators_by_dates(indicators_result: Dict[str, Any], target_dates: List[str]) -> Dict[str, Any]:
-    """
-    Filter indicator data to match the target date range.
-    DEPRECATED: Use utils.time_series_utils.filter_indicators_by_dates
-    """
-    return util_filter_indicators(indicators_result, target_dates)
-
-
-def _estimate_required_warmup_bars(indicators: Optional[List[str]]) -> Optional[int]:
-    """
-    Estimate the number of additional bars needed for accurate indicator calculation
-    DEPRECATED: Use utils.time_series_utils.estimate_required_warmup_bars
-    """
-    return util_warmup_bars(indicators)
 
 
 def _period_to_days(period: str) -> int:
@@ -365,7 +344,7 @@ def get_chart_data(
             # Default: rely on conservative extended_period mapping
             warmup_bars = None
             if indicators:
-                warmup_bars = _estimate_required_warmup_bars(indicators)
+                warmup_bars = util_warmup_bars(indicators)
 
             # If explicit warmup not available, fall back to configured mapping
             # Also ensure volume MA warmup (20 bars) if volume will be returned
@@ -423,7 +402,7 @@ def get_chart_data(
             # Calculate cutoff date to filter back to requested period
             # We load extra data for indicators but only return the requested period
             if not hist.empty and extended_period != period:
-                cutoff_date = _calculate_period_cutoff_date(hist.index[-1], period)
+                cutoff_date = util_calc_cutoff(hist.index[-1], period)
             else:
                 cutoff_date = None
         
@@ -670,8 +649,8 @@ def get_chart_data(
         if indicators_result and indicators_result.get('indicators'):
             # Filter indicators to match the filtered date range
             if cutoff_date and indicators_result.get('dates'):
-                filtered_indicators = _filter_indicators_by_dates(
-                    indicators_result, 
+                filtered_indicators = util_filter_indicators(
+                    indicators_result,
                     dates
                 )
                 result['indicators'] = filtered_indicators
@@ -831,7 +810,7 @@ def get_chart_data(
                 if include_earnings:
                     result['earnings'] = []
         
-        return _clean_for_json(result)
+        return clean_for_json(result)
         
     except Exception as e:
         logger.error(f"Error fetching chart data for {ticker_symbol}: {str(e)}")

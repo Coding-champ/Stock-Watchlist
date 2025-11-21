@@ -137,24 +137,13 @@ def test_time_series_utils():
     return True
 
 
-def test_backwards_compatibility():
-    """Test that deprecated functions still work"""
-    print("🔄 Testing Backwards Compatibility...")
-    
-    # Test deprecated functions in technical_indicators_service
-    from backend.app.services.technical_indicators_service import _interpret_rsi, _interpret_macd
-    
-    assert _interpret_rsi(75) == 'overbought', "Deprecated _interpret_rsi should still work"
-    assert _interpret_macd(1.5) == 'bullish', "Deprecated _interpret_macd should still work"
-    
-    # Test deprecated functions in calculated_metrics_service
-    from backend.app.services.calculated_metrics_service import _interpret_rsi as calc_interpret_rsi
-    from backend.app.services.calculated_metrics_service import _interpret_macd as calc_interpret_macd
-    
-    assert calc_interpret_rsi(75) == 'overbought', "Deprecated calc _interpret_rsi should still work"
-    assert calc_interpret_macd(1.5) == 'bullish', "Deprecated calc _interpret_macd should still work"
-    
-    print("✅ Backwards Compatibility: All tests passed!")
+def test_indicator_interpretation_stable():
+    """Ensure public interpretation utilities remain stable after wrapper removal"""
+    print("🔄 Testing Indicator Interpretation Stability...")
+    from backend.app.utils.signal_interpretation import interpret_rsi, interpret_macd
+    assert interpret_rsi(75) == 'overbought'
+    assert interpret_macd(1.5) == 'bullish'
+    print("✅ Indicator Interpretation Stability: All tests passed!")
     return True
 
 
@@ -170,7 +159,7 @@ def main():
         results.append(test_signal_interpretation())
         results.append(test_json_serialization())
         results.append(test_time_series_utils())
-        results.append(test_backwards_compatibility())
+        results.append(test_indicator_interpretation_stable())
         
         print()
         print("=" * 60)

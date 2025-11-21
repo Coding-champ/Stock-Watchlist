@@ -1567,7 +1567,7 @@ def calculate_chart_metrics_for_display(ticker_symbol: str, period: str = "1y") 
             
             result['metrics']['rsi'] = {
                 'current': round(rsi_current, 2) if rsi_current else None,
-                'signal': _interpret_rsi(rsi_current) if rsi_current else 'unknown',
+                'signal': interpret_rsi(rsi_current) if rsi_current else 'unknown',
                 'description': 'Relative Strength Index (14-period)',
                 'series': rsi_series  # Full series for chart
             }
@@ -1601,7 +1601,7 @@ def calculate_chart_metrics_for_display(ticker_symbol: str, period: str = "1y") 
                 'macd_line': round(macd_current, 4) if macd_current else None,
                 'signal_line': round(signal_current, 4) if signal_current else None,
                 'histogram': round(histogram_current, 4) if histogram_current else None,
-                'signal': _interpret_macd(histogram_current) if histogram_current else 'unknown',
+                'signal': interpret_macd(histogram_current) if histogram_current else 'unknown',
                 'description': 'Moving Average Convergence Divergence',
                 'series': {
                     'macd': macd_series,
@@ -1685,18 +1685,6 @@ def calculate_chart_metrics_for_display(ticker_symbol: str, period: str = "1y") 
         return {'error': str(e)}
 
 
-# DEPRECATED: Use interpret_rsi from backend.app.utils.signal_interpretation instead
-# Kept for backwards compatibility - will be removed in future version
-def _interpret_rsi(rsi: float) -> str:
-    """Interpret RSI value - DEPRECATED: Use utils.signal_interpretation.interpret_rsi"""
-    return interpret_rsi(rsi)
-
-
-# DEPRECATED: Use interpret_macd from backend.app.utils.signal_interpretation instead
-# Kept for backwards compatibility - will be removed in future version
-def _interpret_macd(histogram: float) -> str:
-    """Interpret MACD histogram - DEPRECATED: Use utils.signal_interpretation.interpret_macd"""
-    return interpret_macd(histogram)
 
 
 def _compare_price_to_sma(price: Optional[float], sma: Optional[float]) -> Dict[str, Any]:

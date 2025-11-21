@@ -67,11 +67,6 @@ def calculate_rsi(close_prices: pd.Series, period: int = 14) -> Dict[str, Option
     return result
 
 
-# DEPRECATED: Use interpret_rsi from backend.app.utils.signal_interpretation instead
-# Kept for backwards compatibility - will be removed in future version
-def _interpret_rsi(rsi: float) -> str:
-    """Interpret RSI value - DEPRECATED: Use utils.signal_interpretation.interpret_rsi"""
-    return interpret_rsi(rsi)
 
 
 def calculate_rsi_series(close_prices: pd.Series, period: int = 14) -> Optional[pd.Series]:
@@ -160,11 +155,6 @@ def calculate_macd(close_prices: pd.Series,
     return result
 
 
-# DEPRECATED: Use interpret_macd from backend.app.utils.signal_interpretation instead
-# Kept for backwards compatibility - will be removed in future version
-def _interpret_macd(histogram: float) -> str:
-    """Interpret MACD histogram - DEPRECATED: Use utils.signal_interpretation.interpret_macd"""
-    return interpret_macd(histogram)
 
 
 # ============================================================================

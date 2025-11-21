@@ -184,12 +184,34 @@ pytest backend/tests/test_calculated_metrics.py
 
 ---
 
-## 🔮 Future Improvements
+## 🔮 Future Improvements (Aktualisiert am 2025-11-21)
 
-1. **Phase 2:** Entfernen der DEPRECATED Funktionen (Breaking Change)
-2. **Phase 3:** Weitere Konsolidierung (z.B. Analyst Formatting, Screener Query Builder)
-3. **Phase 4:** Unit Tests für alle Utils schreiben
-4. **Phase 5:** Data Validation Utils hinzufügen
+### Phase 2 – ERLEDIGT (Breaking Change umgesetzt)
+
+Entfernung aller DEPRECATED Wrapper-Funktionen:
+
+- `_interpret_rsi`, `_interpret_macd` entfernt aus `technical_indicators_service.py` & `calculated_metrics_service.py`
+- Zeitreihen-Wrapper `_calculate_period_cutoff_date`, `_filter_indicators_by_dates`, `_estimate_required_warmup_bars` entfernt aus `yfinance/price_data.py`; direkte Nutzung der Utils
+- Deprecated JSON Helper `_clean_for_json` ersetzt durch direkten Import `clean_for_json`
+- Konsolidierungs-Test angepasst (Backwards-Compatibility-Prüfung entfernt)
+- Alle Änderungen erfolgreich getestet (`tests/test_utils_consolidation.py`)
+
+### Phase 3 – PENDING
+
+Weitere Konsolidierung:
+
+- Geplant: `analyst_formatting.py` (Upside/Consensus/Ratings kapseln)
+- Geplant: `screener_query_builder.py` (Extraktion von `_build_query_parts` aus `screener_service.py`)
+
+### Phase 4 – OFFEN
+
+Unit Tests für alle Utils (Signal, JSON, Time Series, kommende Analyst/Screener Utils)
+
+### Phase 5 – OFFEN
+
+Data Validation & Normalisierung (zentrale `data_validation.py`, z.B. für Observation Reasons / Notes)
+
+> Nächster Schritt: Umsetzung Phase 3 (Analyst & Screener Konsolidierung) mit anschließender Dokument-Aktualisierung.
 
 ---
 
