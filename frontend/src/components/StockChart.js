@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import '../styles/skeletons.css';
 import {
-  LineChart,
   Line,
   Bar,
   ComposedChart,
@@ -12,16 +11,32 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  ReferenceLine,
-  ReferenceArea,
-  ReferenceDot
+  ReferenceLine
 } from 'recharts';
 import VolumeProfile from './VolumeProfile';
 import VolumeProfileOverlay from './VolumeProfileOverlay';
 import { StochasticChart } from './AdvancedCharts';
+import { RsiChart } from './subcharts/RsiChart';
+import { MacdChart } from './subcharts/MacdChart';
+import { AtrChart } from './subcharts/AtrChart';
 import './StockChart.css';
 
-import { useApi } from '../hooks/useApi';
+import { useChartData } from '../hooks/chart/useChartData';
+import { useChartEvents } from '../hooks/chart/useChartEvents';
+import { useChartIndicators } from '../hooks/chart/useChartIndicators';
+import { useChartExport } from '../hooks/chart/useChartExport';
+import { useDivergenceMarkers } from '../hooks/chart/useDivergenceMarkers';
+import { useCrossoverMarkers } from '../hooks/chart/useCrossoverMarkers';
+import { useFibonacciLevels } from '../hooks/chart/useFibonacciLevels';
+import { useSupportResistanceLevels } from '../hooks/chart/useSupportResistanceLevels';
+import { ChartControls } from './chart/ChartControls';
+import { EventMarkers } from './chart/EventMarkers';
+import { BollingerSignal } from './chart/BollingerSignal';
+import { ChartTooltip } from './chart/ChartTooltip';
+import { CandlestickBar } from './chart/CandlestickBar';
+import FibonacciLevels from './chart/FibonacciLevels';
+import SupportResistanceLevels from './chart/SupportResistanceLevels';
+import VolumeProfileLevels from './chart/VolumeProfileLevels';
 import { formatPrice } from '../utils/currencyUtils';
 
 // Time period options
@@ -46,8 +61,6 @@ const CHART_TYPES = {
 
 function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
   const [chartData, setChartData] = useState(null);
-  // stored fetched/cached indicators (lazy-loaded)
-  const [indicators, setIndicators] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [crossoverData, setCrossoverData] = useState(null);
@@ -161,7 +174,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         overlaysSnapshotRef.current = null;
       }
     }
-  }, [isPercentageView]);
+  }, [isPercentageView, showSMA50, showSMA200, showBollinger, showIchimoku, showVWAP, showVolumeProfileOverlay]);
 
   // Turn off percentage view when switching to candlesticks (not supported for candles)
   useEffect(() => {
@@ -181,1268 +194,120 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
     setVolumeProfileLevels(levels);
   }, []);
 
-  // Helper function to convert period to days
-  const getPeriodDays = (period) => {
-    const periodMap = {
-      '1d': 1,
-      '5d': 5,
-      '1mo': 30,
-      '3mo': 90,
-      '6mo': 180,
-      '1y': 365,
-      '3y': 1095,
-      '5y': 1825,
-      'max': 3650  // ~10 years
-    };
+
+  // New consolidated chart hook (Phase 1 extraction)
+  const chartPayload = useChartData({
+    assetId: stock.id,
+    period,
+    customStartDate,
+    customEndDate,
+    onLatestVwap
+  });
+
+  // Lazy indicators hook (Phase 2 extraction)
+  useChartIndicators({
+    assetId: stock.id,
+    period,
+    customStartDate,
+    customEndDate,
+    chartData,
+    onChartDataUpdate: setChartData,
+    toggles: {
+      showSMA50,
+      showSMA200,
+      showRSI,
+      showMACD,
+      showStochastic,
+      showBollinger,
+      showATR,
+      showVWAP,
+      showIchimoku
+    }
+  });
+
+  // Separate events fetching with debounce (no full chart refetch)
+  useChartEvents({
+    assetId: stock.id,
+    period,
+    customStartDate,
+    customEndDate,
+    chartData,
+    showDividends,
+    showSplits,
+    showEarnings,
+    debounceMs: 350,
+    onEventsUpdate: setChartData
+  });
+
+  // Sync hook results into existing local state (incremental migration)
+  const previousChartPayloadRef = useRef(null);
+  useEffect(() => {
+    // Only set chartData on initial load or period change, NOT on every chartPayload update
+    // This prevents infinite loops where indicators update chartData → triggers this effect → resets chartData
+    const isInitialOrPeriodChange = !previousChartPayloadRef.current || 
+                                     previousChartPayloadRef.current.loading !== chartPayload.loading;
     
-    if (period === 'custom' && customStartDate && customEndDate) {
+    if (chartPayload.chartData && isInitialOrPeriodChange && !chartPayload.loading) {
+      setChartData(chartPayload.chartData);
+      previousChartPayloadRef.current = chartPayload;
+    }
+    
+    if (chartPayload.xAxisTicks) setXAxisTicks(chartPayload.xAxisTicks);
+    setLoading(chartPayload.loading);
+    setError(chartPayload.error);
+    setBollingerSignal(chartPayload.bollingerSignal || null);
+    setCrossoverData(chartPayload.crossoverData || null);
+    setFibonacciData(chartPayload.fibonacciData || null);
+    setSupportResistanceData(chartPayload.supportResistanceData || null);
+    setDivergenceData(chartPayload.divergenceData || null);
+  }, [chartPayload]);
+
+  // Use hooks for rendering analysis overlays
+  const divergenceMarkers = useDivergenceMarkers({ 
+    showDivergences, 
+    divergenceData, 
+    chartData, 
+    period 
+  });
+
+  const crossoverMarkers = useCrossoverMarkers({ 
+    showCrossovers, 
+    crossoverData, 
+    chartData, 
+    period, 
+    stock 
+  });
+
+  const fibonacciLevels = useFibonacciLevels({ 
+    showFibonacci, 
+    fibonacciData, 
+    fibonacciType, 
+    selectedFibLevels, 
+    selectedExtensionLevels, 
+    stock 
+  });
+
+  const supportResistanceLevels = useSupportResistanceLevels({ 
+    showSupportResistance, 
+    supportResistanceData, 
+    stock 
+  });
+
+  // Helper function to convert period to days (kept for existing downstream logic)
+  const getPeriodDays = (p) => {
+    const periodMap = { '1d': 1, '5d': 5, '1mo': 30, '3mo': 90, '6mo': 180, '1y': 365, '3y': 1095, '5y': 1825, 'max': 3650 };
+    if (p === 'custom' && customStartDate && customEndDate) {
       const start = new Date(customStartDate);
       const end = new Date(customEndDate);
-      const diffTime = Math.abs(end - start);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays;
+      return Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24));
     }
-    
-    return periodMap[period] || 30;
+    return periodMap[p] || 30;
   };
 
-  
-    // useApi hook for standardized fetch calls
-    const { fetchApi } = useApi();
+  // Export functionality
+  const { chartCaptureRef, exportToPNG, exportToCSV } = useChartExport(stock, period, chartData);
 
-    // Fetch chart data
-  const fetchChartData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const periodConfig = TIME_PERIODS.find(p => p.value === period);
-      const interval = periodConfig?.interval || '1d';
-      
-      // Build URL with period or custom dates
-      let chartEndpoint = `/stock-data/${stock.id}/chart?interval=${interval}&include_volume=true`;
-      
-      // Include earnings/dividends/splits data if any event toggle is enabled
-      if (showDividends || showSplits || showEarnings) {
-        chartEndpoint += '&include_earnings=true';
-      }
-      
-      if (period === 'custom' && customStartDate && customEndDate) {
-        chartEndpoint += `&start=${customStartDate}&end=${customEndDate}`;
-      } else {
-        chartEndpoint += `&period=${period}`;
-      }
-      
-      // Fetch main chart data via useApi
-      const chartJson = await fetchApi(chartEndpoint, { staleTime: 60000 });
-      
-  // Fetch only the SMA indicators initially (keep payload small). Other indicators are
-  // fetched lazily when the user toggles them on.
-  let indicatorsJson = null;
-  const initialIndicatorsList = ['sma_50', 'sma_200'];
-      
-      const indicatorsEndpoint = `/stock-data/${stock.id}/technical-indicators?period=${period}&${initialIndicatorsList.map(i => `indicators=${i}`).join('&')}`;
-      try {
-        indicatorsJson = await fetchApi(indicatorsEndpoint, { staleTime: 60000 });
-      } catch (e) {
-        indicatorsJson = null;
-      }
 
-  // Merge indicators: prefer chart payload indicators (they include warmup/alignment),
-  // then merge cached/fetched indicators stored in state (indicators).
-  const chartIndicators = chartJson && chartJson.indicators ? chartJson.indicators : {};
-  const fetchedIndicators = indicatorsJson && indicatorsJson.indicators ? indicatorsJson.indicators : {};
-      // Seed cached indicators with any initially fetched SMA series
-      if (Object.keys(fetchedIndicators).length) {
-        setIndicators(prev => ({ ...prev, ...fetchedIndicators }));
-      }
-  const sourceIndicators = { ...fetchedIndicators, ...chartIndicators };
-      
-      // Transform data for Recharts
-      const transformedData = chartJson.dates.map((date, index) => {
-        // Extract date part to avoid timezone conversion issues
-        const datePart = date.split('T')[0];
-        const dateObj = new Date(datePart + 'T12:00:00Z');
-        
-        return {
-          date: dateObj.toLocaleDateString('de-DE', { 
-            month: 'short', 
-            day: 'numeric',
-            year: '2-digit',
-            timeZone: 'UTC'
-          }),
-          fullDate: date,
-          open: chartJson.open[index],
-          high: chartJson.high[index],
-          low: chartJson.low[index],
-          close: chartJson.close[index],
-          volume: chartJson.volume ? chartJson.volume[index] : null,
-          sma50: sourceIndicators?.sma_50?.[index],
-          sma200: sourceIndicators?.sma_200?.[index],
-          rsi: sourceIndicators?.rsi?.[index],
-          // Stochastic series (k_percent and d_percent) if provided by backend
-          k_percent: sourceIndicators?.stochastic?.k_percent?.[index],
-          d_percent: sourceIndicators?.stochastic?.d_percent?.[index],
-          macd: sourceIndicators?.macd?.macd?.[index] ?? sourceIndicators?.macd?.macd?.[index],
-          macdSignal: sourceIndicators?.macd?.signal?.[index] ?? sourceIndicators?.macd?.signal?.[index],
-          // support both 'hist' and 'histogram' keys returned by different codepaths
-          macdHistogram: sourceIndicators?.macd?.histogram?.[index] ?? sourceIndicators?.macd?.hist?.[index],
-          bollingerUpper: sourceIndicators?.bollinger?.upper?.[index],
-          bollingerMiddle: sourceIndicators?.bollinger?.middle?.[index] ?? sourceIndicators?.bollinger?.sma?.[index],
-          bollingerLower: sourceIndicators?.bollinger?.lower?.[index],
-          bollingerPercentB: sourceIndicators?.bollinger?.percent_b?.[index],
-          bollingerBandwidth: sourceIndicators?.bollinger?.bandwidth?.[index],
-          atr: sourceIndicators?.atr?.[index],
-          vwap: sourceIndicators?.vwap?.[index],
-          // prefer server-provided volume moving averages if present
-          volumeMA10: sourceIndicators?.volumeMA10?.[index],
-          volumeMA20: sourceIndicators?.volumeMA20?.[index],
-          // Ichimoku series (if provided by backend)
-          ichimoku_conversion: sourceIndicators?.ichimoku?.conversion?.[index],
-          ichimoku_base: sourceIndicators?.ichimoku?.base?.[index],
-          ichimoku_span_a: sourceIndicators?.ichimoku?.span_a?.[index],
-          ichimoku_span_b: sourceIndicators?.ichimoku?.span_b?.[index],
-          ichimoku_chikou: sourceIndicators?.ichimoku?.chikou?.[index]
-        };
-      });
-
-      // If the technical-indicators endpoint didn't provide VWAP series,
-      // compute a simple rolling VWAP (20-period) from close and volume
-      // so the chart can still display a VWAP line when the backend omits it.
-  const hasVwapFromApi = !!(sourceIndicators && Array.isArray(sourceIndicators.vwap) && sourceIndicators.vwap.some(v => v !== null && v !== undefined));
-  if (!hasVwapFromApi) {
-        const windowSize = 20;
-        for (let i = 0; i < transformedData.length; i++) {
-          let volSum = 0;
-          let pvSum = 0;
-          // look back up to windowSize points (including current)
-          for (let j = Math.max(0, i - (windowSize - 1)); j <= i; j++) {
-            const rec = transformedData[j];
-            const close = rec?.close;
-            const vol = rec?.volume;
-            if (typeof close === 'number' && typeof vol === 'number' && vol > 0) {
-              pvSum += close * vol;
-              volSum += vol;
-            }
-          }
-          transformedData[i].vwap = volSum > 0 ? (pvSum / volSum) : null;
-        }
-      }
-      
-      // Calculate 10-day and 20-day Volume Moving Averages only if server didn't provide them
-      const needVolMA10 = !transformedData.some(d => d.volumeMA10 !== undefined && d.volumeMA10 !== null);
-      const needVolMA20 = !transformedData.some(d => d.volumeMA20 !== undefined && d.volumeMA20 !== null);
-
-      if (needVolMA10) {
-        const volumeMA10 = transformedData.map((item, index) => {
-          if (index < 9) return null;
-          let sum = 0;
-          for (let i = 0; i < 10; i++) {
-            const vol = transformedData[index - i].volume;
-            if (vol) sum += vol;
-          }
-          return sum / 10;
-        });
-        transformedData.forEach((item, index) => { if (item.volumeMA10 === undefined || item.volumeMA10 === null) item.volumeMA10 = volumeMA10[index]; });
-      }
-      if (needVolMA20) {
-        const volumeMA20 = transformedData.map((item, index) => {
-          if (index < 19) return null;
-          let sum = 0;
-          for (let i = 0; i < 20; i++) {
-            const vol = transformedData[index - i].volume;
-            if (vol) sum += vol;
-          }
-          return sum / 20;
-        });
-        transformedData.forEach((item, index) => { if (item.volumeMA20 === undefined || item.volumeMA20 === null) item.volumeMA20 = volumeMA20[index]; });
-      }
-      
-      // Compute shared X axis tick labels to keep RSI/MACD/Stochastic synchronized.
-      const computeTicks = (data, targetCount = 6) => {
-        if (!data || data.length === 0) return null;
-        const n = Math.min(targetCount, data.length);
-        const ticks = [];
-        for (let i = 0; i < n; i++) {
-          const idx = Math.round(i * (data.length - 1) / (n - 1));
-          ticks.push(data[idx].date);
-        }
-        return ticks;
-      };
-      const sharedTicks = computeTicks(transformedData, 6);
-      setXAxisTicks(sharedTicks);
-      
-      // Add events data to first element for easy access in rendering functions
-      if (transformedData.length > 0) {
-        transformedData[0].dividends_annual = chartJson.dividends_annual || [];
-        transformedData[0].dividends = chartJson.dividends || [];
-        transformedData[0].splits = chartJson.splits || [];
-        transformedData[0].earnings = chartJson.earnings || [];
-      }
-      
-      setChartData(transformedData);
-      // Notify parent about latest VWAP single-value so siblings can use the same source of truth
-      try {
-        const latest = transformedData.length ? transformedData[transformedData.length - 1].vwap : null;
-        if (typeof onLatestVwap === 'function') onLatestVwap(latest);
-      } catch (e) {
-        // ignore
-      }
-  // Store indicators for potential future use — merge into existing cache
-  // eslint-disable-next-line no-unused-vars
-  setIndicators(prev => ({ ...prev, ...(indicatorsJson?.indicators || {}) }));
-      
-      // Store Bollinger Bands signal data
-      if (indicatorsJson?.indicators?.bollinger) {
-        setBollingerSignal({
-          squeeze: indicatorsJson.indicators.bollinger.squeeze,
-          band_walking: indicatorsJson.indicators.bollinger.band_walking,
-          current_percent_b: indicatorsJson.indicators.bollinger.current_percent_b,
-          current_bandwidth: indicatorsJson.indicators.bollinger.current_bandwidth,
-          signal: indicatorsJson.indicators.bollinger.signal,
-          signal_reason: indicatorsJson.indicators.bollinger.signal_reason,
-          period: indicatorsJson.indicators.bollinger.period || 20
-        });
-      }
-      
-      // Fetch crossover / calculated metrics data
-      try {
-        const crossoverJson = await fetchApi(`/stock-data/${stock.id}/calculated-metrics`, { staleTime: 60000 });
-
-        const smaCrossovers = crossoverJson?.metrics?.basic_indicators?.sma_crossovers;
-        if (smaCrossovers && smaCrossovers.all_crossovers) {
-          setCrossoverData(smaCrossovers);
-        } else {
-          setCrossoverData(null);
-        }
-
-        // Fetch Fibonacci data
-        const fibonacciLevels = crossoverJson?.metrics?.basic_indicators?.fibonacci_levels;
-        if (fibonacciLevels) {
-          setFibonacciData(fibonacciLevels);
-        } else {
-          setFibonacciData(null);
-        }
-
-        // Fetch Support/Resistance data
-        const supportResistance = crossoverJson?.metrics?.basic_indicators?.support_resistance;
-        if (supportResistance) {
-          setSupportResistanceData(supportResistance);
-        } else {
-          setSupportResistanceData(null);
-        }
-      } catch (crossoverErr) {
-        console.error('Error fetching crossover data:', crossoverErr);
-        // Don't fail the whole chart if crossover data fails
-        setCrossoverData(null);
-        setFibonacciData(null);
-        setSupportResistanceData(null);
-      }
-      
-      // Fetch divergence data
-      try {
-        const divergenceJson = await fetchApi(`/stock-data/${stock.id}/divergence-analysis`, { staleTime: 60000 });
-        if (divergenceJson?.rsi_divergence || divergenceJson?.macd_divergence) {
-          setDivergenceData(divergenceJson);
-        } else {
-          setDivergenceData(null);
-        }
-      } catch (divergenceErr) {
-        console.error('Error fetching divergence data:', divergenceErr);
-        // Don't fail the whole chart if divergence data fails
-        setDivergenceData(null);
-      }
-      
-    } catch (err) {
-      console.error('Error fetching chart data:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [stock.id, period, customStartDate, customEndDate, showDividends, showSplits, showEarnings, onLatestVwap, fetchApi]); // Include all dependencies
-
-  useEffect(() => {
-    fetchChartData();
-  }, [fetchChartData]);
-
-  // Helper to fetch one or more indicators lazily and merge into state & chartData
-  const fetchIndicators = useCallback(async (indicatorNames) => {
-    if (!indicatorNames || indicatorNames.length === 0) return;
-    try {
-      // Prevent fetching indicators that are already present or currently in-flight
-      const toFetch = [];
-      indicatorNames.forEach(name => {
-        if (indicatorsRef.current && (name in indicatorsRef.current)) return;
-        if (inFlightIndicatorsRef.current.has(name)) return;
-        toFetch.push(name);
-      });
-      if (toFetch.length === 0) return;
-
-      // Mark as in-flight
-      toFetch.forEach(n => inFlightIndicatorsRef.current.add(n));
-
-      const json = await fetchApi(`/stock-data/${stock.id}/technical-indicators?period=${period}&${toFetch.map(i => `indicators=${i}`).join('&')}`);
-      const newInd = json?.indicators || {};
-
-      // Merge into cached indicators
-      setIndicators(prev => ({ ...prev, ...newInd }));
-
-      // Also merge values into chartData (align by index) using functional update
-      setChartData(prev => {
-        if (!prev || prev.length === 0) return prev;
-        const updated = prev.map((row, idx) => {
-          const copy = { ...row };
-          for (const key of Object.keys(newInd)) {
-            const val = newInd[key];
-            if (val === undefined || val === null) continue;
-            if (key === 'macd') {
-              copy.macd = val.macd?.[idx] ?? copy.macd;
-              copy.macdSignal = val.signal?.[idx] ?? copy.macdSignal;
-              copy.macdHistogram = val.histogram?.[idx] ?? val.hist?.[idx] ?? copy.macdHistogram;
-            } else if (key === 'bollinger') {
-              copy.bollingerUpper = val.upper?.[idx] ?? copy.bollingerUpper;
-              copy.bollingerMiddle = val.middle?.[idx] ?? val.sma?.[idx] ?? copy.bollingerMiddle;
-              copy.bollingerLower = val.lower?.[idx] ?? copy.bollingerLower;
-              copy.bollingerPercentB = val.percent_b?.[idx] ?? copy.bollingerPercentB;
-              copy.bollingerBandwidth = val.bandwidth?.[idx] ?? copy.bollingerBandwidth;
-            } else if (key === 'stochastic') {
-              copy.k_percent = val.k_percent?.[idx] ?? copy.k_percent;
-              copy.d_percent = val.d_percent?.[idx] ?? copy.d_percent;
-            } else if (key === 'ichimoku') {
-              // Map ichimoku sub-series into chart row fields
-              copy.ichimoku_conversion = val.conversion?.[idx] ?? copy.ichimoku_conversion;
-              copy.ichimoku_base = val.base?.[idx] ?? copy.ichimoku_base;
-              copy.ichimoku_span_a = val.span_a?.[idx] ?? copy.ichimoku_span_a;
-              copy.ichimoku_span_b = val.span_b?.[idx] ?? copy.ichimoku_span_b;
-              copy.ichimoku_chikou = val.chikou?.[idx] ?? copy.ichimoku_chikou;
-            } else {
-              copy[key] = Array.isArray(val) ? val[idx] : val;
-            }
-          }
-          return copy;
-        });
-        return updated;
-      });
-
-      // done — clear in-flight markers for fetched items
-      toFetch.forEach(n => inFlightIndicatorsRef.current.delete(n));
-    } catch (e) {
-      console.warn('Lazy indicators fetch failed', e);
-      // make sure to clear in-flight markers on error to allow retries
-      indicatorNames.forEach(n => inFlightIndicatorsRef.current.delete(n));
-    }
-  }, [stock.id, period, fetchApi]);
-
-  // Refs to track latest indicators state and in-flight fetches to avoid races/loops
-  const indicatorsRef = useRef(indicators);
-  const inFlightIndicatorsRef = useRef(new Set());
-
-  // Keep indicatorsRef in sync with state
-  useEffect(() => {
-    indicatorsRef.current = indicators;
-  }, [indicators]);
-
-  // Watch indicator toggles and fetch lazily when user enables them.
-  // Use refs to check current cache and in-flight requests to avoid loops/duplicates.
-  useEffect(() => {
-    if (showRSI && !(indicatorsRef.current && ('rsi' in indicatorsRef.current)) && !inFlightIndicatorsRef.current.has('rsi')) {
-      fetchIndicators(['rsi']);
-    }
-  }, [showRSI, fetchIndicators]);
-
-  useEffect(() => {
-    if (showIchimoku && !(indicatorsRef.current && ('ichimoku' in indicatorsRef.current)) && !inFlightIndicatorsRef.current.has('ichimoku')) {
-      fetchIndicators(['ichimoku']);
-    }
-  }, [showIchimoku, fetchIndicators]);
-
-  useEffect(() => {
-    if (showMACD && !(indicatorsRef.current && ('macd' in indicatorsRef.current)) && !inFlightIndicatorsRef.current.has('macd')) {
-      fetchIndicators(['macd']);
-    }
-  }, [showMACD, fetchIndicators]);
-
-  useEffect(() => {
-    if (showBollinger && !(indicatorsRef.current && ('bollinger' in indicatorsRef.current)) && !inFlightIndicatorsRef.current.has('bollinger')) {
-      fetchIndicators(['bollinger']);
-    }
-  }, [showBollinger, fetchIndicators]);
-
-  useEffect(() => {
-    if (showATR && !(indicatorsRef.current && ('atr' in indicatorsRef.current)) && !inFlightIndicatorsRef.current.has('atr')) {
-      fetchIndicators(['atr']);
-    }
-  }, [showATR, fetchIndicators]);
-
-  useEffect(() => {
-    if (showVWAP && !(indicatorsRef.current && ('vwap' in indicatorsRef.current)) && !inFlightIndicatorsRef.current.has('vwap')) {
-      fetchIndicators(['vwap']);
-    }
-  }, [showVWAP, fetchIndicators]);
-
-  useEffect(() => {
-    if (showStochastic && !(indicatorsRef.current && ('stochastic' in indicatorsRef.current)) && !inFlightIndicatorsRef.current.has('stochastic')) {
-      fetchIndicators(['stochastic']);
-    }
-  }, [showStochastic, fetchIndicators]);
-
-  // Export functions
-  const chartCaptureRef = useRef(null);
-  const exportToPNG = async () => {
-    try {
-      const html2canvas = (await import('html2canvas')).default;
-      const node = chartCaptureRef.current;
-      if (!node) return;
-      const canvas = await html2canvas(node, { backgroundColor: '#ffffff', scale: 2, useCORS: true });
-      const dataUrl = canvas.toDataURL('image/png');
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `${stock.ticker_symbol}_${period}_chart.png`;
-      a.click();
-    } catch (e) {
-      console.error('PNG export failed', e);
-      alert('PNG Export fehlgeschlagen. Bitte Abhängigkeit html2canvas installieren.');
-    }
-  };
-
-  const exportToCSV = () => {
-    if (!chartData) return;
-
-    const headers = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume'];
-    const csvContent = [
-      headers.join(','),
-      ...chartData.map(row => [
-        row.fullDate,
-        row.open,
-        row.high,
-        row.low,
-        row.close,
-        row.volume || ''
-      ].join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${stock.ticker_symbol}_${period}_chart_data.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
-
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (!active || !payload || payload.length === 0) return null;
-    const data = payload[0].payload;
-    const isPct = isPercentageView && chartType === CHART_TYPES.LINE;
-    const pctText = (() => {
-      try {
-        const idx = data && typeof data.displayClose === 'number' ? data.displayClose : null;
-        if (idx != null && isFinite(idx)) {
-          const pct = (idx - 1) * 100;
-          const sign = pct > 0 ? '+' : '';
-          return `${sign}${pct.toFixed(2)}%`;
-        }
-      } catch {}
-      return null;
-    })();
-
-    return (
-      <div className="custom-tooltip" style={{ background: 'white', padding: '8px', border: '1px solid #ddd', borderRadius: 6 }}>
-        {/* Date and Price Information */}
-        <p style={{ fontWeight: 'bold', marginBottom: '8px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>
-          <span className="tooltip-label">{label}</span>
-        </p>
-        {data.close != null && (
-          <p>
-            <span className="tooltip-label" style={{ color: '#2196F3' }}>Preis:</span>
-            {' '}
-            {isPct && pctText ? (
-              <>
-                <span className="tooltip-value" style={{ fontWeight: 'bold' }}>{pctText}</span>
-                <span> ({formatPrice(data.close, stock)})</span>
-              </>
-            ) : (
-              <span className="tooltip-value" style={{ fontWeight: 'bold' }}>{formatPrice(data.close, stock)}</span>
-            )}
-          </p>
-        )}
-        {data.high != null && data.low != null && (
-          <p style={{ fontSize: '12px', color: '#666' }}>
-            H: {formatPrice(data.high, stock)} / L: {formatPrice(data.low, stock)}
-          </p>
-        )}
-        {data.volume != null && (
-          <p style={{ fontSize: '12px', color: '#666', marginBottom: '8px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>
-            Vol: {(data.volume / 1000000).toFixed(2)}M
-          </p>
-        )}
-        
-        {showSMA50 && data.sma50 != null && (
-          <p>
-            <span className="tooltip-label" style={{ color: '#ff7f0e' }}>SMA 50:</span>
-            {' '}
-            <span className="tooltip-value">{formatPrice(data.sma50, stock)}</span>
-          </p>
-        )}
-        {showSMA200 && data.sma200 != null && (
-          <p>
-            <span className="tooltip-label" style={{ color: '#9467bd' }}>SMA 200:</span>
-            {' '}
-            <span className="tooltip-value">{formatPrice(data.sma200, stock)}</span>
-          </p>
-        )}
-        {showBollinger && data.bollingerUpper != null && (
-          <>
-            <p>
-              <span className="tooltip-label" style={{ color: '#e74c3c' }}>BB Upper:</span>
-              {' '}
-              <span className="tooltip-value">{formatPrice(data.bollingerUpper, stock)}</span>
-            </p>
-            <p>
-              <span className="tooltip-label" style={{ color: '#95a5a6' }}>BB Middle:</span>
-              {' '}
-              <span className="tooltip-value">{data.bollingerMiddle != null ? formatPrice(data.bollingerMiddle, stock) : 'N/A'}</span>
-            </p>
-            <p>
-              <span className="tooltip-label" style={{ color: '#27ae60' }}>BB Lower:</span>
-              {' '}
-              <span className="tooltip-value">{data.bollingerLower != null ? formatPrice(data.bollingerLower, stock) : 'N/A'}</span>
-            </p>
-            {data.bollingerPercentB != null && (
-              <p>
-                <span className="tooltip-label" style={{ color: '#3498db' }}>%B:</span>
-                {' '}
-                <span className="tooltip-value">{data.bollingerPercentB.toFixed(2)}</span>
-              </p>
-            )}
-            {data.bollingerBandwidth != null && (
-              <p>
-                <span className="tooltip-label" style={{ color: '#f39c12' }}>Bandwidth:</span>
-                {' '}
-                <span className="tooltip-value">{data.bollingerBandwidth.toFixed(2)}%</span>
-              </p>
-            )}
-          </>
-        )}
-        {showATR && data.atr != null && (
-          <p>
-            <span className="tooltip-label" style={{ color: '#f39c12' }}>ATR:</span>
-            {' '}
-            <span className="tooltip-value">{formatPrice(data.atr, stock)}</span>
-          </p>
-        )}
-        {showVWAP && data.vwap != null && (
-          <p>
-            <span className="tooltip-label" style={{ color: '#17a2b8' }}>VWAP (20):</span>
-            {' '}
-            <span className="tooltip-value">{formatPrice(data.vwap, stock)}</span>
-          </p>
-        )}
-        {showIchimoku && ((data.ichimoku_conversion != null) || (data.ichimoku_base != null)) && (
-          <>
-            {data.ichimoku_conversion != null && (
-              <p>
-                <span className="tooltip-label" style={{ color: '#1f77b4' }}>Ichimoku Tenkan (Conv):</span>
-                {' '}
-                <span className="tooltip-value">{formatPrice(data.ichimoku_conversion, stock)}</span>
-              </p>
-            )}
-            {data.ichimoku_base != null && (
-              <p>
-                <span className="tooltip-label" style={{ color: '#ff7f0e' }}>Ichimoku Kijun (Base):</span>
-                {' '}
-                <span className="tooltip-value">{formatPrice(data.ichimoku_base, stock)}</span>
-              </p>
-            )}
-          </>
-        )}
-      </div>
-    );
-  };
-
-  // Custom Dot component for RSI line to show color based on value
-  const RsiCustomDot = (props) => {
-    const { cx, cy, payload } = props;
-    if (!payload || payload.rsi === null || payload.rsi === undefined) return null;
-    
-    let fill = '#8e44ad'; // Default purple
-    if (payload.rsi >= 70) {
-      fill = '#e74c3c'; // Red for overbought
-    } else if (payload.rsi <= 30) {
-      fill = '#27ae60'; // Green for oversold
-    }
-    
-    // Use a small visible dot (1px) to satisfy linter about unused assignment and be a no-op visually
-    return <circle cx={cx} cy={cy} r={1} fill={fill} />;
-  };
-
-  // Render Divergence markers (RSI and MACD)
-  const renderDivergenceMarkers = () => {
-    if (!showDivergences || !divergenceData || !chartData) return null;
-    
-    const markers = [];
-    
-    // RSI Divergences
-    if (divergenceData.rsi_divergence) {
-      const rsiDiv = divergenceData.rsi_divergence;
-      
-      // Bullish divergence
-      if (rsiDiv.bullish_divergence && rsiDiv.divergence_points?.bullish) {
-        rsiDiv.divergence_points.bullish.forEach((point, index) => {
-          const pointDate = new Date(point.date).toLocaleDateString('de-DE', { 
-            month: 'short', 
-            day: 'numeric',
-            ...(period === 'max' || period === '1y' ? { year: '2-digit' } : {})
-          });
-          
-          const dataIndex = chartData.findIndex(d => d.date === pointDate);
-          if (dataIndex === -1) return;
-          
-          markers.push(
-            <ReferenceLine
-              key={`rsi-bullish-${index}`}
-              x={pointDate}
-              stroke="#27ae60"
-              strokeWidth={2}
-              strokeDasharray="5 5"
-              label={{
-                value: `🔺 RSI Bull (${Math.round(rsiDiv.confidence * 100)}%)`,
-                position: 'top',
-                fill: '#27ae60',
-                fontSize: 10,
-                fontWeight: 'bold'
-              }}
-            />
-          );
-        });
-      }
-      
-      // Bearish divergence
-      if (rsiDiv.bearish_divergence && rsiDiv.divergence_points?.bearish) {
-        rsiDiv.divergence_points.bearish.forEach((point, index) => {
-          const pointDate = new Date(point.date).toLocaleDateString('de-DE', { 
-            month: 'short', 
-            day: 'numeric',
-            ...(period === 'max' || period === '1y' ? { year: '2-digit' } : {})
-          });
-          
-          const dataIndex = chartData.findIndex(d => d.date === pointDate);
-          if (dataIndex === -1) return;
-          
-          markers.push(
-            <ReferenceLine
-              key={`rsi-bearish-${index}`}
-              x={pointDate}
-              stroke="#e74c3c"
-              strokeWidth={2}
-              strokeDasharray="5 5"
-              label={{
-                value: `🔻 RSI Bear (${Math.round(rsiDiv.confidence * 100)}%)`,
-                position: 'top',
-                fill: '#e74c3c',
-                fontSize: 10,
-                fontWeight: 'bold'
-              }}
-            />
-          );
-        });
-      }
-    }
-    
-    // MACD Divergences
-    if (divergenceData.macd_divergence) {
-      const macdDiv = divergenceData.macd_divergence;
-      
-      // Bullish divergence
-      if (macdDiv.bullish_divergence && macdDiv.divergence_points?.bullish) {
-        macdDiv.divergence_points.bullish.forEach((point, index) => {
-          const pointDate = new Date(point.date).toLocaleDateString('de-DE', { 
-            month: 'short', 
-            day: 'numeric',
-            ...(period === 'max' || period === '1y' ? { year: '2-digit' } : {})
-          });
-          
-          const dataIndex = chartData.findIndex(d => d.date === pointDate);
-          if (dataIndex === -1) return;
-          
-          markers.push(
-            <ReferenceLine
-              key={`macd-bullish-${index}`}
-              x={pointDate}
-              stroke="#3498db"
-              strokeWidth={2}
-              strokeDasharray="5 5"
-              label={{
-                value: `🔺 MACD Bull (${Math.round(macdDiv.confidence * 100)}%)`,
-                position: 'bottom',
-                fill: '#3498db',
-                fontSize: 10,
-                fontWeight: 'bold'
-              }}
-            />
-          );
-        });
-      }
-      
-      // Bearish divergence
-      if (macdDiv.bearish_divergence && macdDiv.divergence_points?.bearish) {
-        macdDiv.divergence_points.bearish.forEach((point, index) => {
-          const pointDate = new Date(point.date).toLocaleDateString('de-DE', { 
-            month: 'short', 
-            day: 'numeric',
-            ...(period === 'max' || period === '1y' ? { year: '2-digit' } : {})
-          });
-          
-          const dataIndex = chartData.findIndex(d => d.date === pointDate);
-          if (dataIndex === -1) return;
-          
-          markers.push(
-            <ReferenceLine
-              key={`macd-bearish-${index}`}
-              x={pointDate}
-              stroke="#e67e22"
-              strokeWidth={2}
-              strokeDasharray="5 5"
-              label={{
-                value: `🔻 MACD Bear (${Math.round(macdDiv.confidence * 100)}%)`,
-                position: 'bottom',
-                fill: '#e67e22',
-                fontSize: 10,
-                fontWeight: 'bold'
-              }}
-            />
-          );
-        });
-      }
-    }
-    
-    return markers;
-  };
-
-  // Render Golden Cross / Death Cross markers
-  const renderCrossoverMarkers = () => {
-    if (!showCrossovers || !crossoverData || !crossoverData.all_crossovers || !chartData) {
-      return null;
-    }
-    
-    return crossoverData.all_crossovers.map((crossover, index) => {
-      // Find the matching date in chartData
-      const crossoverDate = new Date(crossover.date).toLocaleDateString('de-DE', { 
-        month: 'short', 
-        day: 'numeric',
-        ...(period === 'max' || period === '1y' ? { year: '2-digit' } : {})
-      });
-      
-      const dataIndex = chartData.findIndex(d => d.date === crossoverDate);
-      if (dataIndex === -1) return null; // Date not in visible range
-      
-      // Dynamic positioning: if crossover is in the right half of chart, position label on left
-      const positionPercent = (dataIndex / chartData.length) * 100;
-      const isRightSide = positionPercent > 50;
-      
-      const isGolden = crossover.type === 'golden_cross';
-      const color = isGolden ? '#4caf50' : '#f44336';
-  const price = crossover.price ? formatPrice(crossover.price, stock) : '';
-      const emoji = isGolden ? '🌟' : '💀';
-      const label = isGolden ? 'Golden Cross' : 'Death Cross';
-      
-      return (
-        <ReferenceLine
-          key={`crossover-${index}`}
-          x={crossoverDate}
-          stroke={color}
-          strokeWidth={2}
-          strokeDasharray="3 3"
-          label={{
-            value: `${emoji} ${label}${price ? ' @ ' + price : ''}`,
-            position: 'top',
-            fill: color,
-            fontSize: 10,
-            fontWeight: 'bold',
-            dx: isRightSide ? -50 : 10,
-            dy: 5
-          }}
-        />
-      );
-    });
-  };
-
-  // Render Fibonacci Levels
-  const renderFibonacciLevels = () => {
-    if (!showFibonacci || !fibonacciData) return null;
-    
-    const levels = fibonacciType === 'retracement' ? fibonacciData.retracement : fibonacciData.extension;
-    if (!levels) return null;
-    
-    // Farben für Fibonacci Levels (Blautöne)
-    const fibColors = {
-      '0.0': '#1e88e5',
-      '23.6': '#42a5f5',
-      '38.2': '#64b5f6',
-      '50.0': '#90caf9',
-      '61.8': '#64b5f6',
-      '78.6': '#42a5f5',
-      '100.0': '#1e88e5',
-      '127.2': '#1565c0',
-      '161.8': '#0d47a1',
-      '200.0': '#0d47a1',
-      '261.8': '#01579b'
-    };
-    
-    return Object.entries(levels).map(([level, price]) => {
-      // Check if this level should be displayed
-      if (fibonacciType === 'retracement') {
-        // Skip 0% and 100% for retracement, always show swing high/low
-        if (level !== '0.0' && level !== '100.0' && !selectedFibLevels[level]) {
-          return null;
-        }
-      } else {
-        // Extension: Skip 0% and 100%, check selectedExtensionLevels
-        if (level !== '0.0' && level !== '100.0' && !selectedExtensionLevels[level]) {
-          return null;
-        }
-      }
-      
-      const color = fibColors[level] || '#2196f3';
-      const labelText = fibonacciType === 'retracement'
-        ? `Fib ${level}% - ${price != null ? formatPrice(price, stock) : 'N/A'}`
-        : `Fib Ext ${level}% - ${price != null ? formatPrice(price, stock) : 'N/A'}`;
-      
-      return (
-        <ReferenceLine
-          key={`fib-${fibonacciType}-${level}`}
-          y={price}
-          stroke={color}
-          strokeWidth={1.5}
-          strokeDasharray="5 5"
-          label={{
-            value: labelText,
-            position: 'right',
-            fill: color,
-            fontSize: 9,
-            fontWeight: 'bold'
-          }}
-        />
-      );
-    }).filter(Boolean);
-  };
-
-  // Render Support/Resistance Levels
-  const renderSupportResistanceLevels = () => {
-    if (!showSupportResistance || !supportResistanceData) return null;
-    
-    const allLevels = [
-      ...supportResistanceData.support.map(level => ({ ...level, type: 'support' })),
-      ...supportResistanceData.resistance.map(level => ({ ...level, type: 'resistance' }))
-    ];
-    
-    return allLevels.map((level, index) => {
-      const color = level.type === 'support' ? '#27ae60' : '#e74c3c';
-      const icon = level.type === 'support' ? '🟢' : '🔴';
-  const labelText = `${icon} ${level.type === 'support' ? 'Support' : 'Resistance'} - ${level.price ? formatPrice(level.price, stock) : 'N/A'} (${level.strength}× getestet)`;
-      
-      // Linienstärke basierend auf Stärke (1-3px)
-      const strokeWidth = Math.min(level.strength, 3);
-      
-      return (
-        <ReferenceLine
-          key={`sr-${level.type}-${index}`}
-          y={level.price}
-          stroke={color}
-          strokeWidth={strokeWidth}
-          strokeDasharray="0"
-          label={{
-            value: labelText,
-            position: 'right',
-            fill: color,
-            fontSize: 9,
-            fontWeight: 'bold'
-          }}
-        />
-      );
-    });
-  };
-
-  // Render Event Icons (Dividends, Splits, Earnings)
-  const renderEventIcons = () => {
-    if (!chartData || chartData.length === 0) return null;
-    
-    const events = [];
-    
-    // Helper function to format date consistently with chart (MUST match line 203-208 logic)
-    const formatEventDate = (dateStr) => {
-      // Extract the date part before timezone to avoid timezone conversion issues
-      // "2025-05-28T16:00:00-04:00" -> use just the date part "2025-05-28"
-      const datePart = dateStr.split('T')[0]; // Get "2025-05-28"
-      const date = new Date(datePart + 'T12:00:00Z'); // Add noon UTC to avoid timezone issues
-      
-      const options = { 
-        month: 'short', 
-        day: 'numeric',
-        year: '2-digit',
-        timeZone: 'UTC'  // Force UTC to prevent timezone conversion
-      };
-      
-      return date.toLocaleDateString('de-DE', options);
-    };
-    
-    // Create a Set of all available chart dates for quick lookup
-    const availableDates = new Set(chartData.map(d => d.date));
-    
-    // Process dividends (quarterly for <=1Y, annual for longer periods)
-    if (showDividends) {
-      // Treat short ranges (<= 1 year) as quarterly; longer ranges as annual aggregates
-      const shortPeriods = new Set(['1d', '5d', '1mo', '3mo', '6mo', '6m', 'ytd', '1y']);
-      const useQuarterly = shortPeriods.has(period);
-      const dividendData = useQuarterly 
-        ? chartData[0]?.dividends 
-        : chartData[0]?.dividends_annual;
-      
-      if (dividendData && dividendData.length > 0) {
-        
-        dividendData.forEach((div) => {
-          const eventDate = formatEventDate(div.date);
-          const rawDate = new Date(div.date);
-          
-          // Try to find closest date if exact match doesn't exist
-          if (!availableDates.has(eventDate)) {
-            // Look for dates within +/- 7 days
-            const targetTime = rawDate.getTime();
-            const closestDate = chartData.reduce((closest, point) => {
-              const pointDate = new Date(point.fullDate);
-              const diff = Math.abs(pointDate.getTime() - targetTime);
-              const closestDiff = closest ? Math.abs(new Date(closest.fullDate).getTime() - targetTime) : Infinity;
-              return diff < closestDiff ? point : closest;
-            }, null);
-            
-            if (closestDate) {
-              const closestDiff = Math.abs(new Date(closestDate.fullDate).getTime() - targetTime);
-              const daysDiff = closestDiff / (1000 * 60 * 60 * 24);
-              
-              if (daysDiff <= 7) {
-                events.push({
-                  date: closestDate.date,
-                  fullDate: div.date,
-                  type: 'dividend',
-                  data: div,
-                  priority: 3,
-                  isQuarterly: useQuarterly
-                });
-              }
-            }
-          } else {
-            events.push({
-              date: eventDate,
-              fullDate: div.date,
-              type: 'dividend',
-              data: div,
-              priority: 3,
-              isQuarterly: useQuarterly
-            });
-          }
-        });
-      }
-    }
-    
-    // Process splits
-    if (showSplits && chartData[0]?.splits && chartData[0].splits.length > 0) {
-      const splits = chartData[0].splits;
-      
-      splits.forEach((split) => {
-        const eventDate = formatEventDate(split.date);
-        const rawDate = new Date(split.date);
-        
-        // Try to find closest date if exact match doesn't exist
-        if (!availableDates.has(eventDate)) {
-          const targetTime = rawDate.getTime();
-          const closestDate = chartData.reduce((closest, point) => {
-            const pointDate = new Date(point.fullDate);
-            const diff = Math.abs(pointDate.getTime() - targetTime);
-            const closestDiff = closest ? Math.abs(new Date(closest.fullDate).getTime() - targetTime) : Infinity;
-            return diff < closestDiff ? point : closest;
-          }, null);
-          
-          if (closestDate) {
-            const closestDiff = Math.abs(new Date(closestDate.fullDate).getTime() - targetTime);
-            const daysDiff = closestDiff / (1000 * 60 * 60 * 24);
-            
-            if (daysDiff <= 7) {
-              events.push({
-                date: closestDate.date,
-                fullDate: split.date,
-                type: 'split',
-                data: split,
-                priority: 2
-              });
-            }
-          }
-        } else {
-          events.push({
-            date: eventDate,
-            fullDate: split.date,
-            type: 'split',
-            data: split,
-            priority: 2
-          });
-        }
-      });
-    }
-    
-    // Process earnings
-    if (showEarnings && chartData[0]?.earnings && chartData[0].earnings.length > 0) {
-      const earnings = chartData[0].earnings;
-      
-      earnings.forEach((earning) => {
-        const eventDate = formatEventDate(earning.date);
-        const rawDate = new Date(earning.date);
-        
-        // Try to find closest date if exact match doesn't exist
-        if (!availableDates.has(eventDate)) {
-          const targetTime = rawDate.getTime();
-          const closestDate = chartData.reduce((closest, point) => {
-            const pointDate = new Date(point.fullDate);
-            const diff = Math.abs(pointDate.getTime() - targetTime);
-            const closestDiff = closest ? Math.abs(new Date(closest.fullDate).getTime() - targetTime) : Infinity;
-            return diff < closestDiff ? point : closest;
-          }, null);
-          
-          if (closestDate) {
-            const closestDiff = Math.abs(new Date(closestDate.fullDate).getTime() - targetTime);
-            const daysDiff = closestDiff / (1000 * 60 * 60 * 24);
-            
-            if (daysDiff <= 7) {
-              events.push({
-                date: closestDate.date,
-                fullDate: earning.date,
-                type: 'earnings',
-                data: earning,
-                priority: 1
-              });
-            }
-          }
-        } else {
-          events.push({
-            date: eventDate,
-            fullDate: earning.date,
-            type: 'earnings',
-            data: earning,
-            priority: 1
-          });
-        }
-      });
-    }
-    
-    if (events.length === 0) return null;
-    
-    // Deduplicate earnings by ORIGINAL ISO calendar day (not chart-mapped date)
-    // This avoids collapsing different years/weeks that map to the same chart tick.
-    const earningsDedup = new Map();
-    events.forEach(event => {
-      if (event.type === 'earnings') {
-        // Prefer original fullDate (YYYY-MM-DDTHH:mm...) truncated to day; fallback to chart label
-        const key = (event.fullDate?.split?.('T')?.[0]) || event.date;
-        if (!earningsDedup.has(key)) {
-          earningsDedup.set(key, event);
-        } else {
-          // Keep the one with more complete data (both estimate and actual)
-          const existing = earningsDedup.get(key);
-          const hasEstAndAct = event.data.eps_estimate != null && event.data.eps_actual != null;
-          const existingHasEstAndAct = existing.data.eps_estimate != null && existing.data.eps_actual != null;
-          if (hasEstAndAct && !existingHasEstAndAct) {
-            earningsDedup.set(key, event);
-          }
-        }
-      }
-    });
-    
-    // Replace earnings with deduplicated ones
-    const dedupedEvents = events.filter(e => e.type !== 'earnings');
-    earningsDedup.forEach(e => dedupedEvents.push(e));
-    
-    // Group events by date
-    const eventsByDate = dedupedEvents.reduce((acc, event) => {
-      const key = event.fullDate;
-      if (!acc[key]) {
-        acc[key] = [];
-      }
-      acc[key].push(event);
-      return acc;
-    }, {});
-    
-    // Render using ReferenceLine with custom labels positioned at bottom
-    const iconSize = 20;
-    const spacing = 4;
-    
-    const markers = [];
-    
-    Object.entries(eventsByDate).forEach(([fullDate, dateEvents]) => {
-      // Sort by priority
-      dateEvents.sort((a, b) => a.priority - b.priority);
-      
-      dateEvents.forEach((event, stackIndex) => {
-        // Format the ORIGINAL event date for tooltip display (not the matched chart date)
-        const originalEventDate = formatEventDate(event.fullDate);
-        const originalIsoDate = event.fullDate.split('T')[0];
-        
-        // Determine color and letter
-        let color = '#9ca3af';
-        let letter = '?';
-        let tooltipText = '';
-        
-        if (event.type === 'earnings') {
-          letter = 'E';
-          const { eps_estimate, eps_actual } = event.data;
-          
-          if (eps_estimate != null && eps_actual != null) {
-            color = eps_actual >= eps_estimate ? '#22c55e' : '#ef4444';
-            tooltipText = `Est: $${eps_estimate.toFixed(2)} / Act: $${eps_actual.toFixed(2)}`;
-          } else if (eps_actual != null) {
-            color = '#9ca3af';
-            tooltipText = `EPS: $${eps_actual.toFixed(2)}`;
-          } else {
-            tooltipText = 'Earnings';
-          }
-        } else if (event.type === 'split') {
-          letter = 'S';
-          color = '#f97316';
-          tooltipText = `Split ${event.data.ratio}:1`;
-        } else if (event.type === 'dividend') {
-          letter = 'D';
-          color = '#3b82f6';
-          if (event.isQuarterly) {
-            // Quarterly dividend
-            tooltipText = `Dividend: $${event.data.amount.toFixed(2)}`;
-          } else {
-            // Annual aggregate
-            const year = event.data.year;
-            const total = event.data.total_amount;
-            const count = event.data.count;
-            tooltipText = `Jahresdividende (kumuliert) ${year}: $${total.toFixed(2)}${count ? ` aus ${count} Zahlungen` : ''}`;
-          }
-        }
-        
-        markers.push(
-          <ReferenceLine
-            key={`event-${event.type}-${fullDate}-${stackIndex}`}
-            x={event.date}
-            stroke={color}
-            strokeWidth={0}
-            label={{
-              value: letter,
-              position: 'bottom',
-              fill: 'white',
-              fontSize: 12,
-              fontWeight: 'bold',
-              offset: 15 + (stackIndex * (iconSize + spacing)),
-              content: (props) => {
-                const { viewBox } = props;
-                if (!viewBox || !viewBox.x) return null;
-                const cx = viewBox.x;
-                // Move icons closer to X-axis (reduce offset from 20 to 30 for more spacing from bottom)
-                const cy = viewBox.y + viewBox.height - 2 - (stackIndex * (iconSize + spacing));
-                
-                return (
-                  <g>
-                    <circle 
-                      cx={cx} 
-                      cy={cy} 
-                      r={iconSize / 2} 
-                      fill={color} 
-                      stroke="white" 
-                      strokeWidth={2}
-                    />
-                    <text 
-                      x={cx} 
-                      y={cy} 
-                      textAnchor="middle" 
-                      dominantBaseline="central"
-                      fill="white"
-                      fontSize={12}
-                      fontWeight="bold"
-                    >
-                      {letter}
-                    </text>
-                    <title>
-                      {originalEventDate}
-                      {'\n'}
-                      {tooltipText}
-                    </title>
-                  </g>
-                );
-              }
-            }}
-          />
-        );
-      });
-    });
-    
-    return markers;
-  };
-
-  // Candlestick custom shape for Bar component
-  const Candlestick = (props) => {
-    const { x, y, width, height } = props;
-    
-    // Get the data item for this bar
-    const dataIndex = props.index;
-    if (!chartData || !chartData[dataIndex]) return null;
-    
-    const item = chartData[dataIndex];
-    
-    if (!item.open || !item.high || !item.low || !item.close) return null;
-
-    // Determine color based on price movement
-    const isGreen = item.close >= item.open;
-    const color = isGreen ? '#26a69a' : '#ef5350';
-
-    // When Y-axis starts at 0, the Bar component gives us:
-    // - y: pixel position for 'high' value
-    // - height: pixel height from 'high' to 0
-    // We need to calculate positions for open, close, and low
-    
-    // The key insight: if high is at 'y' and 0 is at 'y + height',
-    // then the scale is: pixels_per_dollar = height / high
-    const pixelsPerDollar = height / item.high;
-    
-    // Calculate Y positions for each price point
-    // For a price P: its Y position = y + (high - P) * pixelsPerDollar
-    const highY = y;
-    const lowY = y + (item.high - item.low) * pixelsPerDollar;
-    const openY = y + (item.high - item.open) * pixelsPerDollar;
-    const closeY = y + (item.high - item.close) * pixelsPerDollar;
-    
-    // Body dimensions
-    const bodyTop = Math.min(openY, closeY);
-    const bodyHeight = Math.abs(closeY - openY) || 1; // Minimum 1px for doji
-    
-    // Candlestick width
-    const candleWidth = Math.min(width * 0.8, 10);
-    const wickX = x + width / 2;
-
-    return (
-      <g>
-        {/* Wick line (from high to low) */}
-        <line
-          x1={wickX}
-          y1={highY}
-          x2={wickX}
-          y2={lowY}
-          stroke={color}
-          strokeWidth={1}
-        />
-        {/* Body rectangle */}
-        <rect
-          x={x + (width - candleWidth) / 2}
-          y={bodyTop}
-          width={candleWidth}
-          height={bodyHeight}
-          fill={color}
-          stroke={color}
-          strokeWidth={1}
-        />
-      </g>
-    );
-  };
 
   // Calculate min/max for Y-axis domain - memoized to prevent re-renders
   // MUST be called before any early returns (React Hooks rule)
@@ -1552,7 +417,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         <div className="chart-error">
           <p>❌ Fehler beim Laden der Chart-Daten</p>
           <p className="error-message">{error}</p>
-          <button onClick={fetchChartData} className="retry-button">
+          <button onClick={() => chartPayload?.refetch?.()} className="retry-button">
             Erneut versuchen
           </button>
         </div>
@@ -1583,125 +448,29 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
 
   return (
     <div className="stock-chart-container">
-      {/* Chart Controls */}
+      <ChartControls
+        periods={TIME_PERIODS}
+        period={period}
+        setPeriod={setPeriod}
+        showCustomDatePicker={showCustomDatePicker}
+        setShowCustomDatePicker={setShowCustomDatePicker}
+        customStartDate={customStartDate}
+        setCustomStartDate={setCustomStartDate}
+        customEndDate={customEndDate}
+        setCustomEndDate={setCustomEndDate}
+        chartType={chartType}
+        setChartType={setChartType}
+        CHART_TYPES={CHART_TYPES}
+        isLogScale={isLogScale}
+        setIsLogScale={setIsLogScale}
+        isPercentageView={isPercentageView}
+        setIsPercentageView={setIsPercentageView}
+        onApplyCustomRange={() => chartPayload?.refetch?.()}
+        exportToPNG={exportToPNG}
+        exportToCSV={exportToCSV}
+      />
+
       <div className="chart-controls">
-        <div className="control-group">
-          <label>Zeitraum:</label>
-          <div className="period-buttons">
-            {TIME_PERIODS.map(p => (
-              <button
-                key={p.value}
-                className={`period-button ${period === p.value ? 'active' : ''}`}
-                onClick={() => {
-                  setPeriod(p.value);
-                  if (p.value === 'custom') {
-                    setShowCustomDatePicker(true);
-                  } else {
-                    setShowCustomDatePicker(false);
-                  }
-                }}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-          
-          {/* Custom Date Range Picker */}
-          {showCustomDatePicker && period === 'custom' && (
-            <div className="custom-date-picker">
-              <div className="date-input-group">
-                <label>Von:</label>
-                <input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  max={customEndDate || new Date().toISOString().split('T')[0]}
-                />
-              </div>
-              <div className="date-input-group">
-                <label>Bis:</label>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  min={customStartDate}
-                  max={new Date().toISOString().split('T')[0]}
-                />
-              </div>
-              <button 
-                className="apply-custom-date"
-                onClick={() => fetchChartData()}
-                disabled={!customStartDate || !customEndDate}
-              >
-                Anwenden
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="control-group">
-          <label>Chart-Typ:</label>
-          <div className="chart-type-buttons">
-            <button
-              className={`type-button ${chartType === CHART_TYPES.LINE ? 'active' : ''}`}
-              onClick={() => setChartType(CHART_TYPES.LINE)}
-            >
-              📈 Line
-            </button>
-            <button
-              className={`type-button ${chartType === CHART_TYPES.CANDLESTICK ? 'active' : ''}`}
-              onClick={() => setChartType(CHART_TYPES.CANDLESTICK)}
-            >
-              📊 Candlestick
-            </button>
-          </div>
-        </div>
-
-        <div className="control-group">
-          <label>Skalierung:</label>
-          <div className="indicator-toggles">
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={isLogScale}
-                onChange={(e) => setIsLogScale(e.target.checked)}
-              />
-              <span>Logarithmisch</span>
-            </label>
-            {chartType === CHART_TYPES.CANDLESTICK ? (
-              <label className="checkbox-label disabled">
-                <input
-                  type="checkbox"
-                  checked={false}
-                  disabled
-                />
-                <span>Prozent (nur Line)</span>
-              </label>
-            ) : (
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={isPercentageView}
-                  onChange={(e) => setIsPercentageView(e.target.checked)}
-                />
-                <span>Prozent</span>
-              </label>
-            )}
-          </div>
-        </div>
-
-        <div className="control-group">
-          <label>Export:</label>
-          <div className="export-buttons">
-            <button onClick={exportToPNG} className="export-button">
-              🖼️ PNG
-            </button>
-            <button onClick={exportToCSV} className="export-button">
-              📄 CSV
-            </button>
-          </div>
-        </div>
-
         <div className="control-group">
           <label>Indikatoren:</label>
           <div className="indicator-toggles">
@@ -1827,284 +596,49 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
             </label>
             
             {/* Fibonacci Controls */}
-            <div className="collapsible-panel">
-              <div 
-                className="collapsible-header"
-                onClick={() => setFibonacciPanelExpanded(!fibonacciPanelExpanded)}
-              >
-                <span className={`collapsible-toggle-icon ${fibonacciPanelExpanded ? 'expanded' : ''}`}></span>
-                <label className="checkbox-label" onClick={(e) => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    checked={showFibonacci}
-                    onChange={(e) => setShowFibonacci(e.target.checked)}
-                  />
-                  <span style={{ fontWeight: 'bold' }}>📐 Fibonacci Levels</span>
-                </label>
-              </div>
-              
-              <div className={`collapsible-content ${fibonacciPanelExpanded && showFibonacci && fibonacciData ? 'expanded' : ''}`}>
-                {showFibonacci && fibonacciData && (
-                  <div>
-                    {/* Type Selection */}
-                    <div style={{ 
-                      marginBottom: '10px',
-                      display: 'flex',
-                      gap: '5px'
-                    }}>
-                      <button
-                        onClick={() => setFibonacciType('retracement')}
-                        style={{
-                          padding: '5px 12px',
-                          fontSize: '12px',
-                          border: '1px solid #007bff',
-                          borderRadius: '4px',
-                          backgroundColor: fibonacciType === 'retracement' ? '#007bff' : 'white',
-                          color: fibonacciType === 'retracement' ? 'white' : '#007bff',
-                          cursor: 'pointer',
-                          fontWeight: fibonacciType === 'retracement' ? 'bold' : 'normal',
-                          transition: 'all var(--motion-short)'
-                        }}
-                      >
-                        📉 Retracement
-                      </button>
-                      <button
-                        onClick={() => setFibonacciType('extension')}
-                        style={{
-                          padding: '5px 12px',
-                          fontSize: '12px',
-                          border: '1px solid #28a745',
-                          borderRadius: '4px',
-                          backgroundColor: fibonacciType === 'extension' ? '#28a745' : 'white',
-                          color: fibonacciType === 'extension' ? 'white' : '#28a745',
-                          cursor: 'pointer',
-                          fontWeight: fibonacciType === 'extension' ? 'bold' : 'normal',
-                          transition: 'all var(--motion-short)'
-                        }}
-                      >
-                        📈 Extension
-                      </button>
-                    </div>
-                    
-                    {/* Level Selection */}
-                    <div style={{ 
-                      fontSize: '11px',
-                      backgroundColor: 'white',
-                      padding: '8px',
-                      borderRadius: '4px',
-                      border: '1px solid #dee2e6'
-                    }}>
-                      <div style={{ fontWeight: 'bold', marginBottom: '5px', color: '#495057' }}>
-                        {fibonacciType === 'retracement' ? 'Retracement Levels:' : 'Extension Levels:'}
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                        {fibonacciType === 'retracement' ? (
-                          Object.keys(selectedFibLevels).map(level => (
-                            <label key={level} style={{ 
-                              display: 'flex', 
-                              alignItems: 'center',
-                              padding: '3px 8px',
-                              backgroundColor: selectedFibLevels[level] ? '#e3f2fd' : '#f8f9fa',
-                              border: '1px solid ' + (selectedFibLevels[level] ? '#2196f3' : '#dee2e6'),
-                              borderRadius: '3px',
-                              cursor: 'pointer',
-                              transition: 'all var(--motion-short)'
-                            }}>
-                              <input
-                                type="checkbox"
-                                checked={selectedFibLevels[level]}
-                                onChange={(e) => setSelectedFibLevels({
-                                  ...selectedFibLevels,
-                                  [level]: e.target.checked
-                                })}
-                                style={{ marginRight: '4px' }}
-                              />
-                              <span style={{ fontWeight: selectedFibLevels[level] ? 'bold' : 'normal' }}>
-                                {level}%
-                              </span>
-                            </label>
-                          ))
-                        ) : (
-                          Object.keys(selectedExtensionLevels).map(level => (
-                            <label key={level} style={{ 
-                              display: 'flex', 
-                              alignItems: 'center',
-                              padding: '3px 8px',
-                              backgroundColor: selectedExtensionLevels[level] ? '#e8f5e9' : '#f8f9fa',
-                              border: '1px solid ' + (selectedExtensionLevels[level] ? '#4caf50' : '#dee2e6'),
-                              borderRadius: '3px',
-                              cursor: 'pointer',
-                              transition: 'all var(--motion-short)'
-                            }}>
-                              <input
-                                type="checkbox"
-                                checked={selectedExtensionLevels[level]}
-                                onChange={(e) => setSelectedExtensionLevels({
-                                  ...selectedExtensionLevels,
-                                  [level]: e.target.checked
-                                })}
-                                style={{ marginRight: '4px' }}
-                              />
-                              <span style={{ fontWeight: selectedExtensionLevels[level] ? 'bold' : 'normal' }}>
-                                {level}%
-                              </span>
-                            </label>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <FibonacciLevels
+              showFibonacci={showFibonacci}
+              setShowFibonacci={setShowFibonacci}
+              fibonacciData={fibonacciData}
+              fibonacciType={fibonacciType}
+              setFibonacciType={setFibonacciType}
+              selectedFibLevels={selectedFibLevels}
+              setSelectedFibLevels={setSelectedFibLevels}
+              selectedExtensionLevels={selectedExtensionLevels}
+              setSelectedExtensionLevels={setSelectedExtensionLevels}
+              isExpanded={fibonacciPanelExpanded}
+              onToggle={() => setFibonacciPanelExpanded(!fibonacciPanelExpanded)}
+            />
             
             {/* Support/Resistance Controls */}
-            <div className="collapsible-panel">
-              <div 
-                className="collapsible-header"
-                onClick={() => setSupportResistancePanelExpanded(!supportResistancePanelExpanded)}
-              >
-                <span className={`collapsible-toggle-icon ${supportResistancePanelExpanded ? 'expanded' : ''}`}></span>
-                <label className="checkbox-label" onClick={(e) => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    checked={showSupportResistance}
-                    onChange={(e) => setShowSupportResistance(e.target.checked)}
-                  />
-                  <span style={{ fontWeight: 'bold' }}>📊 Support & Resistance</span>
-                </label>
-              </div>
-              
-              <div className={`collapsible-content ${supportResistancePanelExpanded && showSupportResistance && supportResistanceData ? 'expanded' : ''}`}>
-                {showSupportResistance && supportResistanceData && (
-                  <div style={{ 
-                    fontSize: '11px',
-                    color: '#666'
-                  }}>
-                    <div style={{ display: 'flex', gap: '15px' }}>
-                      <span>🟢 Support: {supportResistanceData.support.length}</span>
-                      <span>🔴 Resistance: {supportResistanceData.resistance.length}</span>
-                    </div>
-                    <div style={{ marginTop: '5px', fontSize: '10px', fontStyle: 'italic' }}>
-                      Linienstärke = Anzahl Tests
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <SupportResistanceLevels
+              showSupportResistance={showSupportResistance}
+              setShowSupportResistance={setShowSupportResistance}
+              supportResistanceData={supportResistanceData}
+              isExpanded={supportResistancePanelExpanded}
+              onToggle={() => setSupportResistancePanelExpanded(!supportResistancePanelExpanded)}
+            />
 
             {/* Bollinger Bands Signal Info */}
-            {showBollinger && bollingerSignal && (
-              <div className={`collapsible-panel bollinger-signal-panel ${bollingerSignal.squeeze ? 'squeeze' : ''}`}>
-                <div 
-                  className="collapsible-header"
-                  onClick={() => setBollingerSignalPanelExpanded(!bollingerSignalPanelExpanded)}
-                >
-                  <span className={`collapsible-toggle-icon ${bollingerSignalPanelExpanded ? 'expanded' : ''}`}></span>
-                  <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                    <span>📊 Bollinger Bands ({bollingerSignal.period || 20})</span>
-                    {bollingerSignal.squeeze && (
-                      <span style={{ 
-                        fontSize: '10px', 
-                        backgroundColor: '#ffc107', 
-                        color: '#000', 
-                        padding: '2px 6px', 
-                        borderRadius: '10px',
-                        fontWeight: 'bold'
-                      }}>
-                        SQUEEZE!
-                      </span>
-                    )}
-                  </div>
-                </div>
-                
-                <div className={`collapsible-content ${bollingerSignalPanelExpanded ? 'expanded' : ''}`}>
-                  <div style={{ fontSize: '11px', color: '#666' }}>
-                    {bollingerSignal.current_percent_b !== null && (
-                      <div style={{ marginBottom: '4px' }}>
-                        <span style={{ fontWeight: 'bold' }}>%B:</span> {bollingerSignal.current_percent_b?.toFixed(2) || 'N/A'}
-                        {bollingerSignal.current_percent_b > 1 && <span style={{ color: '#e74c3c' }}> (über oberem Band)</span>}
-                        {bollingerSignal.current_percent_b < 0 && <span style={{ color: '#27ae60' }}> (unter unterem Band)</span>}
-                      </div>
-                    )}
-                    {bollingerSignal.current_bandwidth !== null && (
-                      <div style={{ marginBottom: '4px' }}>
-                        <span style={{ fontWeight: 'bold' }}>Bandwidth:</span> {bollingerSignal.current_bandwidth?.toFixed(2) || 'N/A'}%
-                      </div>
-                    )}
-                    {bollingerSignal.band_walking && (
-                      <div style={{ 
-                        marginTop: '6px', 
-                        padding: '4px 8px', 
-                        backgroundColor: bollingerSignal.band_walking === 'upper' ? '#e8f5e9' : '#ffebee',
-                        borderRadius: '4px',
-                        fontSize: '10px',
-                        fontWeight: 'bold',
-                        color: bollingerSignal.band_walking === 'upper' ? '#2e7d32' : '#c62828'
-                      }}>
-                        {bollingerSignal.band_walking === 'upper' ? '📈 Walking Upper Band (Uptrend)' : '📉 Walking Lower Band (Downtrend)'}
-                      </div>
-                    )}
-                    {bollingerSignal.signal_reason && (
-                      <div style={{ 
-                        marginTop: '6px', 
-                        padding: '4px 8px', 
-                        backgroundColor: '#e3f2fd',
-                        borderRadius: '4px',
-                        fontSize: '10px',
-                        fontStyle: 'italic'
-                      }}>
-                        💡 {bollingerSignal.signal_reason}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+            {showBollinger && (
+              <BollingerSignal
+                bollingerSignal={bollingerSignal}
+                isExpanded={bollingerSignalPanelExpanded}
+                onToggle={() => setBollingerSignalPanelExpanded(!bollingerSignalPanelExpanded)}
+              />
             )}
 
             {/* Volume Profile Controls */}
-            <div className="collapsible-panel">
-              <div 
-                className="collapsible-header"
-                onClick={() => setVolumeProfilePanelExpanded(!volumeProfilePanelExpanded)}
-              >
-                <span className={`collapsible-toggle-icon ${volumeProfilePanelExpanded ? 'expanded' : ''}`}></span>
-                <div style={{ flex: 1 }}>
-                  <label className="checkbox-label" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      checked={showVolumeProfile}
-                      onChange={(e) => setShowVolumeProfile(e.target.checked)}
-                    />
-                    <span style={{ fontWeight: 'bold' }}>📊 Volume Profile (Standalone)</span>
-                  </label>
-
-                  <label className="checkbox-label" style={{ marginTop: '8px' }} onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      checked={showVolumeProfileOverlay}
-                      onChange={(e) => setShowVolumeProfileOverlay(e.target.checked)}
-                    />
-                    <span style={{ fontWeight: 'bold' }}>📊 Volume Profile (Overlay)</span>
-                  </label>
-                </div>
-              </div>
-              
-              <div className={`collapsible-content ${volumeProfilePanelExpanded && (showVolumeProfile || showVolumeProfileOverlay) && volumeProfileLevels ? 'expanded' : ''}`}>
-                {(showVolumeProfile || showVolumeProfileOverlay) && volumeProfileLevels && (
-                  <div style={{ 
-                    fontSize: '11px',
-                    color: '#666'
-                  }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                      <span>🟢 POC: {volumeProfileLevels.poc != null ? formatPrice(volumeProfileLevels.poc, stock) : 'N/A'}</span>
-                      <span>🔵 VAH: {volumeProfileLevels.vah != null ? formatPrice(volumeProfileLevels.vah, stock) : 'N/A'}</span>
-                      <span>🔴 VAL: {volumeProfileLevels.val != null ? formatPrice(volumeProfileLevels.val, stock) : 'N/A'}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <VolumeProfileLevels
+              showVolumeProfile={showVolumeProfile}
+              setShowVolumeProfile={setShowVolumeProfile}
+              showVolumeProfileOverlay={showVolumeProfileOverlay}
+              setShowVolumeProfileOverlay={setShowVolumeProfileOverlay}
+              volumeProfileLevels={volumeProfileLevels}
+              stock={stock}
+              isExpanded={volumeProfilePanelExpanded}
+              onToggle={() => setVolumeProfilePanelExpanded(!volumeProfilePanelExpanded)}
+            />
           </div>
         </div>
       </div>
@@ -2155,7 +689,18 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
                   : formatPrice(value, stock)}
               />
               <Tooltip 
-                content={<CustomTooltip />}
+                content={<ChartTooltip 
+                  stock={stock}
+                  isPercentageView={isPercentageView}
+                  chartType={chartType}
+                  showSMA50={showSMA50}
+                  showSMA200={showSMA200}
+                  showBollinger={showBollinger}
+                  showATR={showATR}
+                  showVWAP={showVWAP}
+                  showIchimoku={showIchimoku}
+                  CHART_TYPES={CHART_TYPES}
+                />}
                 cursor={{ stroke: '#007bff', strokeWidth: 1, strokeDasharray: '5 5' }}
                 wrapperStyle={{ pointerEvents: 'none' }}
                 isAnimationActive={false}
@@ -2334,14 +879,12 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
                   />
                 </>
               )}
-
-              {/* Ichimoku Cloud (rendered above) */}
               
               {/* Fibonacci Levels */}
-              {renderFibonacciLevels()}
+              {fibonacciLevels}
               
               {/* Support/Resistance Levels */}
-              {renderSupportResistanceLevels()}
+              {supportResistanceLevels}
 
               {/* Volume Profile Levels (POC, VAH, VAL) */}
               {showVolumeProfileOverlay && volumeProfileLevels && volumeProfileLevels.poc && volumeProfileLevels.vah && volumeProfileLevels.val && (
@@ -2387,13 +930,19 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
               )}
               
               {/* Golden Cross / Death Cross Markers */}
-              {renderCrossoverMarkers()}
+              {crossoverMarkers}
               
               {/* Divergence Markers */}
-              {renderDivergenceMarkers()}
+              {divergenceMarkers}
               
               {/* Event Icons (Dividends, Splits, Earnings) */}
-              {renderEventIcons()}
+              <EventMarkers 
+                chartData={chartData}
+                period={period}
+                showDividends={showDividends}
+                showSplits={showSplits}
+                showEarnings={showEarnings}
+              />
             </ComposedChart>
           ) : (
             <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -2412,7 +961,18 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
                 tickFormatter={(value) => formatPrice(value, stock)}
               />
               <Tooltip 
-                content={<CustomTooltip />}
+                content={<ChartTooltip 
+                  stock={stock}
+                  isPercentageView={isPercentageView}
+                  chartType={chartType}
+                  showSMA50={showSMA50}
+                  showSMA200={showSMA200}
+                  showBollinger={showBollinger}
+                  showATR={showATR}
+                  showVWAP={showVWAP}
+                  showIchimoku={showIchimoku}
+                  CHART_TYPES={CHART_TYPES}
+                />}
                 cursor={{ stroke: '#26a69a', strokeWidth: 1, strokeDasharray: '5 5' }}
                 wrapperStyle={{ pointerEvents: 'none' }}
                 isAnimationActive={false}
@@ -2439,7 +999,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
               {/* Candlesticks using Bar with custom shape */}
               <Bar 
                 dataKey="high" 
-                shape={<Candlestick />}
+                shape={<CandlestickBar chartData={chartData} />}
                 isAnimationActive={false}
               />
               
@@ -2516,10 +1076,10 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
               )}
               
               {/* Fibonacci Levels */}
-              {renderFibonacciLevels()}
+              {fibonacciLevels}
               
               {/* Support/Resistance Levels */}
-              {renderSupportResistanceLevels()}
+              {supportResistanceLevels}
 
               {/* Volume Profile Levels (POC, VAH, VAL) */}
               {showVolumeProfileOverlay && volumeProfileLevels && volumeProfileLevels.poc && volumeProfileLevels.vah && volumeProfileLevels.val && (
@@ -2565,13 +1125,19 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
               )}
               
               {/* Golden Cross / Death Cross Markers */}
-              {renderCrossoverMarkers()}
+              {crossoverMarkers}
               
               {/* Divergence Markers */}
-              {renderDivergenceMarkers()}
+              {divergenceMarkers}
               
               {/* Event Icons (Dividends, Splits, Earnings) */}
-              {renderEventIcons()}
+              <EventMarkers
+                chartData={chartData}
+                period={period}
+                showDividends={showDividends}
+                showSplits={showSplits}
+                showEarnings={showEarnings}
+              />
             </ComposedChart>
           )}
         </ResponsiveContainer>
@@ -2634,72 +1200,8 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         </div>
       )}
 
-      {/* RSI Chart */}
-      {showRSI && (
-        <div className="chart-section">
-          <h4 className="chart-subtitle">RSI (14)</h4>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-              <defs>
-                {/* Gradient for overbought area */}
-                <linearGradient id="overboughtGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#e74c3c" stopOpacity={0.15}/>
-                  <stop offset="100%" stopColor="#e74c3c" stopOpacity={0.05}/>
-                </linearGradient>
-                {/* Gradient for oversold area */}
-                <linearGradient id="oversoldGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#27ae60" stopOpacity={0.05}/>
-                  <stop offset="100%" stopColor="#27ae60" stopOpacity={0.15}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-              <XAxis 
-                dataKey="date" 
-                tick={{ fontSize: 9, angle: -45, textAnchor: 'end' }}
-                height={60}
-                interval="preserveStartEnd"
-                minTickGap={40}
-                ticks={xAxisTicks}
-              />
-              <YAxis 
-                domain={[0, 100]}
-                tick={{ fontSize: 10 }}
-                ticks={[0, 30, 50, 70, 100]}
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'rgba(255, 255, 255, 0.98)', 
-                  border: '1px solid #ddd',
-                  borderRadius: '6px',
-                  padding: '10px'
-                }}
-                labelStyle={{ fontWeight: 'bold', color: '#333' }}
-                cursor={{ stroke: '#6c63ff', strokeWidth: 1, strokeDasharray: '5 5' }}
-              />
-              <Legend />
-              
-              {/* Colored background areas */}
-              <ReferenceArea y1={70} y2={100} fill="url(#overboughtGradient)" fillOpacity={1} />
-              <ReferenceArea y1={0} y2={30} fill="url(#oversoldGradient)" fillOpacity={1} />
-              
-              {/* Overbought/Oversold lines */}
-              <ReferenceLine y={70} stroke="#e74c3c" strokeDasharray="3 3" strokeWidth={1.5} label={{ value: "Overbought (70)", position: "right", fill: "#e74c3c", fontSize: 11 }} />
-              <ReferenceLine y={30} stroke="#27ae60" strokeDasharray="3 3" strokeWidth={1.5} label={{ value: "Oversold (30)", position: "right", fill: "#27ae60", fontSize: 11 }} />
-              <ReferenceLine y={50} stroke="#95a5a6" strokeDasharray="2 2" strokeWidth={1} />
-              
-              <Line
-                type="monotone"
-                dataKey="rsi"
-                stroke="#8e44ad"
-                strokeWidth={2.5}
-                dot={RsiCustomDot}
-                name="RSI"
-                isAnimationActive={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      {/* RSI Subchart */}
+      {showRSI && <RsiChart data={chartData} ticks={xAxisTicks} />}
 
       {/* Stochastic Chart */}
       {showStochastic && (() => {
@@ -2713,147 +1215,11 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
         );
       })()}
 
-      {/* MACD Chart */}
-      {showMACD && (
-        <div className="chart-section">
-          <h4 className="chart-subtitle">MACD</h4>
-          <ResponsiveContainer width="100%" height={200}>
-            <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-              <XAxis 
-                dataKey="date" 
-                tick={{ fontSize: 9, angle: -45, textAnchor: 'end' }}
-                height={60}
-                interval="preserveStartEnd"
-                minTickGap={40}
-                ticks={xAxisTicks}
-              />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'rgba(255, 255, 255, 0.98)', 
-                  border: '1px solid #ddd',
-                  borderRadius: '6px',
-                  padding: '10px'
-                }}
-                labelStyle={{ fontWeight: 'bold', color: '#333' }}
-                cursor={{ stroke: '#3498db', strokeWidth: 1, strokeDasharray: '5 5' }}
-              />
-              <Legend />
-              
-              <ReferenceLine y={0} stroke="#000" />
-              
-              <Bar 
-                dataKey="macdHistogram" 
-                fill="#3498db" 
-                opacity={0.6}
-                name="Histogram"
-              />
-              <Line
-                type="monotone"
-                dataKey="macd"
-                stroke="#e74c3c"
-                strokeWidth={2}
-                dot={false}
-                name="MACD"
-              />
-              <Line
-                type="monotone"
-                dataKey="macdSignal"
-                stroke="#27ae60"
-                strokeWidth={2}
-                dot={false}
-                name="Signal"
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      {/* MACD Subchart */}
+      {showMACD && <MacdChart data={chartData} ticks={xAxisTicks} />}
 
-      {/* ATR Chart */}
-      {showATR && (() => {
-        // Calculate ATR domain for better visibility
-        const atrValues = chartData.map(d => d.atr).filter(v => v != null);
-        const minATR = Math.min(...atrValues);
-        const maxATR = Math.max(...atrValues);
-        const padding = (maxATR - minATR) * 0.1; // 10% padding
-        const atrDomain = [Math.max(0, minATR - padding), maxATR + padding];
-        
-        return (
-          <div className="chart-section">
-            <h4 className="chart-subtitle">ATR (14) - Average True Range</h4>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="atrGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f39c12" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#f39c12" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                <XAxis 
-                  dataKey="date" 
-                  tick={{ fontSize: 9, angle: -45, textAnchor: 'end' }}
-                  height={60}
-                  interval="preserveStartEnd"
-                  minTickGap={40}
-                />
-                <YAxis 
-                  tick={{ fontSize: 10 }}
-                  tickFormatter={(value) => formatPrice(value, stock)}
-                  domain={atrDomain}
-                />
-                <Tooltip 
-                  formatter={(value, name) => [formatPrice(value, stock), name]}
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.98)', 
-                    border: '1px solid #ddd',
-                    borderRadius: '6px',
-                    padding: '10px'
-                  }}
-                  labelStyle={{ fontWeight: 'bold', color: '#333' }}
-                  cursor={{ stroke: '#f39c12', strokeWidth: 1, strokeDasharray: '5 5' }}
-                />
-                <Legend />
-                
-                <Line
-                  type="monotone"
-                  dataKey="atr"
-                  stroke="#f39c12"
-                  strokeWidth={3}
-                  dot={false}
-                  name="ATR (14)"
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        );
-      })()}
-      
-      {/* ATR Info Box */}
-      {showATR && (
-        <div className="chart-section">
-          <div className="atr-info" style={{ 
-            padding: '10px', 
-            fontSize: '12px', 
-            color: '#666',
-            backgroundColor: '#f8f9fa',
-            borderRadius: '4px',
-            margin: '10px 0'
-          }}>
-            <p style={{ margin: '5px 0' }}>
-              💡 <strong>ATR Interpretation:</strong> Höhere Werte = höhere Volatilität
-            </p>
-            <p style={{ margin: '5px 0' }}>
-              🎯 <strong>Stop-Loss Empfehlung:</strong> 1.5-2x ATR unter Einstiegspreis
-            </p>
-            <p style={{ margin: '5px 0' }}>
-              📊 <strong>Position Size:</strong> Bei hohem ATR kleinere Positionen wählen
-            </p>
-          </div>
-        </div>
-      )}
+      {/* ATR Subchart */}
+      {showATR && <AtrChart data={chartData} stock={stock} />}
 
       {/* Volume Profile Standalone */}
       {showVolumeProfile && (
