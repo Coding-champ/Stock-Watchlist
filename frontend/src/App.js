@@ -748,6 +748,16 @@ function MiniSparkline({ data, w=140, h=48, color='#7c3aed' }){
 }
 
 function Badge({ label, value }){
-  const tone = value==='bullish' ? 'success' : (value==='bearish' || value==='overbought') ? 'warning' : 'neutral';
-  return <span className={`badge badge--${tone}`} title={`${label}: ${value}`}>{label}: {value}</span>;
+  // Treat 'oversold' as a positive (green) signal similar to 'bullish'
+  const tone = (value==='bullish' || value==='oversold')
+    ? 'success'
+    : (value==='bearish' || value==='overbought')
+      ? 'warning'
+      : 'neutral';
+  const displayValue = value==='bullish'
+    ? `↑ bullish`
+    : value==='bearish'
+      ? `↓ bearish`
+      : value; // prepend arrows for bullish/bearish
+  return <span className={`badge badge--${tone}`} title={`${label}: ${value}`}>{label}: {displayValue}</span>;
 }

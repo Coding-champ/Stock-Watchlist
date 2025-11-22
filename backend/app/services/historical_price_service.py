@@ -99,7 +99,9 @@ class HistoricalPriceService:
             # Prepare data for bulk insert
             price_records = []
             
-            for date_idx, row in df.iterrows():
+            # Filter out rows with missing close price
+            df_filtered = df[df['Close'].notna()]
+            for date_idx, row in df_filtered.iterrows():
                 # Convert timestamp to date
                 price_date = date_idx.date() if hasattr(date_idx, 'date') else date_idx
                 

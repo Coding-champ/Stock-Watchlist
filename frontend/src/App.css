@@ -69,7 +69,7 @@
 .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 .badge--neutral { background: #f3f4f6; color: #374151; }
 .badge--success { background: #ecfdf5; color: #065f46; }
-.badge--warning { background: #fff7ed; color: #9a3412; }
+.badge--warning { background: #fef2f2; color: #b91c1c; }
 .badge__dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
 
 /* Icon button for gallery actions */

@@ -405,9 +405,8 @@ def refresh_price_history(
         historical_service = HistoricalPriceService(db)
         
         # Load and save historical data
-        result = historical_service.load_and_save_historical_data(
+        result = historical_service.load_and_save_historical_prices(
             stock_id=stock_id,
-            ticker_symbol=stock.ticker_symbol,
             period=period
         )
         
