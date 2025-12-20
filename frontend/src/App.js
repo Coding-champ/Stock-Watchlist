@@ -435,7 +435,12 @@ function App() {
             </aside>
             <main className="layout__content">
               {selectedStock ? (
-                <StockDetailPage stock={selectedStock} onBack={() => { setActiveView('watchlist'); setSelectedStock(null); }} />
+                <StockDetailPage
+                  stock={selectedStock}
+                  watchlistId={currentWatchlist?.id}
+                  onShowToast={showToast}
+                  onBack={() => { setActiveView('watchlist'); setSelectedStock(null); }}
+                />
               ) : (
                 <div className="empty-state empty-state--hero">
                   <h2>Keine Aktie ausgewählt</h2>

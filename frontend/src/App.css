@@ -2409,6 +2409,25 @@ tr:hover {
   font-weight: 600;
 }
 
+.stock-bookmark-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.stock-bookmark-btn:focus-visible {
+  outline: 3px solid var(--brand-border-strong);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
 .chart-rsi-zone {
   fill: rgba(255, 193, 7, 0.12);
   stroke: none;

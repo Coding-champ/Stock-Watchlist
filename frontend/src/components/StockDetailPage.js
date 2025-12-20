@@ -7,6 +7,7 @@ import StockChart from './StockChart';
 import FundamentalsTimeSeriesTab from './FundamentalsTimeSeriesTab';
 import SectorComparisonTab from './SectorComparisonTab';
 import AlertModal from './AlertModal';
+import StockModal from './StockModal';
 import { getUnitForAlertType, getAlertTypeLabel, getConditionLabel, formatNumber, formatPrice } from '../utils/currencyUtils';
 import { useAlerts } from '../hooks/useAlerts';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,7 +17,7 @@ import { OBSERVATION_REASON_OPTIONS } from './ObservationFields';
 import { useBenchmarkComparison, inferDefaultBenchmark, BENCHMARK_PERIODS } from '../hooks/useBenchmarkComparison';
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-function StockDetailPage({ stock, onBack }) {
+function StockDetailPage({ stock, onBack, watchlistId, onShowToast }) {
   const [chartLatestVwap, setChartLatestVwap] = useState(null);
   const { alerts, loadAlerts, toggleAlert, deleteAlert } = useAlerts(stock.id);
   const queryClient = useQueryClient();
@@ -29,12 +30,32 @@ function StockDetailPage({ stock, onBack }) {
   const [alertModalConfig, setAlertModalConfig] = useState(null);
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(() => inferDefaultBenchmark(stock.country));
   const [benchmarkPeriod, setBenchmarkPeriod] = useState('1y');
+  const [showAddToWatchlistModal, setShowAddToWatchlistModal] = useState(false);
+  const [bookmarkedTicker, setBookmarkedTicker] = useState(null);
   const { data: benchmarkData, isLoading: benchmarkLoading, error: benchmarkError } = useBenchmarkComparison(
     stock.id,
     benchmarkSymbol,
     benchmarkPeriod,
     activeTab === 'market_context'
   );
+
+  useEffect(() => {
+    setBookmarkedTicker(null);
+    setShowAddToWatchlistModal(false);
+  }, [stock?.ticker_symbol]);
+
+  const isBookmarked = React.useMemo(() => {
+    if (!bookmarkedTicker) return false;
+    return String(bookmarkedTicker).toUpperCase() === String(stock.ticker_symbol).toUpperCase();
+  }, [bookmarkedTicker, stock.ticker_symbol]);
+
+  const handleOpenAddToWatchlist = () => {
+    if (!watchlistId) {
+      if (onShowToast) onShowToast('Keine Watchlist ausgewählt', 'warning');
+      return;
+    }
+    setShowAddToWatchlistModal(true);
+  };
 
   const loadExtendedData = useCallback(async () => {
     try {
@@ -222,6 +243,24 @@ function StockDetailPage({ stock, onBack }) {
                   );
                 })()
                 }
+
+                <button
+                  type="button"
+                  className="stock-bookmark-btn"
+                  onClick={handleOpenAddToWatchlist}
+                  aria-label="Zur Watchlist hinzufügen"
+                  title="Zur Watchlist hinzufügen"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path
+                      d="M6 3h12a1 1 0 0 1 1 1v18l-7-5-7 5V4a1 1 0 0 1 1-1z"
+                      fill={isBookmarked ? 'currentColor' : 'none'}
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
               </div>
               
               {/* Earnings Date Badge */}
@@ -937,6 +976,19 @@ function StockDetailPage({ stock, onBack }) {
               </div>
             )}
           </div>
+
+          {showAddToWatchlistModal && (
+            <StockModal
+              watchlistId={watchlistId}
+              initialTicker={stock.ticker_symbol}
+              onShowToast={onShowToast}
+              onClose={() => setShowAddToWatchlistModal(false)}
+              onStockAdded={() => {
+                setBookmarkedTicker(stock.ticker_symbol);
+                setShowAddToWatchlistModal(false);
+              }}
+            />
+          )}
 
           {alertModalConfig && (
             <AlertModal

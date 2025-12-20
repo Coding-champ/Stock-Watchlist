@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import '../styles/skeletons.css';
 import { formatPrice } from '../utils/currencyUtils';
 import ObservationFields from './ObservationFields';
@@ -13,9 +13,9 @@ const createInitialManualForm = () => ({
   sector: ''
 });
 
-function StockModal({ watchlistId, onClose, onStockAdded, onShowToast }) {
+function StockModal({ watchlistId, onClose, onStockAdded, onShowToast, initialTicker }) {
   const [mode, setMode] = useState('ticker'); // 'ticker' oder 'manual'
-  const [tickerInput, setTickerInput] = useState('');
+  const [tickerInput, setTickerInput] = useState(() => (initialTicker ? String(initialTicker).toUpperCase() : ''));
   const [searching, setSearching] = useState(false);
   const [searchResult, setSearchResult] = useState(null);
   const [formData, setFormData] = useState(createInitialManualForm);
@@ -28,6 +28,12 @@ function StockModal({ watchlistId, onClose, onStockAdded, onShowToast }) {
   
   const { fetchApi } = useApi();
 
+  useEffect(() => {
+    if (initialTicker) {
+      setTickerInput(String(initialTicker).toUpperCase());
+    }
+  }, [initialTicker]);
+
   const handleModeChange = (nextMode) => {
     setMode(nextMode);
     if (nextMode !== 'bulk') {
@@ -37,7 +43,7 @@ function StockModal({ watchlistId, onClose, onStockAdded, onShowToast }) {
 
   const resetModalState = () => {
     setMode('ticker');
-    setTickerInput('');
+    setTickerInput(initialTicker ? String(initialTicker).toUpperCase() : '');
     setSearching(false);
     setSearchResult(null);
     setFormData(createInitialManualForm());
