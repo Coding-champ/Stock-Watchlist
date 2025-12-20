@@ -1717,6 +1717,16 @@ tr:hover {
   backdrop-filter: blur(8px);
 }
 
+/*
+  Important: Many panels/cards use CSS transforms on hover (e.g. lifting effects).
+  A transformed ancestor becomes the containing block for `position: fixed`, which
+  can make modals appear centered within that container instead of the viewport.
+  While any modal is open, disable panel transforms so modals stay viewport-centered.
+*/
+body:has(.modal) .panel {
+  transform: none !important;
+}
+
 .modal-content {
   position: relative;
   background: linear-gradient(185deg, rgba(255, 255, 255, 0.97), rgba(246, 243, 255, 0.94));

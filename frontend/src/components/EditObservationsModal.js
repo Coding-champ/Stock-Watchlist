@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ObservationFields from './ObservationFields';
 import { useApi } from '../hooks/useApi';
+import ModalPortal from './ModalPortal';
 
 function EditObservationsModal({ stock, watchlistId, onClose, onSaved, onShowToast }) {
   const [observationReasons, setObservationReasons] = useState([]);
@@ -70,11 +71,12 @@ function EditObservationsModal({ stock, watchlistId, onClose, onSaved, onShowToa
   if (!stock) return null;
 
   return (
-    <div className="modal modal--overlay" onClick={onClose}>
-      <div className="modal-content modal-content--medium" onClick={(e) => e.stopPropagation()}>
-        <span className="close" onClick={onClose}>&times;</span>
-        <h2>Beobachtungen bearbeiten</h2>
-        <p className="modal-subtitle">{stock.name} ({stock.ticker_symbol})</p>
+    <ModalPortal>
+      <div className="modal modal--overlay" onClick={onClose}>
+        <div className="modal-content modal-content--medium" onClick={(e) => e.stopPropagation()}>
+          <span className="close" onClick={onClose}>&times;</span>
+          <h2>Beobachtungen bearbeiten</h2>
+          <p className="modal-subtitle">{stock.name} ({stock.ticker_symbol})</p>
 
         <form onSubmit={handleSave}>
           <ObservationFields
@@ -116,8 +118,9 @@ function EditObservationsModal({ stock, watchlistId, onClose, onSaved, onShowToa
             </div>
           </div>
         </form>
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }
 

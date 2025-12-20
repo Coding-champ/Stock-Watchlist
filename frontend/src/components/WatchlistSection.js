@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import '../styles/skeletons.css';
 import { useApi } from '../hooks/useApi';
+import ModalPortal from './ModalPortal';
 
 const getInitials = (name = '') => {
   const trimmed = (name || '').trim();
@@ -134,31 +135,33 @@ function WatchlistSection({ watchlists, currentWatchlist, onWatchlistSelect, onW
       </div>
 
       {showModal && (
-        <div className="modal" onClick={() => setShowModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <span className="close" onClick={() => setShowModal(false)}>&times;</span>
-            <h2>Neue Watchlist erstellen</h2>
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                />
-              </div>
-              <div className="form-group">
-                <label>Beschreibung</label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                />
-              </div>
-              <button type="submit" className="btn">Erstellen</button>
-            </form>
+        <ModalPortal>
+          <div className="modal" onClick={() => setShowModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <span className="close" onClick={() => setShowModal(false)}>&times;</span>
+              <h2>Neue Watchlist erstellen</h2>
+              <form onSubmit={handleSubmit}>
+                <div className="form-group">
+                  <label>Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Beschreibung</label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  />
+                </div>
+                <button type="submit" className="btn">Erstellen</button>
+              </form>
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </section>
   );

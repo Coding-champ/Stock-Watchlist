@@ -1,4 +1,5 @@
 import React from 'react';
+import ModalPortal from './ModalPortal';
 
 function DeleteConfirmationModal({ 
   selectedStockIds, 
@@ -7,8 +8,9 @@ function DeleteConfirmationModal({
   isDeleting 
 }) {
   return (
-    <div className="modal modal--overlay" onClick={onClose}>
-      <div className="modal-content modal-content--small" onClick={(e) => e.stopPropagation()}>
+    <ModalPortal>
+      <div className="modal modal--overlay" onClick={onClose}>
+        <div className="modal-content modal-content--small" onClick={(e) => e.stopPropagation()}>
         <span className="close" onClick={onClose}>&times;</span>
         <h2>Aktien löschen?</h2>
         <p className="modal-subtitle">
@@ -39,8 +41,9 @@ function DeleteConfirmationModal({
             {isDeleting ? 'Wird gelöscht...' : 'Löschen'}
           </button>
         </div>
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }
 

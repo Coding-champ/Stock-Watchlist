@@ -3,6 +3,7 @@ import '../styles/skeletons.css';
 import { formatPrice } from '../utils/currencyUtils';
 import ObservationFields from './ObservationFields';
 import { useApi } from '../hooks/useApi';
+import ModalPortal from './ModalPortal';
 
 const createInitialManualForm = () => ({
   isin: '',
@@ -256,8 +257,9 @@ function StockModal({ watchlistId, onClose, onStockAdded, onShowToast, initialTi
   };
 
   return (
-    <div className="modal" onClick={handleClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+    <ModalPortal>
+      <div className="modal" onClick={handleClose}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <span className="close" onClick={handleClose}>&times;</span>
         <h2>Aktie hinzufügen</h2>
 
@@ -474,8 +476,9 @@ function StockModal({ watchlistId, onClose, onStockAdded, onShowToast, initialTi
             )}
           </div>
         )}
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }
 

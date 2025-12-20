@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import AlertModal from './AlertModal';
 import EditObservationsModal from './EditObservationsModal';
+import ModalPortal from './ModalPortal';
 import { getLocalizedQuoteType } from '../utils/quoteTypeLabel';
 
 import API_BASE from '../config';
@@ -1201,104 +1202,108 @@ function StockTable({
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirmation && (
-        <div className="modal modal--overlay" onClick={() => setShowDeleteConfirmation(false)}>
-          <div className="modal-content modal-content--small" onClick={(e) => e.stopPropagation()}>
-            <span className="close" onClick={() => setShowDeleteConfirmation(false)}>&times;</span>
-            <h2>Aktien löschen?</h2>
-            <p className="modal-subtitle">
-              {selectedStockIds.size === 1 
-                ? 'Möchten Sie diese Aktie wirklich aus der Watchlist entfernen?'
-                : `Möchten Sie wirklich ${selectedStockIds.size} Aktien aus der Watchlist entfernen?`
-              }
-            </p>
-            <p style={{ color: '#6b7280', fontSize: '0.9rem', marginTop: '12px' }}>
-              Diese Aktion kann nicht rückgängig gemacht werden.
-            </p>
+        <ModalPortal>
+          <div className="modal modal--overlay" onClick={() => setShowDeleteConfirmation(false)}>
+            <div className="modal-content modal-content--small" onClick={(e) => e.stopPropagation()}>
+              <span className="close" onClick={() => setShowDeleteConfirmation(false)}>&times;</span>
+              <h2>Aktien löschen?</h2>
+              <p className="modal-subtitle">
+                {selectedStockIds.size === 1 
+                  ? 'Möchten Sie diese Aktie wirklich aus der Watchlist entfernen?'
+                  : `Möchten Sie wirklich ${selectedStockIds.size} Aktien aus der Watchlist entfernen?`
+                }
+              </p>
+              <p style={{ color: '#6b7280', fontSize: '0.9rem', marginTop: '12px' }}>
+                Diese Aktion kann nicht rückgängig gemacht werden.
+              </p>
 
-            <div className="modal-actions modal-actions--right" style={{ marginTop: '24px' }}>
-              <button
-                type="button"
-                className="btn btn--secondary"
-                onClick={() => setShowDeleteConfirmation(false)}
-                disabled={isDeleting}
-              >
-                Abbrechen
-              </button>
-              <button
-                type="button"
-                className="btn btn--danger"
-                onClick={deleteSelectedStocks}
-                disabled={isDeleting}
-              >
-                {isDeleting ? 'Wird gelöscht...' : 'Löschen'}
-              </button>
+              <div className="modal-actions modal-actions--right" style={{ marginTop: '24px' }}>
+                <button
+                  type="button"
+                  className="btn btn--secondary"
+                  onClick={() => setShowDeleteConfirmation(false)}
+                  disabled={isDeleting}
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--danger"
+                  onClick={deleteSelectedStocks}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? 'Wird gelöscht...' : 'Löschen'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Transfer (Move/Copy) Modal */}
       {showTransferModal && (
-        <div className="modal modal--overlay" onClick={() => setShowTransferModal(false)}>
-          <div className="modal-content modal-content--small" onClick={(e) => e.stopPropagation()}>
-            <span className="close" onClick={() => setShowTransferModal(false)}>&times;</span>
-            <h2>
-              {transferAction === 'move' ? 'Aktien verschieben' : 'Aktien kopieren'}
-            </h2>
-            <p className="modal-subtitle">
-              {selectedStockIds.size === 1 
-                ? `Diese Aktie in eine andere Watchlist ${transferAction === 'move' ? 'verschieben' : 'kopieren'}:`
-                : `${selectedStockIds.size} Aktien in eine andere Watchlist ${transferAction === 'move' ? 'verschieben' : 'kopieren'}:`
-              }
-            </p>
-
-            <div className="form-group" style={{ marginTop: '20px' }}>
-              <label htmlFor="target-watchlist">Ziel-Watchlist</label>
-              <select
-                id="target-watchlist"
-                value={selectedTargetWatchlist || ''}
-                onChange={(e) => setSelectedTargetWatchlist(Number(e.target.value))}
-                disabled={isTransferring}
-              >
-                {watchlists
-                  .filter(wl => wl.id !== currentWatchlistId)
-                  .map(wl => (
-                    <option key={wl.id} value={wl.id}>
-                      {wl.name}
-                    </option>
-                  ))
+        <ModalPortal>
+          <div className="modal modal--overlay" onClick={() => setShowTransferModal(false)}>
+            <div className="modal-content modal-content--small" onClick={(e) => e.stopPropagation()}>
+              <span className="close" onClick={() => setShowTransferModal(false)}>&times;</span>
+              <h2>
+                {transferAction === 'move' ? 'Aktien verschieben' : 'Aktien kopieren'}
+              </h2>
+              <p className="modal-subtitle">
+                {selectedStockIds.size === 1 
+                  ? `Diese Aktie in eine andere Watchlist ${transferAction === 'move' ? 'verschieben' : 'kopieren'}:`
+                  : `${selectedStockIds.size} Aktien in eine andere Watchlist ${transferAction === 'move' ? 'verschieben' : 'kopieren'}:`
                 }
-              </select>
-            </div>
-
-            {transferAction === 'move' && (
-              <p style={{ color: '#6b7280', fontSize: '0.9rem', marginTop: '12px' }}>
-                Die Aktien werden aus der aktuellen Watchlist entfernt.
               </p>
-            )}
 
-            <div className="modal-actions modal-actions--right" style={{ marginTop: '24px' }}>
-              <button
-                type="button"
-                className="btn btn--secondary"
-                onClick={() => setShowTransferModal(false)}
-                disabled={isTransferring}
-              >
-                Abbrechen
-              </button>
-              <button
-                type="button"
-                className="btn btn--primary"
-                onClick={confirmTransfer}
-                disabled={isTransferring || !selectedTargetWatchlist}
-              >
-                {isTransferring 
-                  ? `Wird ${transferAction === 'move' ? 'verschoben' : 'kopiert'}...` 
-                  : transferAction === 'move' ? 'Verschieben' : 'Kopieren'}
-              </button>
+              <div className="form-group" style={{ marginTop: '20px' }}>
+                <label htmlFor="target-watchlist">Ziel-Watchlist</label>
+                <select
+                  id="target-watchlist"
+                  value={selectedTargetWatchlist || ''}
+                  onChange={(e) => setSelectedTargetWatchlist(Number(e.target.value))}
+                  disabled={isTransferring}
+                >
+                  {watchlists
+                    .filter(wl => wl.id !== currentWatchlistId)
+                    .map(wl => (
+                      <option key={wl.id} value={wl.id}>
+                        {wl.name}
+                      </option>
+                    ))
+                  }
+                </select>
+              </div>
+
+              {transferAction === 'move' && (
+                <p style={{ color: '#6b7280', fontSize: '0.9rem', marginTop: '12px' }}>
+                  Die Aktien werden aus der aktuellen Watchlist entfernt.
+                </p>
+              )}
+
+              <div className="modal-actions modal-actions--right" style={{ marginTop: '24px' }}>
+                <button
+                  type="button"
+                  className="btn btn--secondary"
+                  onClick={() => setShowTransferModal(false)}
+                  disabled={isTransferring}
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={confirmTransfer}
+                  disabled={isTransferring || !selectedTargetWatchlist}
+                >
+                  {isTransferring 
+                    ? `Wird ${transferAction === 'move' ? 'verschoben' : 'kopiert'}...` 
+                    : transferAction === 'move' ? 'Verschieben' : 'Kopieren'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

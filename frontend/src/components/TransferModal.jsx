@@ -1,4 +1,5 @@
 import React from 'react';
+import ModalPortal from './ModalPortal';
 
 function TransferModal({ 
   selectedStockIds, 
@@ -12,8 +13,9 @@ function TransferModal({
   isTransferring 
 }) {
   return (
-    <div className="modal modal--overlay" onClick={onClose}>
-      <div className="modal-content modal-content--small" onClick={(e) => e.stopPropagation()}>
+    <ModalPortal>
+      <div className="modal modal--overlay" onClick={onClose}>
+        <div className="modal-content modal-content--small" onClick={(e) => e.stopPropagation()}>
         <span className="close" onClick={onClose}>&times;</span>
         <h2>
           {transferAction === 'move' ? 'Aktien verschieben' : 'Aktien kopieren'}
@@ -70,8 +72,9 @@ function TransferModal({
               : transferAction === 'move' ? 'Verschieben' : 'Kopieren'}
           </button>
         </div>
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }
 

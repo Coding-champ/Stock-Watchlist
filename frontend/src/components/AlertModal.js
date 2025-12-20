@@ -3,6 +3,7 @@ import '../styles/skeletons.css';
 import { useAlerts } from '../hooks/useAlerts';
 import API_BASE from '../config';
 import { getCurrencyForStock } from '../utils/currencyUtils';
+import ModalPortal from './ModalPortal';
 
 // Alarm-Typen mit deutschen Bezeichnungen
 const getAlertTypes = (stock) => [
@@ -202,8 +203,9 @@ function AlertModal({ stock, existingAlert = null, onClose, onAlertSaved }) {
   const currentUnit = selectedAlertType?.unit || '';
 
   return (
-    <div className="modal" onClick={onClose}>
-      <div className="modal-content alert-modal" onClick={(e) => e.stopPropagation()}>
+    <ModalPortal>
+      <div className="modal" onClick={onClose}>
+        <div className="modal-content alert-modal" onClick={(e) => e.stopPropagation()}>
         <span className="close" onClick={onClose}>&times;</span>
         
         <h2>
@@ -435,8 +437,9 @@ function AlertModal({ stock, existingAlert = null, onClose, onAlertSaved }) {
           💡 <strong>Hinweis:</strong> Der Alarm wird ausgelöst, wenn die Bedingung erfüllt ist.
           {!isEditMode && ' Sie können mehrere Alarme für eine Aktie erstellen.'}
         </div>
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }
 
