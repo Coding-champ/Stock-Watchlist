@@ -10,7 +10,7 @@ from sqlalchemy import func
 from sqlalchemy import and_, desc
 import logging
 
-from backend.app.models import MarketIndex, AssetType
+from backend.app.models import MarketIndex, AssetType, StockPriceData
 from backend.app.services.asset_price_service import AssetPriceService
 from backend.app.services.index_constituent_service import IndexConstituentService
 
@@ -298,11 +298,13 @@ class IndexService:
     def get_index_top_flops(
         self,
         ticker_symbol: str,
-        limit: int = 5
+        limit: Optional[int] = None
     ) -> Dict[str, Any]:
         """Return top and flop movers for an index based on daily % change.
 
         Uses last two available daily closes for each active constituent.
+
+        If `limit` is `None`, all available movers are returned (no artificial cap).
         """
         index = self.get_index_by_symbol(ticker_symbol)
         if not index:
@@ -314,10 +316,12 @@ class IndexService:
 
         for c in constituents:
             sym = c.stock.ticker_symbol
-            recs = self.asset_price_service.get_price_data(
-                ticker_symbol=sym,
-                asset_type=AssetType.STOCK,
-                limit=2
+            recs = (
+                self.db.query(StockPriceData)
+                .filter(StockPriceData.stock_id == c.stock_id)
+                .order_by(desc(StockPriceData.date))
+                .limit(2)
+                .all()
             )
             if not recs or len(recs) < 2:
                 continue
@@ -339,10 +343,21 @@ class IndexService:
                 "change_pct": round(change_pct, 2),
             })
 
-        # Sort and slice
+        # Sort all movers by percent change
         movers_sorted = sorted(movers, key=lambda x: x["change_pct"], reverse=True)
-        top = movers_sorted[: max(0, limit)]
-        flops = sorted(movers, key=lambda x: x["change_pct"])[: max(0, limit)]
+
+        # Apply limiting
+        if limit is None:
+            # Return all movers
+            top = movers_sorted
+            flops = list(reversed(movers_sorted))
+        else:
+            count = max(0, int(limit))
+            # Top N best performers
+            top = movers_sorted[:count]
+            # Bottom N worst performers
+            flops = movers_sorted[-count:] if count <= len(movers_sorted) else []
+            flops.reverse()  # Show worst first
 
         return {
             "date": latest_ref_date.isoformat() if latest_ref_date else None,

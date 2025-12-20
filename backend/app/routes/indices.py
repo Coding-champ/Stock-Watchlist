@@ -653,10 +653,13 @@ def get_index_statistics(
 @router.get("/{ticker_symbol}/top-flops")
 def get_index_top_flops(
     ticker_symbol: str,
-    limit: int = Query(5, ge=1, le=20, description="Number of items for top/flops each"),
+    limit: Optional[int] = Query(None, ge=1, le=1000, description="Number of items for top/flops each (omit to return all)"),
     db: Session = Depends(get_db)
 ):
-    """Return top and flop movers for the given index using daily percent change."""
+    """Return top and flop movers for the given index using daily percent change.
+
+    If `limit` is omitted, the endpoint returns all available movers.
+    """
     try:
         index_service = IndexService(db)
         result = index_service.get_index_top_flops(ticker_symbol, limit=limit)

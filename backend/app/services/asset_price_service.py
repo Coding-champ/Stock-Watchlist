@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 import logging
 
-from backend.app.models import AssetPriceData, AssetType
+from backend.app.models import AssetPriceData, AssetType, Stock, StockPriceData
 
 logger = logging.getLogger(__name__)
 
@@ -210,8 +210,49 @@ class AssetPriceService:
         
         if limit:
             query = query.limit(limit)
-        
-        return query.all()
+
+        results = query.all()
+
+        # Fallback for legacy stock storage: if there is no data in the universal
+        # asset_price_data table for stocks, read from stock_price_data.
+        if results or asset_type != AssetType.STOCK:
+            return results
+
+        stock = self.db.query(Stock).filter(Stock.ticker_symbol == ticker_symbol).first()
+        if not stock:
+            return []
+
+        sp_query = self.db.query(StockPriceData).filter(StockPriceData.stock_id == stock.id)
+        if start_date:
+            sp_query = sp_query.filter(StockPriceData.date >= start_date)
+        if end_date:
+            sp_query = sp_query.filter(StockPriceData.date <= end_date)
+
+        sp_query = sp_query.order_by(desc(StockPriceData.date))
+        if limit:
+            sp_query = sp_query.limit(limit)
+
+        stock_rows = sp_query.all()
+
+        # Map legacy rows to transient AssetPriceData objects for a consistent API.
+        return [
+            AssetPriceData(
+                asset_type=AssetType.STOCK,
+                ticker_symbol=ticker_symbol,
+                date=r.date,
+                open=r.open,
+                high=r.high,
+                low=r.low,
+                close=r.close,
+                volume=r.volume,
+                adjusted_close=r.adjusted_close,
+                dividends=r.dividends or 0.0,
+                stock_splits=r.stock_splits,
+                exchange=r.exchange,
+                currency=r.currency,
+            )
+            for r in stock_rows
+        ]
     
     def get_latest_price(
         self,
@@ -228,12 +269,23 @@ class AssetPriceService:
         Returns:
             Most recent AssetPriceData record or None
         """
-        return self.db.query(AssetPriceData).filter(
+        record = self.db.query(AssetPriceData).filter(
             and_(
                 AssetPriceData.asset_type == asset_type,
                 AssetPriceData.ticker_symbol == ticker_symbol
             )
         ).order_by(desc(AssetPriceData.date)).first()
+
+        if record or asset_type != AssetType.STOCK:
+            return record
+
+        # Fallback to legacy stock_price_data
+        legacy = self.get_price_data(
+            ticker_symbol=ticker_symbol,
+            asset_type=AssetType.STOCK,
+            limit=1
+        )
+        return legacy[0] if legacy else None
     
     def get_price_on_date(
         self,
@@ -252,13 +304,50 @@ class AssetPriceService:
         Returns:
             AssetPriceData record or None
         """
-        return self.db.query(AssetPriceData).filter(
+        record = self.db.query(AssetPriceData).filter(
             and_(
                 AssetPriceData.asset_type == asset_type,
                 AssetPriceData.ticker_symbol == ticker_symbol,
                 AssetPriceData.date == target_date
             )
         ).first()
+
+        if record or asset_type != AssetType.STOCK:
+            return record
+
+        # Fallback to legacy stock_price_data
+        stock = self.db.query(Stock).filter(Stock.ticker_symbol == ticker_symbol).first()
+        if not stock:
+            return None
+
+        legacy_row = (
+            self.db.query(StockPriceData)
+            .filter(
+                and_(
+                    StockPriceData.stock_id == stock.id,
+                    StockPriceData.date == target_date,
+                )
+            )
+            .first()
+        )
+        if not legacy_row:
+            return None
+
+        return AssetPriceData(
+            asset_type=AssetType.STOCK,
+            ticker_symbol=ticker_symbol,
+            date=legacy_row.date,
+            open=legacy_row.open,
+            high=legacy_row.high,
+            low=legacy_row.low,
+            close=legacy_row.close,
+            volume=legacy_row.volume,
+            adjusted_close=legacy_row.adjusted_close,
+            dividends=legacy_row.dividends or 0.0,
+            stock_splits=legacy_row.stock_splits,
+            exchange=legacy_row.exchange,
+            currency=legacy_row.currency,
+        )
     
     def delete_price_data(
         self,
