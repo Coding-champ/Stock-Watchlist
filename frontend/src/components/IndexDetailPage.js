@@ -2,6 +2,7 @@ import React from 'react';
 import { useIndexDetails, useIndexConstituents } from '../hooks/useIndices';
 import { useIndexStatistics } from '../hooks/useIndexStatistics';
 import { useApi } from '../hooks/useApi';
+import { formatPriceWithCurrencyCode, formatVolume, humanizeIdentifier } from '../utils/formatting';
 import IndexChart from './IndexChart';
 import SectorBreakdown from './SectorBreakdown';
 import TopFlopsPanel from './TopFlopsPanel';
@@ -71,16 +72,19 @@ function IndexDetailPage({ index, onBack, onOpenStock }) {
           <div className="index-title-section">
             <h1>{details.name}</h1>
             <div className="index-meta">
-              <span className="index-symbol">{details.ticker_symbol}</span>
-              {details.region && <span className="index-region">{details.region}</span>}
-              {details.index_type && <span className="index-type">{details.index_type}</span>}
+              {details.ticker_symbol && <span className="index-badge index-symbol">{details.ticker_symbol}</span>}
+              {details.region && <span className="index-badge">{details.region}</span>}
+              {details.index_type && <span className="index-badge">{humanizeIdentifier(details.index_type)}</span>}
+              {details.constituent_count != null && <span className="index-badge">{details.constituent_count} Bestandteile</span>}
+              {details.calculation_method && <span className="index-badge">{humanizeIdentifier(details.calculation_method)}</span>}
+              {details.benchmark_index && <span className="index-badge">Benchmark: {details.benchmark_index}</span>}
             </div>
           </div>
 
           {details.latest_price && (
             <div className="index-price-section">
               <div className="current-price">
-                {formatPrice(details.latest_price.close, details.latest_price.currency, details.ticker_symbol)}
+                {formatPriceWithCurrencyCode(details.latest_price.close, details.latest_price.currency, details.ticker_symbol)}
               </div>
               <div className="price-date">
                 {new Date(details.latest_price.date).toLocaleDateString('de-DE')}
@@ -96,24 +100,6 @@ function IndexDetailPage({ index, onBack, onOpenStock }) {
           <p>{details.description}</p>
         </div>
       )}
-
-      {/* Stats Cards */}
-      <div className="index-stats-grid">
-        <div className="stat-card">
-          <div className="stat-label">Bestandteile</div>
-          <div className="stat-value">{details.constituent_count || 0}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Berechnungsmethode</div>
-          <div className="stat-value">{details.calculation_method || '-'}</div>
-        </div>
-        {details.benchmark_index && (
-          <div className="stat-card">
-            <div className="stat-label">Benchmark</div>
-            <div className="stat-value">{details.benchmark_index}</div>
-          </div>
-        )}
-      </div>
 
       <div className="index-chart-section">
         <h2>Chart</h2>
@@ -200,20 +186,6 @@ function IndexDetailPage({ index, onBack, onOpenStock }) {
                   </div>
                 )}
                 <div className="stat-card">
-                  <div className="stat-label">Max. Drawdown</div>
-                  <div className="stat-value negative">{statistics.max_drawdown}%</div>
-                  {statistics.max_drawdown_period && (
-                    <div className="stat-meta">
-                      {new Date(statistics.max_drawdown_period.peak_date).toLocaleDateString('de-DE')} - {new Date(statistics.max_drawdown_period.trough_date).toLocaleDateString('de-DE')}
-                    </div>
-                  )}
-                  {statistics.max_drawdown_recovery_days != null && (
-                    <div className="stat-meta">
-                      {statistics.max_drawdown_recovery_days === null ? 'Noch keine Erholung' : `Erholung: ${statistics.max_drawdown_recovery_days} Tage${statistics.max_drawdown_recovery_date ? ' (bis ' + new Date(statistics.max_drawdown_recovery_date).toLocaleDateString('de-DE') + ')' : ''}`}
-                    </div>
-                  )}
-                </div>
-                <div className="stat-card">
                   <div className="stat-label">Aktueller Drawdown</div>
                   <div className={`stat-value ${statistics.current_drawdown >= 0 ? 'positive' : 'negative'}`}>
                     {statistics.current_drawdown}%
@@ -227,6 +199,20 @@ function IndexDetailPage({ index, onBack, onOpenStock }) {
                     <div className="stat-meta">Dauer: {statistics.current_drawdown_duration_days} Tage</div>
                   )}
                 </div>
+                <div className="stat-card">
+                  <div className="stat-label">Max. Drawdown</div>
+                  <div className="stat-value negative">{statistics.max_drawdown}%</div>
+                  {statistics.max_drawdown_period && (
+                    <div className="stat-meta">
+                      {new Date(statistics.max_drawdown_period.peak_date).toLocaleDateString('de-DE')} - {new Date(statistics.max_drawdown_period.trough_date).toLocaleDateString('de-DE')}
+                    </div>
+                  )}
+                  {statistics.max_drawdown_recovery_days != null && (
+                    <div className="stat-meta">
+                      {statistics.max_drawdown_recovery_days === null ? 'Noch keine Erholung' : `Erholung: ${statistics.max_drawdown_recovery_days} Tage${statistics.max_drawdown_recovery_date ? ' (bis ' + new Date(statistics.max_drawdown_recovery_date).toLocaleDateString('de-DE') + ')' : ''}`}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -234,20 +220,18 @@ function IndexDetailPage({ index, onBack, onOpenStock }) {
             <div className="stats-category">
               <h3>Weitere Kennzahlen</h3>
               <div className="stats-grid">
-                <div className="stat-card">
-                  <div className="stat-label">Bester Tag</div>
-                  <div className="stat-value positive">+{statistics.best_day}%</div>
-                  {statistics.best_day_date && (
-                    <div className="stat-meta">{new Date(statistics.best_day_date).toLocaleDateString('de-DE')}</div>
-                  )}
-                </div>
-                <div className="stat-card">
-                  <div className="stat-label">Schlechtester Tag</div>
-                  <div className="stat-value negative">{statistics.worst_day}%</div>
-                  {statistics.worst_day_date && (
-                    <div className="stat-meta">{new Date(statistics.worst_day_date).toLocaleDateString('de-DE')}</div>
-                  )}
-                </div>
+                {statistics.average_volume && (
+                  <div className="stat-card">
+                    <div className="stat-label">Ø Volumen</div>
+                    <div className="stat-value">{formatVolume(statistics.average_volume)}</div>
+                  </div>
+                )}
+                {statistics.new_aths_ytd != null && (
+                  <div className="stat-card">
+                    <div className="stat-label">Neue ATHs (YTD)</div>
+                    <div className="stat-value">{statistics.new_aths_ytd}</div>
+                  </div>
+                )}
                 {statistics.positive_days_pct !== null && (
                   <div className="stat-card">
                     <div className="stat-label">Positive Tage</div>
@@ -268,18 +252,20 @@ function IndexDetailPage({ index, onBack, onOpenStock }) {
                   <div className="stat-label">Allzeittief</div>
                   <div className="stat-value">{statistics.all_time_low?.toFixed(2)}</div>
                 </div>
-                {statistics.average_volume && (
-                  <div className="stat-card">
-                    <div className="stat-label">Ø Volumen</div>
-                    <div className="stat-value">{formatVolume(statistics.average_volume)}</div>
-                  </div>
-                )}
-                {statistics.new_aths_ytd != null && (
-                  <div className="stat-card">
-                    <div className="stat-label">Neue ATHs (YTD)</div>
-                    <div className="stat-value">{statistics.new_aths_ytd}</div>
-                  </div>
-                )}
+                <div className="stat-card">
+                  <div className="stat-label">Bester Tag</div>
+                  <div className="stat-value positive">+{statistics.best_day}%</div>
+                  {statistics.best_day_date && (
+                    <div className="stat-meta">{new Date(statistics.best_day_date).toLocaleDateString('de-DE')}</div>
+                  )}
+                </div>
+                <div className="stat-card">
+                  <div className="stat-label">Schlechtester Tag</div>
+                  <div className="stat-value negative">{statistics.worst_day}%</div>
+                  {statistics.worst_day_date && (
+                    <div className="stat-meta">{new Date(statistics.worst_day_date).toLocaleDateString('de-DE')}</div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -293,6 +279,15 @@ function IndexDetailPage({ index, onBack, onOpenStock }) {
 
       {/* Sector Breakdown */}
       <SectorBreakdown tickerSymbol={details.ticker_symbol} />
+
+      {/* Tops / Flops des Tages: direkt vor Marktbreite */}
+      <TopFlopsPanel symbol={details.ticker_symbol} onOpenStock={onOpenStock} />
+
+      {/* Marktbreite separat unterhalb der Bestandteile */}
+      <div className="market-breadth-section" style={{ marginTop: '32px' }}>
+        <h2>Marktbreite</h2>
+        <MarketBreadthDashboard symbol={details.ticker_symbol} days={90} />
+      </div>
 
       {/* Constituents Table */}
       {constituentsError && (
@@ -313,8 +308,8 @@ function IndexDetailPage({ index, onBack, onOpenStock }) {
                   <tr>
                     <th>Symbol</th>
                     <th>Name</th>
+                    <th>Sektor</th>
                     <th>Gewichtung</th>
-                    <th>Status</th>
                     <th>Hinzugefügt</th>
                   </tr>
                 </thead>
@@ -329,13 +324,9 @@ function IndexDetailPage({ index, onBack, onOpenStock }) {
                     >
                       <td className="ticker">{constituent.ticker_symbol}</td>
                       <td className="name">{constituent.name}</td>
+                      <td className="sector">{constituent.sector || '-'}</td>
                       <td className="weight">
                         {constituent.weight ? `${constituent.weight.toFixed(2)}%` : '-'}
-                      </td>
-                      <td>
-                        <span className={`status-badge status-${constituent.status}`}>
-                          {constituent.status}
-                        </span>
                       </td>
                       <td className="date">
                         {new Date(constituent.date_added).toLocaleDateString('de-DE')}
@@ -348,43 +339,8 @@ function IndexDetailPage({ index, onBack, onOpenStock }) {
           )}
         </div>
       )}
-
-      {/* Tops / Flops des Tages: direkt vor Marktbreite */}
-      <TopFlopsPanel symbol={details.ticker_symbol} onOpenStock={onOpenStock} />
-
-      {/* Marktbreite separat unterhalb der Bestandteile */}
-      <div className="market-breadth-section" style={{ marginTop: '32px' }}>
-        <h2>Marktbreite</h2>
-        <MarketBreadthDashboard symbol={details.ticker_symbol} days={30} />
-      </div>
     </div>
   );
-}
-
-function formatPrice(price, currency = 'USD', tickerSymbol = '') {
-  if (price == null) return '-';
-  const formatted = new Intl.NumberFormat('de-DE', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(price);
-  const t = (tickerSymbol || '').toUpperCase();
-  if (t.startsWith('^')) {
-    return `${formatted} Punkte`;
-  }
-  return `${formatted} ${currency || ''}`.trim();
-}
-
-function formatVolume(volume) {
-  if (volume == null) return '-';
-  
-  if (volume >= 1e9) {
-    return `${(volume / 1e9).toFixed(2)}B`;
-  } else if (volume >= 1e6) {
-    return `${(volume / 1e6).toFixed(2)}M`;
-  } else if (volume >= 1e3) {
-    return `${(volume / 1e3).toFixed(2)}K`;
-  }
-  return volume.toLocaleString('de-DE');
 }
 
 export default IndexDetailPage;

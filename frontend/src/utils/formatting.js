@@ -1,6 +1,83 @@
 import { formatPrice } from './currencyUtils';
 
 /**
+ * Format a price as "12.345,67 USD" (or "12.345,67 Punkte" for indices starting with ^)
+ * This keeps the legacy formatting used in Index* components.
+ */
+export function formatPriceWithCurrencyCode(price, currency = 'USD', tickerSymbol = '', options = {}) {
+  const {
+    locale = 'de-DE',
+    decimals = 2,
+    nullValue = '-'
+  } = options;
+
+  if (price == null || Number.isNaN(Number(price))) return nullValue;
+
+  let formatted;
+  try {
+    formatted = new Intl.NumberFormat(locale, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    }).format(Number(price));
+  } catch (e) {
+    formatted = String(price);
+  }
+
+  const t = (tickerSymbol || '').toUpperCase();
+  if (t.startsWith('^')) {
+    return `${formatted} Punkte`;
+  }
+
+  return `${formatted} ${currency || ''}`.trim();
+}
+
+/**
+ * Format large numbers into compact B/M/K style (e.g., 1.23B)
+ */
+export function formatCompactNumber(value, options = {}) {
+  const { decimals = 2, locale = 'de-DE', nullValue = '-' } = options;
+  if (value == null || Number.isNaN(Number(value))) return nullValue;
+
+  const n = Number(value);
+  if (n >= 1e9) return `${(n / 1e9).toFixed(decimals)}B`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(decimals)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(decimals)}K`;
+  return n.toLocaleString(locale);
+}
+
+// Backward-compatible alias for existing local helpers
+export function formatVolume(volume, options = {}) {
+  return formatCompactNumber(volume, options);
+}
+
+/**
+ * Convert snake_case identifiers into a more human-friendly display string.
+ * Example: "market_cap_weighted" -> "Market Cap Weighted"
+ */
+export function humanizeIdentifier(value, options = {}) {
+  const { nullValue = '-', titleCase = true } = options;
+  if (value == null) return nullValue;
+
+  const raw = String(value).trim();
+  if (!raw) return nullValue;
+
+  const spaced = raw.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!titleCase) return spaced;
+
+  return spaced
+    .split(' ')
+    .map((word) => {
+      if (!word) return '';
+      // keep acronyms / already-uppercase words as-is
+      if (word === word.toUpperCase()) return word;
+      // keep words with digits as-is (e.g. "SMA200")
+      if (/\d/.test(word)) return word;
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ');
+}
+
+/**
  * Format a timestamp to German locale date and time
  * @param {number|Date|string} timestamp - The timestamp to format
  * @returns {string} Formatted date and time string

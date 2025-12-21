@@ -137,6 +137,31 @@
   font-family: monospace;
 }
 
+.mini-bar-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.mini-bar {
+  width: 120px;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.mini-bar__fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.mini-bar__value {
+  min-width: 54px;
+  text-align: right;
+}
+
 .top-stocks {
   display: flex;
   gap: 6px;

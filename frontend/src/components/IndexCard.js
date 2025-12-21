@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatPriceWithCurrencyCode } from '../utils/formatting';
 import './IndexCard.css';
 
 function IndexCard({ index, onClick }) {
@@ -21,7 +22,7 @@ function IndexCard({ index, onClick }) {
         {latestPrice ? (
           <>
             <div className="index-price">
-              {formatPrice(latestPrice.close, latestPrice.currency, index.ticker_symbol)}
+              {formatPriceWithCurrencyCode(latestPrice.close, latestPrice.currency, index.ticker_symbol)}
             </div>
             {changePercent !== null && (
               <div className={`index-change ${isPositive ? 'positive' : isNegative ? 'negative' : ''}`}>
@@ -53,19 +54,6 @@ function calculateChange(priceData) {
     return { absolute: change, percent };
   }
   return null;
-}
-
-function formatPrice(price, currency = 'USD', tickerSymbol = '') {
-  if (price == null) return '-';
-  const formatted = new Intl.NumberFormat('de-DE', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(price);
-  const t = (tickerSymbol || '').toUpperCase();
-  if (t.startsWith('^')) {
-    return `${formatted} Punkte`;
-  }
-  return `${formatted} ${currency || ''}`.trim();
 }
 
 export default IndexCard;

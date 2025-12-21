@@ -396,6 +396,7 @@ def get_index_constituents(
                 "stock_id": constituent.stock_id,
                 "ticker_symbol": constituent.stock.ticker_symbol,
                 "name": constituent.stock.name,
+                "sector": constituent.stock.sector,
                 "weight": constituent.weight,
                 "status": constituent.status,
                 "date_added": constituent.date_added.isoformat(),

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { ResponsiveContainer, Treemap } from 'recharts';
 import { useIndexSectorBreakdown } from '../hooks/useIndexSectorBreakdown';
 import './SectorBreakdown.css';
 
@@ -8,6 +8,31 @@ const COLORS = [
   '#0891b2', '#4f46e5', '#db2777', '#65a30d', '#ca8a04',
   '#0d9488', '#7e22ce', '#be123c', '#059669', '#b45309'
 ];
+
+function TreemapContent(props) {
+  const { x, y, width, height, index, name, percentage } = props;
+  const fill = COLORS[index % COLORS.length];
+  const pad = 6;
+
+  // Avoid rendering labels when tiles are too small
+  const canRenderLabel = width > 80 && height > 36;
+
+  return (
+    <g>
+      <rect x={x} y={y} width={width} height={height} fill={fill} opacity={0.9} stroke="rgba(255,255,255,0.8)" />
+      {canRenderLabel && (
+        <>
+          <text x={x + pad} y={y + pad + 12} fill="#ffffff" fontSize={12} fontWeight={700}>
+            {name}
+          </text>
+          <text x={x + pad} y={y + pad + 28} fill="rgba(255,255,255,0.92)" fontSize={11}>
+            {Number.isFinite(percentage) ? `${percentage.toFixed(1)}%` : ''}
+          </text>
+        </>
+      )}
+    </g>
+  );
+}
 
 function SectorBreakdown({ tickerSymbol }) {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -44,7 +69,13 @@ function SectorBreakdown({ tickerSymbol }) {
     return null;
   }
 
-  const topSectors = data.sectors.slice(0, 5);
+  const treemapData = data.sectors.map((s) => ({
+    name: s.sector,
+    size: s.percentage,
+    percentage: s.percentage,
+    weight: s.weight,
+    count: s.count,
+  }));
 
   return (
     <div className="sector-breakdown">
@@ -67,84 +98,72 @@ function SectorBreakdown({ tickerSymbol }) {
           </div>
 
           <div className="sector-visuals">
-            {/* Pie Chart */}
+            {/* Treemap (tree chart) */}
             <div className="sector-chart">
               <h3>Sektor-Verteilung</h3>
               <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={data.sectors}
-                    dataKey="percentage"
-                    nameKey="sector"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    label={({ sector, percentage }) => `${sector}: ${percentage}%`}
-                  >
-                    {data.sectors.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => `${value}%`} />
-                </PieChart>
+                <Treemap
+                  data={treemapData}
+                  dataKey="size"
+                  nameKey="name"
+                  aspectRatio={4 / 3}
+                  isAnimationActive={false}
+                  content={<TreemapContent />}
+                />
               </ResponsiveContainer>
             </div>
 
-            {/* Top Sectors Bar Chart */}
+            {/* Table + mini-bars (replaced bar chart) */}
             <div className="sector-chart">
-              <h3>Top 5 Sektoren (Gewichtung)</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={topSectors} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" unit="%" />
-                  <YAxis dataKey="sector" type="category" width={120} />
-                  <Tooltip formatter={(value) => `${value}%`} />
-                  <Bar dataKey="percentage" fill="#2563eb">
-                    {topSectors.map((entry, index) => (
-                      <Cell key={`bar-${index}`} fill={COLORS[index]} />
+              <h3>Sektoren</h3>
+              <div className="sector-table-wrapper">
+                <table className="sector-table">
+                  <thead>
+                    <tr>
+                      <th>Sektor</th>
+                      <th>Anzahl</th>
+                      <th>Gewichtung</th>
+                      <th>Top Aktien</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.sectors.map((sector, idx) => (
+                      <tr key={idx}>
+                        <td>
+                          <span className="sector-color-dot" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></span>
+                          {sector.sector}
+                        </td>
+                        <td className="center">{sector.count}</td>
+                        <td className="right">
+                          <div className="mini-bar-cell">
+                            <div className="mini-bar" aria-hidden="true">
+                              <div
+                                className="mini-bar__fill"
+                                style={{
+                                  width: `${Math.max(0, Math.min(100, sector.percentage || 0))}%`,
+                                  backgroundColor: COLORS[idx % COLORS.length]
+                                }}
+                              />
+                            </div>
+                            <span className="mini-bar__value">{sector.percentage.toFixed(2)}%</span>
+                          </div>
+                        </td>
+                        <td className="top-stocks">
+                          {sector.top_stocks.slice(0, 3).map((stock, i) => (
+                            <span key={i} className="stock-chip" title={stock.name}>
+                              {stock.ticker_symbol}
+                            </span>
+                          ))}
+                          {sector.top_stocks.length > 3 && (
+                            <span className="stock-chip more">+{sector.top_stocks.length - 3}</span>
+                          )}
+                        </td>
+                      </tr>
                     ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-
-          {/* Sector Table */}
-          <div className="sector-table-wrapper">
-            <table className="sector-table">
-              <thead>
-                <tr>
-                  <th>Sektor</th>
-                  <th>Anzahl</th>
-                  <th>Gewichtung</th>
-                  <th>%</th>
-                  <th>Top Aktien</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.sectors.map((sector, idx) => (
-                  <tr key={idx}>
-                    <td>
-                      <span className="sector-color-dot" style={{backgroundColor: COLORS[idx % COLORS.length]}}></span>
-                      {sector.sector}
-                    </td>
-                    <td className="center">{sector.count}</td>
-                    <td className="right">{sector.weight.toFixed(2)}</td>
-                    <td className="right">{sector.percentage.toFixed(2)}%</td>
-                    <td className="top-stocks">
-                      {sector.top_stocks.slice(0, 3).map((stock, i) => (
-                        <span key={i} className="stock-chip" title={stock.name}>
-                          {stock.ticker_symbol}
-                        </span>
-                      ))}
-                      {sector.top_stocks.length > 3 && (
-                        <span className="stock-chip more">+{sector.top_stocks.length - 3}</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
       )}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useIndexTopFlops } from '../hooks/useIndexTopFlops';
 import { useApi } from '../hooks/useApi';
+import { formatPriceWithCurrencyCode } from '../utils/formatting';
 
 function ArrowPill({ dir }) {
   const up = dir === 'up';
@@ -74,21 +75,11 @@ function ItemCard({ item, positive }){
           {item.change_pct > 0 ? '+' : ''}{item.change_pct.toFixed(2)} %
         </div>
         <div style={{fontSize:12, color:'var(--text-muted)', marginTop:2}}>
-          {formatPrice(item.last_price, item.currency)}
+          {formatPriceWithCurrencyCode(item.last_price, item.currency, item.ticker || item.ticker_symbol, { nullValue: '—' })}
         </div>
       </div>
     </div>
   );
-}
-
-function formatPrice(price, currency) {
-  if (price == null) return '—';
-  try {
-    const formatted = new Intl.NumberFormat('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}).format(price);
-    return `${formatted} ${currency||''}`.trim();
-  } catch {
-    return `${price} ${currency||''}`.trim();
-  }
 }
 
 function SkeletonCard() {
@@ -179,11 +170,10 @@ export default function TopFlopsPanel({ symbol, limit=5, onOpenStock }){
       <div className="panel__body">
         {error && <div style={{color:'var(--danger-color)'}}>Fehler: {String(error.message||error)}</div>}
         {isLoading ? (
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:16}}>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:18}}>
             <div>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8}}>
                 <ArrowPill dir="up"/>
-                <span style={{fontSize:12, color:'var(--text-muted)'}}>Top {limit}</span>
               </div>
               <div style={{display:'grid', gap:10}}>
                 {Array.from({length:limit}).map((_, i) => <SkeletonCard key={i} />)}
@@ -192,7 +182,6 @@ export default function TopFlopsPanel({ symbol, limit=5, onOpenStock }){
             <div>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8}}>
                 <ArrowPill dir="down"/>
-                <span style={{fontSize:12, color:'var(--text-muted)'}}>Flop {limit}</span>
               </div>
               <div style={{display:'grid', gap:10}}>
                 {Array.from({length:limit}).map((_, i) => <SkeletonCard key={i} />)}
@@ -200,11 +189,10 @@ export default function TopFlopsPanel({ symbol, limit=5, onOpenStock }){
             </div>
           </div>
         ) : !error && (
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:16}}>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:18}}>
             <div>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8}}>
                 <ArrowPill dir="up"/>
-                <span style={{fontSize:12, color:'var(--text-muted)'}}>Top {limit}</span>
               </div>
               <div style={{display:'grid', gap:10}}>
                 {top.slice(0, limit).map((it) => (
@@ -217,7 +205,6 @@ export default function TopFlopsPanel({ symbol, limit=5, onOpenStock }){
             <div>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8}}>
                 <ArrowPill dir="down"/>
-                <span style={{fontSize:12, color:'var(--text-muted)'}}>Flop {limit}</span>
               </div>
               <div style={{display:'grid', gap:10}}>
                 {flops.slice(0, limit).map((it) => (
