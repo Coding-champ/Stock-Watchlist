@@ -755,6 +755,7 @@ def get_index_sector_breakdown(
 def get_index_breadth(
     ticker_symbol: str,
     date_param: Optional[str] = Query(None, description="Date (YYYY-MM-DD) for point-in-time breadth; defaults to today"),
+    mode: str = Query("sma200", description="Breadth mode: sma200 (close vs SMA200), classic (close-to-close), mcclellan (classic A/D for snapshot; oscillator via history)"),
     db: Session = Depends(get_db)
 ):
     """Return advance/decline and new highs/lows snapshot for an index."""
@@ -770,11 +771,16 @@ def get_index_breadth(
                 target_date = _dt.strptime(date_param, "%Y-%m-%d").date()
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid date format; expected YYYY-MM-DD")
+        mode = (mode or "sma200").lower().strip()
+        if mode not in {"sma200", "classic", "mcclellan"}:
+            raise HTTPException(status_code=400, detail="Invalid mode; expected one of: sma200, classic, mcclellan")
         service = MarketBreadthService(db)
-        adv_dec = service.calculate_advance_decline(index.id, target_date)
+        base_mode = "classic" if mode == "mcclellan" else mode
+        adv_dec = service.calculate_advance_decline(index.id, target_date, mode=base_mode)
         highs_lows = service.get_new_highs_lows(index.id, target_date)
         return {
             "index": ticker_symbol,
+            "mode": mode,
             "advance_decline": adv_dec,
             "new_highs_lows": highs_lows
         }
@@ -790,6 +796,7 @@ def get_index_breadth_history(
     ticker_symbol: str,
     days: int = Query(30, description="Number of days for breadth history (max 90)"),
     include_mcclellan: bool = Query(False, description="Include McClellan oscillator data"),
+    mode: str = Query("sma200", description="Breadth mode: sma200 (close vs SMA200), classic (close-to-close), mcclellan (classic A/D + oscillator)"),
     db: Session = Depends(get_db)
 ):
     """Return historical breadth (advancing vs declining) counts for the index."""
@@ -798,12 +805,19 @@ def get_index_breadth_history(
         index = index_service.get_index_by_symbol(ticker_symbol)
         if not index:
             raise HTTPException(status_code=404, detail="Index not found")
+        mode = (mode or "sma200").lower().strip()
+        if mode not in {"sma200", "classic", "mcclellan"}:
+            raise HTTPException(status_code=400, detail="Invalid mode; expected one of: sma200, classic, mcclellan")
         service = MarketBreadthService(db)
-        history = service.calculate_advance_decline_history(index.id, days=days)
+        base_mode = "classic" if mode == "mcclellan" else mode
+        if mode == "mcclellan":
+            include_mcclellan = True
+        history = service.calculate_advance_decline_history(index.id, days=days, mode=base_mode)
         if history.get("error"):
             raise HTTPException(status_code=400, detail=history["error"])
+        history["mode"] = mode
         if include_mcclellan:
-            osc = service.calculate_mcclellan_oscillator(index.id, days=min(days, 90))
+            osc = service.calculate_mcclellan_oscillator(index.id, days=min(days, 90), mode=base_mode)
             if "mcclellan" in osc:
                 history["mcclellan_oscillator"] = osc["mcclellan"]
         return history

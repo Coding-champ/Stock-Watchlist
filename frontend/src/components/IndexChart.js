@@ -43,7 +43,7 @@ function IndexChart({ tickerSymbol }) {
     return p.replace('y','y').replace('m','mo'); // 1M->1mo, 3M->3mo etc.
   }, [period]);
 
-  const { data, isLoading, error, friendlyError } = useIndexChart(tickerSymbol, backendPeriod, interval, indicators);
+  const { data, isLoading, friendlyError } = useIndexChart(tickerSymbol, backendPeriod, interval, indicators);
   const { data: benchmarkData, isLoading: benchmarkLoading, friendlyError: benchmarkError } = useIndexChart(
     benchmark || null,
     backendPeriod,

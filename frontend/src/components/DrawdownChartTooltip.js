@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Area } from 'recharts';
 import API_BASE from '../config';
 
@@ -11,38 +11,31 @@ function DrawdownChartTooltip({ stockId, maxDrawdown, children }) {
   const [drawdownData, setDrawdownData] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (showTooltip && !drawdownData && !loading) {
-      loadDrawdownData();
-    }
-  }, [showTooltip, drawdownData, loading]);
-
-  const loadDrawdownData = async () => {
+  const loadDrawdownData = useCallback(async () => {
     setLoading(true);
     try {
       // Fetch 1-year chart data to match calculated-metrics default period
       const response = await fetch(`${API_BASE}/stock-data/${stockId}/chart?period=1y&interval=1d`);
       if (!response.ok) throw new Error('Failed to fetch chart data');
-      
+
       const chartData = await response.json();
-      console.log('Chart data received:', chartData);
-      
+
       if (chartData && chartData.close && chartData.close.length > 0) {
         // Calculate drawdown series
         const closes = chartData.close;
         const dates = chartData.dates || [];
         let cumMax = -Infinity;
-        
+
         const drawdownSeries = [];
-        
+
         for (let idx = 0; idx < closes.length; idx++) {
           const close = closes[idx];
-          
+
           if (close == null || isNaN(close)) continue;
-          
+
           cumMax = Math.max(cumMax, close);
           const drawdown = cumMax > 0 ? ((close - cumMax) / cumMax) * 100 : 0;
-          
+
           // Format date with year
           let displayDate = '';
           if (dates[idx]) {
@@ -55,15 +48,14 @@ function DrawdownChartTooltip({ stockId, maxDrawdown, children }) {
           } else {
             displayDate = `Day ${idx}`;
           }
-          
+
           drawdownSeries.push({
             date: displayDate,
             drawdown: drawdown,
             price: close
           });
         }
-        
-        console.log('Drawdown series calculated:', drawdownSeries.slice(0, 5), '...', drawdownSeries.slice(-5));
+
         setDrawdownData(drawdownSeries);
       } else {
         console.error('No chart data available');
@@ -73,7 +65,13 @@ function DrawdownChartTooltip({ stockId, maxDrawdown, children }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [stockId]);
+
+  useEffect(() => {
+    if (showTooltip && !drawdownData && !loading) {
+      loadDrawdownData();
+    }
+  }, [showTooltip, drawdownData, loading, loadDrawdownData]);
 
   const CustomTooltipContent = ({ active, payload }) => {
     if (!active || !payload || payload.length === 0) return null;

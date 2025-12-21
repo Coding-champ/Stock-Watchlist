@@ -24,11 +24,13 @@ Stand: 20.11.2025
   - Backend: `ComparisonService.get_correlation_matrix` + Endpoint `GET /indices/correlation-matrix`
   - Frontend: `CorrelationHeatmap` Komponente + Navigationseintrag "Korrelationen"
 - ✅ Market Breadth:
-  - Backend: `MarketBreadthService` (Advance/Decline, New Highs/Lows, History, McClellan Oscillator)
-  - Endpoints: `GET /indices/{symbol}/breadth`, `GET /indices/{symbol}/breadth/history`
+  - Backend: `MarketBreadthService` (SMA200-Breite, klassische A/D-Breite, New Highs/Lows, History, McClellan-Oszillator)
+  - Endpoints: `GET /indices/{symbol}/breadth`, `GET /indices/{symbol}/breadth/history` (jeweils mit `mode=sma200|classic|mcclellan`)
   - Frontend: Integration direkt im Indizes-Overview (kein eigener Tab) via `MarketBreadthDashboard` mit:
-    - Kumulative A/D-Linie (konfigurierbare Tage 30/60/90)
-    - Aktuelles A/D Verhältnis (Radial Gauge)
+    - SMA200-Breite: netto (Über − Unter SMA200) kumuliert (Tage 30/60/90)
+    - Klassisch: A/D-Linie (kumuliert · Tage 30/60/90)
+    - McClellan: McClellan-Oszillator (EMA19 − EMA39 auf (Adv − Dec), basierend auf klassischer A/D)
+    - Aktueller Snapshot (Gauge) passend zum gewählten Modus
     - Multi-Day neue Hochs vs. Tiefs (Stacked Bar, tägliche History)
 - ✅ Multi-Day Erweiterung: tägliche `new_highs`/`new_lows` in History integriert
 - ✅ Days Selector für Market Breadth (30/60/90)
@@ -47,7 +49,7 @@ Stand: 20.11.2025
 2. Performance-Optimierung: Batch-Queries für große Indizes (S&P 500) – aktuell pro Stock individuelle Abfragen.
 3. Erweiterte Visualisierung:
    - Ratio-Line (new_highs - new_lows) oder (new_highs / new_lows) zur Trend-Identifikation
-   - Glättung (EMA 7 / 10) über A/D-Linie
+  - Glättung (EMA 7 / 10) über A/D-Linie (klassisch)
 4. Export-Funktion (CSV/PNG) für Korrelationsmatrix & Breadth Charts
 5. Tooltip-Verfeinerung (Zusatz: Beta-Klassifikationstext, Korrelation-Stärke im Heatmap-Hover)
 6. Optionaler Tab "Breadth" in Index-Detail-Seite (falls vertiefte Einzelanalyse gewünscht)
@@ -74,8 +76,9 @@ Priorität jetzt eher auf: Stabilität & Performance
 - Beta: `cov(stock_returns, index_returns) / var(index_returns)`
 - Relative Performance: Normalisierung erster gemeinsamer Tag = 100
 - Breadth SMA200: arithmetischer Durchschnitt der letzten ≤200 Schlusskurse (Fallback bei <200 Datenpunkten)
+- Breadth classic (A/D): advancing/declining basiert auf Close-to-Close (letzter Close vs. vorheriger Close pro Aktie)
 - 52W High/Low Approx: Rolling 252-Tage Fenster
-- McClellan: EMA19 & EMA39 Differenz auf (Adv - Dec)
+- McClellan: EMA19 & EMA39 Differenz auf (Adv - Dec) der klassischen A/D-Serie
 
 ## Notizen
 

@@ -38,49 +38,82 @@ class MarketBreadthService:
             StockPriceData.stock_id == stock_id
         ).order_by(desc(StockPriceData.date)).limit(limit).all()
 
+    def _get_recent_closes_upto(self, stock_id: int, end_date: date, limit: int) -> List[StockPriceData]:
+        return self.db.query(StockPriceData).filter(
+            and_(
+                StockPriceData.stock_id == stock_id,
+                StockPriceData.date <= end_date
+            )
+        ).order_by(desc(StockPriceData.date)).limit(limit).all()
+
     # -------------------- Point-in-time breadth --------------------
-    def calculate_advance_decline(self, index_id: int, target_date: Optional[date] = None) -> Dict[str, Any]:
+    def calculate_advance_decline(self, index_id: int, target_date: Optional[date] = None, mode: str = "sma200") -> Dict[str, Any]:
         if target_date is None:
             target_date = date.today()
+        mode = (mode or "sma200").lower().strip()
+        if mode not in {"sma200", "classic"}:
+            raise ValueError("Invalid mode")
         stock_ids = self._get_active_stock_ids(index_id)
         advancing = declining = unchanged = 0
         details = []
         for sid in stock_ids:
-            # Latest close (on or before target_date)
-            latest = self.db.query(StockPriceData).filter(
-                and_(
-                    StockPriceData.stock_id == sid,
-                    StockPriceData.date <= target_date
-                )
-            ).order_by(desc(StockPriceData.date)).first()
-            if not latest:
-                continue
-            # Last 200 closes up to latest date (including)
-            closes = self.db.query(StockPriceData).filter(
-                and_(
-                    StockPriceData.stock_id == sid,
-                    StockPriceData.date <= latest.date
-                )
-            ).order_by(desc(StockPriceData.date)).limit(200).all()
-            if len(closes) < 5:  # insufficient data
-                continue
-            sma200 = sum(p.close for p in closes) / len(closes)
-            if latest.close > sma200:
-                advancing += 1
-                state = 'advancing'
-            elif latest.close < sma200:
-                declining += 1
-                state = 'declining'
+            if mode == "classic":
+                rows = self._get_recent_closes_upto(sid, target_date, limit=2)
+                if len(rows) < 2:
+                    continue
+                latest, prev = rows[0], rows[1]
+                if latest.close > prev.close:
+                    advancing += 1
+                    state = 'advancing'
+                elif latest.close < prev.close:
+                    declining += 1
+                    state = 'declining'
+                else:
+                    unchanged += 1
+                    state = 'unchanged'
+                details.append({
+                    'stock_id': sid,
+                    'date': latest.date.isoformat(),
+                    'close': latest.close,
+                    'prev_date': prev.date.isoformat(),
+                    'prev_close': prev.close,
+                    'state': state
+                })
             else:
-                unchanged += 1
-                state = 'unchanged'
-            details.append({
-                'stock_id': sid,
-                'date': latest.date.isoformat(),
-                'close': latest.close,
-                'sma200': round(sma200, 4),
-                'state': state
-            })
+                # SMA200 breadth: compare latest close to SMA200 (using available closes up to latest date)
+                latest = self.db.query(StockPriceData).filter(
+                    and_(
+                        StockPriceData.stock_id == sid,
+                        StockPriceData.date <= target_date
+                    )
+                ).order_by(desc(StockPriceData.date)).first()
+                if not latest:
+                    continue
+                closes = self.db.query(StockPriceData).filter(
+                    and_(
+                        StockPriceData.stock_id == sid,
+                        StockPriceData.date <= latest.date
+                    )
+                ).order_by(desc(StockPriceData.date)).limit(200).all()
+                if len(closes) < 5:
+                    continue
+                sma200 = sum(p.close for p in closes) / len(closes)
+                if latest.close > sma200:
+                    advancing += 1
+                    state = 'advancing'
+                elif latest.close < sma200:
+                    declining += 1
+                    state = 'declining'
+                else:
+                    unchanged += 1
+                    state = 'unchanged'
+                details.append({
+                    'stock_id': sid,
+                    'date': latest.date.isoformat(),
+                    'close': latest.close,
+                    'sma200': round(sma200, 4),
+                    'state': state
+                })
         total = advancing + declining + unchanged
         pct_adv = (advancing / total * 100.0) if total else 0.0
         return {
@@ -91,7 +124,7 @@ class MarketBreadthService:
             'unchanged': unchanged,
             'percentage_advancing': round(pct_adv, 2),
             'total_count': total,
-            'method': 'close_vs_sma200',
+            'method': 'close_to_close' if mode == 'classic' else 'close_vs_sma200',
             'details_sample': details[:25]  # sample to keep payload bounded
         }
 
@@ -138,13 +171,16 @@ class MarketBreadthService:
         }
 
     # -------------------- Historical breadth --------------------
-    def calculate_advance_decline_history(self, index_id: int, days: int = 30) -> Dict[str, Any]:
+    def calculate_advance_decline_history(self, index_id: int, days: int = 30, mode: str = "sma200") -> Dict[str, Any]:
         days = max(1, min(days, 90))  # clamp
+        mode = (mode or "sma200").lower().strip()
+        if mode not in {"sma200", "classic"}:
+            raise ValueError("Invalid mode")
         stock_ids = self._get_active_stock_ids(index_id)
         if not stock_ids:
             return {'error': 'No constituents'}
         end_date = date.today()
-        start_date = end_date - timedelta(days=days + 220)  # fetch sufficient backfill
+        start_date = end_date - timedelta(days=days + 260)  # fetch sufficient backfill (SMA200 + ~52w hi/lo)
         # Build per-stock DataFrame of closes
         series_map: Dict[int, pd.DataFrame] = {}
         for sid in stock_ids:
@@ -155,13 +191,21 @@ class MarketBreadthService:
                     StockPriceData.date <= end_date
                 )
             ).order_by(StockPriceData.date).all()
-            if len(rows) < 30:
-                continue
+            if mode == "classic":
+                if len(rows) < 2:
+                    continue
+            else:
+                if len(rows) < 30:
+                    continue
             df = pd.DataFrame({'date': [r.date for r in rows], 'close': [r.close for r in rows]})
             df['date'] = pd.to_datetime(df['date'])
             df.set_index('date', inplace=True)
-            # Rolling SMA 200
-            df['sma200'] = df['close'].rolling(window=200, min_periods=50).mean()
+            if mode == "sma200":
+                # Rolling SMA 200
+                df['sma200'] = df['close'].rolling(window=200, min_periods=50).mean()
+            else:
+                # Classic A/D uses close-to-close change
+                df['close_diff'] = df['close'].diff()
             # Rolling 52w high/low approximation (252 trading days)
             df['rolling_high_252'] = df['close'].rolling(window=252, min_periods=30).max()
             df['rolling_low_252'] = df['close'].rolling(window=252, min_periods=30).min()
@@ -179,14 +223,25 @@ class MarketBreadthService:
                 if d not in df.index:
                     continue
                 row = df.loc[d]
-                if pd.isna(row['sma200']):
-                    continue
-                if row['close'] > row['sma200']:
-                    adv += 1
-                elif row['close'] < row['sma200']:
-                    dec += 1
+                if mode == "sma200":
+                    if pd.isna(row.get('sma200')):
+                        continue
+                    if row['close'] > row['sma200']:
+                        adv += 1
+                    elif row['close'] < row['sma200']:
+                        dec += 1
+                    else:
+                        unch += 1
                 else:
-                    unch += 1
+                    diff = row.get('close_diff')
+                    if pd.isna(diff):
+                        continue
+                    if diff > 0:
+                        adv += 1
+                    elif diff < 0:
+                        dec += 1
+                    else:
+                        unch += 1
                 # High / Low checks (require rolling window values)
                 rh = row.get('rolling_high_252')
                 rl = row.get('rolling_low_252')
@@ -209,12 +264,16 @@ class MarketBreadthService:
         return {
             'index_id': index_id,
             'days': days,
+            'method': 'close_to_close' if mode == 'classic' else 'close_vs_sma200',
             'records': records
         }
 
-    def calculate_mcclellan_oscillator(self, index_id: int, days: int = 90) -> Dict[str, Any]:
+    def calculate_mcclellan_oscillator(self, index_id: int, days: int = 90, mode: str = "classic") -> Dict[str, Any]:
         # Build history first
-        hist = self.calculate_advance_decline_history(index_id, days=days)
+        mode = (mode or "classic").lower().strip()
+        if mode not in {"sma200", "classic"}:
+            raise ValueError("Invalid mode")
+        hist = self.calculate_advance_decline_history(index_id, days=days, mode=mode)
         if 'records' not in hist:
             return {'error': hist.get('error', 'No history')}
         df = pd.DataFrame(hist['records'])

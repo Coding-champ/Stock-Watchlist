@@ -165,6 +165,7 @@ function StockSearchBar({ onStockSelect, placeholder = "Aktie suchen..." }) {
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onFocus={() => searchResults.length > 0 && setShowResults(true)}
+          role="combobox"
           aria-label="Aktien durchsuchen"
           aria-autocomplete="list"
           aria-controls="search-results"
