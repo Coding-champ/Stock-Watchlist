@@ -29,6 +29,15 @@ class AssetType(enum.Enum):
     CRYPTO = "crypto"
 
 
+class ApplicationSetting(Base):
+    """Global application setting; TODO: add user scoping with authentication later."""
+    __tablename__ = "application_settings"
+
+    key = Column(String, primary_key=True)
+    value = Column(String, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Watchlist(Base):
     """Watchlist model for organizing stocks"""
     __tablename__ = "watchlists"

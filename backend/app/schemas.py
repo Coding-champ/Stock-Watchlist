@@ -40,6 +40,24 @@ from typing import Optional, List, Dict, Any, Literal, Union
 from datetime import datetime, date
 
 
+class ApplicationSettings(BaseModel):
+    display_mode: Literal["compact", "expert"]
+    default_page: str
+    theme: str
+
+
+class ApplicationSettingsUpdate(BaseModel):
+    display_mode: Optional[Literal["compact", "expert"]] = None
+    default_page: Optional[str] = None
+    theme: Optional[str] = None
+
+
+class ThemePalette(BaseModel):
+    id: str
+    name: str
+    variables: Dict[str, str]
+
+
 # Watchlist schemas
 class WatchlistBase(BaseModel):
     name: str

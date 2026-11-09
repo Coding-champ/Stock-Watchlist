@@ -28,6 +28,9 @@ function App() {
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState({ display_mode: 'compact', default_page: 'overview', theme: 'default' });
+  const [themes, setThemes] = useState([]);
+  // TODO: Apply different layouts and visible features when expert mode is implemented.
   // Default period changed to 1y per user request
   const [galleryPeriod, setGalleryPeriod] = useState('1y');
   const toastTimeoutRef = useRef(null);
@@ -55,6 +58,23 @@ function App() {
     }, 4000);
   }, []);
 
+  const saveSettings = useCallback(async (patch) => {
+    try {
+      const response = await fetch(`${API_BASE}/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const saved = await response.json();
+      setSettings(saved);
+      if (patch.default_page) setActiveView(patch.default_page);
+    } catch (error) {
+      console.error('Error saving application settings:', error);
+      showToast('Einstellungen konnten nicht gespeichert werden', 'error');
+    }
+  }, [showToast]);
+
   // Use the alerts hook for background checking (after showToast is defined)
   const { checkAllAlerts } = useAlerts(null, showToast);
   const queryClient = useQueryClient();
@@ -65,6 +85,32 @@ function App() {
       toastTimeoutRef.current = null;
     }
   }, []);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const [settingsResponse, themesResponse] = await Promise.all([
+          fetch(`${API_BASE}/settings`),
+          fetch(`${API_BASE}/settings/themes`),
+        ]);
+        if (!settingsResponse.ok || !themesResponse.ok) throw new Error('Settings API unavailable');
+        const loadedSettings = await settingsResponse.json();
+        setSettings(loadedSettings);
+        setActiveView(loadedSettings.default_page);
+        setThemes(await themesResponse.json());
+      } catch (error) {
+        console.error('Error loading application settings:', error);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  useEffect(() => {
+    const selectedTheme = themes.find((theme) => theme.id === settings.theme);
+    selectedTheme?.variables && Object.entries(selectedTheme.variables).forEach(([name, value]) => {
+      document.documentElement.style.setProperty(name, value);
+    });
+  }, [settings.theme, themes]);
 
   useEffect(() => {
     const handleDocumentClick = (event) => {
@@ -201,7 +247,39 @@ function App() {
             {isSettingsOpen && (
               <div className="settings-popover" role="dialog" aria-label="Einstellungen">
                 <strong>Einstellungen</strong>
-                <p>Weitere Optionen werden hier künftig verfügbar sein.</p>
+                <label className="settings-popover__field">
+                  <span>Ansichtsmodus</span>
+                  <button
+                    type="button"
+                    className={`settings-toggle ${settings.display_mode === 'expert' ? 'is-on' : ''}`}
+                    role="switch"
+                    aria-checked={settings.display_mode === 'expert'}
+                    onClick={() => saveSettings({ display_mode: settings.display_mode === 'expert' ? 'compact' : 'expert' })}
+                  >
+                    <span className="settings-toggle__thumb" />
+                    <span>{settings.display_mode === 'expert' ? 'Experte' : 'Kompakt'}</span>
+                  </button>
+                </label>
+                <label className="settings-popover__field">
+                  <span>Startseite</span>
+                  <select value={settings.default_page} onChange={(event) => saveSettings({ default_page: event.target.value })}>
+                    <option value="overview">Übersicht</option>
+                    <option value="watchlist">Watchlist</option>
+                    <option value="screener">Screener</option>
+                    <option value="earnings">Earnings</option>
+                    <option value="alerts">Alerts</option>
+                    <option value="indices">Indizes</option>
+                    <option value="portfolio">Portfolio</option>
+                    <option value="investment-check">Investitions-Check</option>
+                  </select>
+                </label>
+                <label className="settings-popover__field">
+                  <span>Theme</span>
+                  <select value={settings.theme} onChange={(event) => saveSettings({ theme: event.target.value })}>
+                    {themes.map((theme) => <option key={theme.id} value={theme.id}>{theme.name}</option>)}
+                  </select>
+                </label>
+                <p className="settings-popover__hint">Der Expertenmodus ist gespeichert und wird später mit einer eigenen Ansicht aktiviert.</p>
               </div>
             )}
           </div>

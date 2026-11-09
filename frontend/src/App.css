@@ -238,6 +238,59 @@ h1 {
   line-height: 1.45;
 }
 
+.settings-popover__field {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.settings-popover__field select {
+  width: 100%;
+  padding: 8px 9px;
+  border: 1px solid var(--brand-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text-main);
+  font: inherit;
+}
+
+.settings-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 4px 9px 4px 4px;
+  border: 1px solid var(--brand-border);
+  border-radius: 999px;
+  background: var(--brand-surface-muted);
+  color: var(--brand-primary-dark);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.settings-toggle__thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform var(--motion-short), background var(--motion-short);
+}
+
+.settings-toggle.is-on .settings-toggle__thumb {
+  background: var(--brand-primary);
+}
+
+.settings-popover__hint {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--brand-border);
+  font-size: 0.75rem;
+}
+
 .app-header__title-group {
   display: flex;
   flex-direction: column;

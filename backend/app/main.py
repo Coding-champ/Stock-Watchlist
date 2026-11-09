@@ -6,7 +6,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from backend.app.routes import (
     watchlists, stocks, alerts, stock_data, screener, indices, portfolio,
-    investment_check,
+    investment_check, settings,
 )
 from dotenv import load_dotenv
 import os
@@ -78,6 +78,7 @@ app.include_router(screener.router)
 app.include_router(indices.router)
 app.include_router(portfolio.router)
 app.include_router(investment_check.router)
+app.include_router(settings.router)
 
 
 # Startup event - start background scheduler
