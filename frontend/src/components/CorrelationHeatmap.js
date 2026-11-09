@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useCorrelationMatrix } from '../hooks/useCorrelationMatrix';
+import { formatDisplayNumber } from '../utils/numberFormatting';
 
 // Simple continuous color scale from -1 (red) -> 0 (white) -> +1 (green)
 function getColor(value) {
@@ -87,7 +88,7 @@ function CorrelationHeatmap({ defaultSymbols = ['^GSPC','^IXIC','^GDAXI','^FTSE'
                       return (
                         <td
                           key={colLabel}
-                          title={`${rowLabel} vs ${colLabel}: ${val?.toFixed(3)}`}
+                          title={`${rowLabel} vs ${colLabel}: ${formatDisplayNumber(val)}`}
                           style={{
                             padding:0,
                             width:50,
@@ -101,7 +102,7 @@ function CorrelationHeatmap({ defaultSymbols = ['^GSPC','^IXIC','^GDAXI','^FTSE'
                             fontWeight: Math.abs(val) > 0.85 ? 600 : 400
                           }}
                         >
-                          {i===j ? '1.00' : (val!=null ? val.toFixed(2) : '—')}
+                          {i===j ? formatDisplayNumber(1) : (val!=null ? formatDisplayNumber(val) : '—')}
                         </td>
                       );
                     })}

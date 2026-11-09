@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Area } from 'recharts';
 import API_BASE from '../config';
+import { formatDisplayNumber } from '../utils/numberFormatting';
 
 /**
  * DrawdownChartTooltip Component
@@ -87,7 +88,7 @@ function DrawdownChartTooltip({ stockId, maxDrawdown, children }) {
       }}>
         <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{data.date}</div>
         <div style={{ color: data.drawdown < 0 ? '#ef4444' : '#666' }}>
-          Drawdown: {data.drawdown.toFixed(2)}%
+          Drawdown: {formatDisplayNumber(data.drawdown)}%
         </div>
       </div>
     );
@@ -124,7 +125,7 @@ function DrawdownChartTooltip({ stockId, maxDrawdown, children }) {
           ) : drawdownData && drawdownData.length > 0 ? (
             <>
               <div style={{ marginBottom: '10px', fontSize: '12px', color: '#666' }}>
-                Maximum Drawdown: <strong style={{ color: '#ef4444' }}>{maxDrawdown?.toFixed(2)}%</strong>
+                Maximum Drawdown: <strong style={{ color: '#ef4444' }}>{maxDrawdown != null ? formatDisplayNumber(maxDrawdown) : '-'}</strong>%
               </div>
               
               <ResponsiveContainer width="100%" height={200}>
@@ -144,7 +145,7 @@ function DrawdownChartTooltip({ stockId, maxDrawdown, children }) {
                   />
                   <YAxis 
                     tick={{ fontSize: 10 }}
-                    tickFormatter={(value) => `${value.toFixed(0)}%`}
+                    tickFormatter={(value) => `${formatDisplayNumber(value, 0)}%`}
                   />
                   <Tooltip content={<CustomTooltipContent />} />
                   <ReferenceLine y={0} stroke="#666" strokeDasharray="3 3" strokeWidth={1.5} label={{ value: '0%', position: 'right' }} />

@@ -1,4 +1,5 @@
 import { formatPrice } from './currencyUtils';
+import { DISPLAY_DECIMAL_PLACES, DISPLAY_LOCALE, formatCompactDisplayNumber, formatDisplayNumber } from './numberFormatting';
 
 /**
  * Format a price as "12.345,67 USD" (or "12.345,67 Punkte" for indices starting with ^)
@@ -6,19 +7,16 @@ import { formatPrice } from './currencyUtils';
  */
 export function formatPriceWithCurrencyCode(price, currency = 'USD', tickerSymbol = '', options = {}) {
   const {
-    locale = 'de-DE',
-    decimals = 2,
+    decimals: requestedDecimals = DISPLAY_DECIMAL_PLACES,
     nullValue = '-'
   } = options;
+  const decimals = Math.min(2, Math.max(0, requestedDecimals));
 
   if (price == null || Number.isNaN(Number(price))) return nullValue;
 
   let formatted;
   try {
-    formatted = new Intl.NumberFormat(locale, {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals
-    }).format(Number(price));
+    formatted = formatDisplayNumber(price, decimals);
   } catch (e) {
     formatted = String(price);
   }
@@ -35,14 +33,15 @@ export function formatPriceWithCurrencyCode(price, currency = 'USD', tickerSymbo
  * Format large numbers into compact B/M/K style (e.g., 1.23B)
  */
 export function formatCompactNumber(value, options = {}) {
-  const { decimals = 2, locale = 'de-DE', nullValue = '-' } = options;
+  const { decimals: requestedDecimals = DISPLAY_DECIMAL_PLACES, nullValue = '-' } = options;
+  const decimals = Math.min(2, Math.max(0, requestedDecimals));
   if (value == null || Number.isNaN(Number(value))) return nullValue;
 
   const n = Number(value);
-  if (n >= 1e9) return `${(n / 1e9).toFixed(decimals)}B`;
-  if (n >= 1e6) return `${(n / 1e6).toFixed(decimals)}M`;
-  if (n >= 1e3) return `${(n / 1e3).toFixed(decimals)}K`;
-  return n.toLocaleString(locale);
+  if (n >= 1e9 || n >= 1e6 || n >= 1e3) {
+    return formatCompactDisplayNumber(n, decimals);
+  }
+  return formatDisplayNumber(n, decimals);
 }
 
 // Backward-compatible alias for existing local helpers
@@ -162,7 +161,7 @@ export function formatPercent(value) {
   }
 
   const sign = value > 0 ? '+' : value < 0 ? '-' : '';
-  const formatted = new Intl.NumberFormat('de-DE', {
+  const formatted = new Intl.NumberFormat(DISPLAY_LOCALE, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   }).format(Math.abs(value));

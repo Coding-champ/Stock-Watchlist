@@ -1,6 +1,7 @@
 /**
  * Utility-Funktionen für Währungen und Formatierung
  */
+import { DISPLAY_LOCALE, formatDisplayNumber } from './numberFormatting';
 
 /**
  * Format a number with specified decimals
@@ -12,7 +13,7 @@
 export const formatNumber = (value, decimals = 2, suffix = '') => {
   if (value === null || value === undefined) return '-';
   if (typeof value === 'number') {
-    return value.toFixed(decimals) + suffix;
+    return formatDisplayNumber(value, decimals) + suffix;
   }
   return '-';
 };
@@ -218,28 +219,29 @@ export function getCurrencyCodeForStock(stock) {
  */
 export function formatPrice(value, stock, decimals = 2) {
   if (value === null || value === undefined || isNaN(value)) return '-';
+  decimals = Math.min(2, Math.max(0, decimals));
 
   // Leitindizes: Ticker beginnt mit '^' => Einheit Punkte, keine Währung
   const ticker = stock && stock.ticker_symbol ? String(stock.ticker_symbol).toUpperCase() : '';
   const isIndex = ticker.startsWith('^');
   if (isIndex) {
     try {
-      const nf = new Intl.NumberFormat('de-DE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+      const nf = new Intl.NumberFormat(DISPLAY_LOCALE, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
       return nf.format(Number(value)) + ' Punkte';
     } catch (e) {
-      return Number(value).toFixed(decimals) + ' Punkte';
+      return formatDisplayNumber(value, decimals) + ' Punkte';
     }
   }
 
   // Determine ISO currency code and use Intl for German localization
   const iso = getCurrencyCodeForStock(stock);
   try {
-    const nf = new Intl.NumberFormat('de-DE', { style: 'currency', currency: iso, minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    const nf = new Intl.NumberFormat(DISPLAY_LOCALE, { style: 'currency', currency: iso, minimumFractionDigits: decimals, maximumFractionDigits: decimals });
     return nf.format(Number(value));
   } catch (e) {
     // Fallback: symbol based formatting
     const symbol = getCurrencyForStock(stock) || '$';
-    const formattedValue = Number(value).toFixed(decimals);
+    const formattedValue = formatDisplayNumber(value, decimals);
     if (symbol === '€' || symbol === 'CHF' || symbol === 'kr') return `${formattedValue} ${symbol}`;
     return `${symbol}${formattedValue}`;
   }

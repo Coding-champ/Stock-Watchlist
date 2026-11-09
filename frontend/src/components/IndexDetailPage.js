@@ -3,6 +3,7 @@ import { useIndexDetails, useIndexConstituents } from '../hooks/useIndices';
 import { useIndexStatistics } from '../hooks/useIndexStatistics';
 import { useApi } from '../hooks/useApi';
 import { formatPriceWithCurrencyCode, formatVolume, humanizeIdentifier } from '../utils/formatting';
+import { formatDisplayNumber } from '../utils/numberFormatting';
 import IndexChart from './IndexChart';
 import SectorBreakdown from './SectorBreakdown';
 import TopFlopsPanel from './TopFlopsPanel';
@@ -246,11 +247,11 @@ function IndexDetailPage({ index, onBack, onOpenStock }) {
                 )}
                 <div className="stat-card">
                   <div className="stat-label">Allzeithoch</div>
-                  <div className="stat-value">{statistics.all_time_high?.toFixed(2)}</div>
+                  <div className="stat-value">{statistics.all_time_high != null ? formatDisplayNumber(statistics.all_time_high) : '-'}</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-label">Allzeittief</div>
-                  <div className="stat-value">{statistics.all_time_low?.toFixed(2)}</div>
+                  <div className="stat-value">{statistics.all_time_low != null ? formatDisplayNumber(statistics.all_time_low) : '-'}</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-label">Bester Tag</div>
@@ -326,7 +327,7 @@ function IndexDetailPage({ index, onBack, onOpenStock }) {
                       <td className="name">{constituent.name}</td>
                       <td className="sector">{constituent.sector || '-'}</td>
                       <td className="weight">
-                        {constituent.weight ? `${constituent.weight.toFixed(2)}%` : '-'}
+                        {constituent.weight ? `${formatDisplayNumber(constituent.weight)}%` : '-'}
                       </td>
                       <td className="date">
                         {new Date(constituent.date_added).toLocaleDateString('de-DE')}

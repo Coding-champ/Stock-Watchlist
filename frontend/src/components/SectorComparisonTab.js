@@ -14,7 +14,7 @@ const formatLargeNumber = (value) => {
     return (n / 1e9).toFixed(2) + ' Mrd.';
   }
   if (Math.abs(n) >= 1e6) {
-    return (n / 1e6).toFixed(1) + ' Mio.';
+    return (n / 1e6).toFixed(2) + ' Mio.';
   }
   return new Intl.NumberFormat('de-DE').format(n);
 };

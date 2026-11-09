@@ -356,9 +356,9 @@ const ScreenerView = () => {
                       const mc = row.e_market_cap;
                       const mcDisplay = mc ? (mc >= 1e9 ? (mc/1e9).toFixed(2)+'B' : (mc/1e6).toFixed(2)+'M') : '—';
                       const eg = row.e_earnings_growth;
-                      const egDisplay = (eg !== null && eg !== undefined && !isNaN(eg)) ? (eg*100).toFixed(1)+'%' : '—';
+                      const egDisplay = (eg !== null && eg !== undefined && !isNaN(eg)) ? (eg*100).toFixed(2)+'%' : '—';
                       const rg = row.e_revenue_growth;
-                      const rgDisplay = (rg !== null && rg !== undefined && !isNaN(rg)) ? (rg*100).toFixed(1)+'%' : '—';
+                      const rgDisplay = (rg !== null && rg !== undefined && !isNaN(rg)) ? (rg*100).toFixed(2)+'%' : '—';
                       return (
                         <tr key={row.id}>
                           <td>{row.ticker_symbol}</td>

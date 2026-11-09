@@ -685,7 +685,7 @@ function StockChart({ stock, isEmbedded = false, onLatestVwap }) {
                 tick={{ fontSize: 12 }}
                 scale={isLogScale ? 'log' : undefined}
                 tickFormatter={(value) => isPercentageView
-                  ? `${value === 1 ? '0.0%' : `${((value - 1) * 100 > 0 ? '+' : '')}${((value - 1) * 100).toFixed(1)}%`}`
+                  ? `${value === 1 ? '0.00%' : `${((value - 1) * 100 > 0 ? '+' : '')}${((value - 1) * 100).toFixed(2)}%`}`
                   : formatPrice(value, stock)}
               />
               <Tooltip 

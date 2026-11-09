@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatDisplayNumber } from '../utils/numberFormatting';
 import '../styles/skeletons.css';
 import {
   LineChart,
@@ -55,7 +56,7 @@ export const MACDChart = ({ data, macd, signal }) => {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ fontSize: '14px', color: '#666' }}>
-            MACD: <strong>{latestMacd.toFixed(2)}</strong> | Signal: <strong>{latestSignal.toFixed(2)}</strong>
+            MACD: <strong>{formatDisplayNumber(latestMacd)}</strong> | Signal: <strong>{formatDisplayNumber(latestSignal)}</strong>
           </span>
           <span style={{ 
             padding: '4px 12px',
@@ -170,7 +171,7 @@ export const StochasticChart = ({ data, kPercent, dPercent, ticks = null }) => {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ fontSize: '14px', color: '#666' }}>
-            %K: <strong>{latestK.toFixed(1)}%</strong>
+            %K: <strong>{formatDisplayNumber(latestK)}%</strong>
           </span>
           <span style={{ 
             padding: '4px 12px',

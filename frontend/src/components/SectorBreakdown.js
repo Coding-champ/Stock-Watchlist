@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ResponsiveContainer, Treemap } from 'recharts';
 import { useIndexSectorBreakdown } from '../hooks/useIndexSectorBreakdown';
+import { formatDisplayNumber } from '../utils/numberFormatting';
 import './SectorBreakdown.css';
 
 const COLORS = [
@@ -26,7 +27,7 @@ function TreemapContent(props) {
             {name}
           </text>
           <text x={x + pad} y={y + pad + 28} fill="rgba(255,255,255,0.92)" fontSize={11}>
-            {Number.isFinite(percentage) ? `${percentage.toFixed(1)}%` : ''}
+            {Number.isFinite(percentage) ? `${formatDisplayNumber(percentage)}%` : ''}
           </text>
         </>
       )}
@@ -145,7 +146,7 @@ function SectorBreakdown({ tickerSymbol }) {
                                 }}
                               />
                             </div>
-                            <span className="mini-bar__value">{sector.percentage.toFixed(2)}%</span>
+                            <span className="mini-bar__value">{formatDisplayNumber(sector.percentage)}%</span>
                           </div>
                         </td>
                         <td className="top-stocks">

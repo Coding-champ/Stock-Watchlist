@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatPriceWithCurrencyCode } from '../utils/formatting';
+import { formatDisplayNumber } from '../utils/numberFormatting';
 import './IndexCard.css';
 
 function IndexCard({ index, onClick }) {
@@ -26,7 +27,7 @@ function IndexCard({ index, onClick }) {
             </div>
             {changePercent !== null && (
               <div className={`index-change ${isPositive ? 'positive' : isNegative ? 'negative' : ''}`}>
-                {isPositive ? '+' : ''}{changePercent.toFixed(2)}%
+                {isPositive ? '+' : ''}{formatDisplayNumber(changePercent)}%
               </div>
             )}
             <div className="index-date">

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useBreadthSnapshotWithMode, useBreadthHistoryWithMode } from '../hooks/useMarketBreadth';
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, RadialBarChart, RadialBar, Legend, BarChart, Bar } from 'recharts';
+import { formatDisplayNumber } from '../utils/numberFormatting';
 
 function MarketBreadthDashboard({ symbol, days: initialDays = 30 }) {
   const [historyDays, setHistoryDays] = useState(initialDays);
@@ -176,7 +177,7 @@ function MarketBreadthDashboard({ symbol, days: initialDays = 30 }) {
                   verticalAlign="bottom"
                   height={36}
                   formatter={() => {
-                    const pct = gaugeValue != null ? gaugeValue.toFixed(1) + '%' : '—';
+                    const pct = gaugeValue != null ? `${formatDisplayNumber(gaugeValue)}%` : '—';
                     return chartMode === 'sma200' ? `Über SMA200: ${pct}` : `Steigend: ${pct}`;
                   }}
                 />

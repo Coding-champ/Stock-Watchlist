@@ -7,6 +7,7 @@ import '../styles/skeletons.css';
 import API_BASE from '../config';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatPrice } from '../utils/currencyUtils';
+import { formatDisplayNumber } from '../utils/numberFormatting';
 
 /**
  * CalculatedMetricsTab Component
@@ -287,7 +288,7 @@ function CalculatedMetricsTab({ stockId, isActive = true, prefetch = false, char
   const formatNumber = (value, decimals = 2, suffix = '') => {
     if (value === null || value === undefined) return '-';
     if (typeof value === 'number') {
-      return value.toFixed(decimals) + suffix;
+      return formatDisplayNumber(value, decimals) + suffix;
     }
     return '-';
   };

@@ -17,7 +17,7 @@ import { OBSERVATION_REASON_OPTIONS } from './ObservationFields';
 import { useBenchmarkComparison, inferDefaultBenchmark, BENCHMARK_PERIODS } from '../hooks/useBenchmarkComparison';
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-function StockDetailPage({ stock, onBack, watchlistId, onShowToast }) {
+function StockDetailPage({ stock, onBack, watchlistId, onShowToast, onOpenInvestmentCheck }) {
   const [chartLatestVwap, setChartLatestVwap] = useState(null);
   const { alerts, loadAlerts, toggleAlert, deleteAlert } = useAlerts(stock.id);
   const queryClient = useQueryClient();
@@ -260,6 +260,14 @@ function StockDetailPage({ stock, onBack, watchlistId, onShowToast }) {
                       strokeLinejoin="round"
                     />
                   </svg>
+                </button>
+                <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => onOpenInvestmentCheck?.(stock.ticker_symbol)}
+                title="Investitions-Check öffnen"
+                >
+                Investitions-Check
                 </button>
               </div>
               

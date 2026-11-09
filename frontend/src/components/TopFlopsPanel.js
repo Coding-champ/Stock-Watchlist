@@ -2,6 +2,7 @@ import React from 'react';
 import { useIndexTopFlops } from '../hooks/useIndexTopFlops';
 import { useApi } from '../hooks/useApi';
 import { formatPriceWithCurrencyCode } from '../utils/formatting';
+import { formatDisplayNumber } from '../utils/numberFormatting';
 
 function ArrowPill({ dir }) {
   const up = dir === 'up';
@@ -72,7 +73,7 @@ function ItemCard({ item, positive }){
       </div>
       <div style={{textAlign:'right'}}>
         <div style={{color, fontWeight:700, fontSize:16}}>
-          {item.change_pct > 0 ? '+' : ''}{item.change_pct.toFixed(2)} %
+          {item.change_pct > 0 ? '+' : ''}{formatDisplayNumber(item.change_pct)} %
         </div>
         <div style={{fontSize:12, color:'var(--text-muted)', marginTop:2}}>
           {formatPriceWithCurrencyCode(item.last_price, item.currency, item.ticker || item.ticker_symbol, { nullValue: '—' })}
