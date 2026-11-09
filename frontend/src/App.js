@@ -11,6 +11,9 @@ import StockDetailPage from './components/StockDetailPage';
 import IndexOverview from './components/IndexOverview';
 import IndexDetailPage from './components/IndexDetailPage';
 import CorrelationHeatmap from './components/CorrelationHeatmap';
+import PortfolioView from './components/portfolio/PortfolioView';
+import InvestmentCheckView from './components/investment-check/InvestmentCheckView';
+import { formatDisplayNumber } from './utils/numberFormatting';
 
 import API_BASE from './config';
 import { useQueryClient } from '@tanstack/react-query';
@@ -24,9 +27,11 @@ function App() {
   const [selectedStock, setSelectedStock] = useState(null);
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   // Default period changed to 1y per user request
   const [galleryPeriod, setGalleryPeriod] = useState('1y');
   const toastTimeoutRef = useRef(null);
+  const settingsRef = useRef(null);
 
   const showToast = useCallback((message, appearance = 'info') => {
     if (!message) {
@@ -59,6 +64,17 @@ function App() {
       clearTimeout(toastTimeoutRef.current);
       toastTimeoutRef.current = null;
     }
+  }, []);
+
+  useEffect(() => {
+    const handleDocumentClick = (event) => {
+      if (settingsRef.current && !settingsRef.current.contains(event.target)) {
+        setIsSettingsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleDocumentClick);
+    return () => document.removeEventListener('mousedown', handleDocumentClick);
   }, []);
 
   const loadWatchlists = useCallback(async () => {
@@ -131,6 +147,11 @@ function App() {
     setActiveView('watchlist');
   };
 
+  const openInvestmentCheck = (identifier = '') => {
+    setSelectedStock(identifier ? { ticker_symbol: identifier, name: identifier } : null);
+    setActiveView('investment-check');
+  };
+
   return (
     <div className="app-shell">
       {toast && typeof document !== 'undefined' && (
@@ -150,6 +171,40 @@ function App() {
       )}
       <div className="container">
         <header className="app-header">
+          <div className="app-header__actions" ref={settingsRef}>
+            <button
+              className="app-header__action"
+              type="button"
+              onClick={() => showToast('Das Admin Panel wird noch eingerichtet.', 'info')}
+              aria-label="Admin Panel öffnen"
+              title="Admin Panel"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3 4 6v5c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V6l-8-3Zm0 4 4 1.5V11c0 2.8-1.7 5.2-4 6.3-2.3-1.1-4-3.5-4-6.3V8.5L12 7Zm-1 2v3h-2l3 3 3-3h-2V9h-2Z" />
+              </svg>
+              <span>Admin</span>
+            </button>
+            <button
+              className={`app-header__action ${isSettingsOpen ? 'is-active' : ''}`}
+              type="button"
+              onClick={() => setIsSettingsOpen((open) => !open)}
+              aria-expanded={isSettingsOpen}
+              aria-haspopup="dialog"
+              aria-label="Einstellungsmenü öffnen"
+              title="Einstellungen"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m19.4 13.5 1.6 1.2-1.8 3.1-1.9-.8a7.3 7.3 0 0 1-1.7 1l-.3 2h-3.6l-.3-2a7.3 7.3 0 0 1-1.7-1l-1.9.8L6 14.7l1.6-1.2a7.1 7.1 0 0 1 0-2L6 10.3l1.8-3.1 1.9.8a7.3 7.3 0 0 1 1.7-1l.3-2h3.6l.3 2a7.3 7.3 0 0 1 1.7 1l1.9-.8 1.8 3.1-1.6 1.2a7.1 7.1 0 0 1 0 2ZM13.5 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+              </svg>
+              <span>Einstellungen</span>
+            </button>
+            {isSettingsOpen && (
+              <div className="settings-popover" role="dialog" aria-label="Einstellungen">
+                <strong>Einstellungen</strong>
+                <p>Weitere Optionen werden hier künftig verfügbar sein.</p>
+              </div>
+            )}
+          </div>
           <div className="app-header__title-group">
             <span className="app-header__eyebrow">Dein Marktüberblick</span>
             <h1>Stock Watchlist</h1>
@@ -213,6 +268,20 @@ function App() {
               type="button"
             >
               Indizes
+            </button>
+            <button
+              className={`topnav__item ${activeView === 'portfolio' ? 'is-active' : ''}`}
+              onClick={() => setActiveView('portfolio')}
+              type="button"
+            >
+              Portfolio
+            </button>
+            <button
+              className={`topnav__item ${activeView === 'investment-check' ? 'is-active' : ''}`}
+              onClick={() => setActiveView('investment-check')}
+              type="button"
+            >
+              Investitions-Check
             </button>
             {/* Gallery trigger icon at the far right */}
             <button
@@ -439,6 +508,7 @@ function App() {
                   stock={selectedStock}
                   watchlistId={currentWatchlist?.id}
                   onShowToast={showToast}
+                  onOpenInvestmentCheck={openInvestmentCheck}
                   onBack={() => { setActiveView('watchlist'); setSelectedStock(null); }}
                 />
               ) : (
@@ -462,6 +532,25 @@ function App() {
               <div style={{marginTop: '16px', color: 'var(--text-muted)'}}>Kommt bald.</div>
             </div>
           </main>
+        )}
+
+        {activeView === 'portfolio' && (
+          <PortfolioView
+            showToast={showToast}
+            onOpenInvestmentCheck={openInvestmentCheck}
+            onOpenStock={(stock) => {
+              setSelectedStock(stock);
+              setActiveView('stock');
+            }}
+          />
+        )}
+
+        {activeView === 'investment-check' && (
+          <InvestmentCheckView
+            showToast={showToast}
+            initialIdentifier={selectedStock?.ticker_symbol || ''}
+            onOpenPortfolio={() => setActiveView('portfolio')}
+          />
         )}
 
         {activeView === 'indices' && (
@@ -708,7 +797,7 @@ function PerformanceGallery({ period, onToast }) {
             </div>
             <MiniSparkline data={(it.price_series||[]).map(p=>p.close)} />
             <div className="gallery-card__footer">
-              <span className="perf">{it.performance_pct!=null ? `${it.performance_pct.toFixed(2)}%` : '-'}</span>
+              <span className="perf">{it.performance_pct!=null ? `${formatDisplayNumber(it.performance_pct)}%` : '-'}</span>
               <div className="badges">
                 <Badge label="RSI" value={it.signals?.rsi?.signal || '–'} />
                 <Badge label="MACD" value={it.signals?.macd?.trend || '–'} />
