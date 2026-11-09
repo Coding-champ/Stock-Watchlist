@@ -37,7 +37,7 @@ npm install
 npm start
 ```
 
-The app will run on [http://localhost:3000](http://localhost:3000) and automatically proxy API requests to the backend (see `src/setupProxy.js`).
+The app will run on [http://localhost:3000](http://localhost:3000) and automatically proxy API requests to the backend at `http://localhost:8000` (see `src/setupProxy.js`). Set `REACT_APP_API_TARGET` if the backend uses another URL.
 
 ### Build for Production
 
