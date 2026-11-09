@@ -4,7 +4,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from backend.app.routes import watchlists, stocks, alerts, stock_data, screener, indices
+from backend.app.routes import (
+    watchlists, stocks, alerts, stock_data, screener, indices, portfolio,
+    investment_check,
+)
 from dotenv import load_dotenv
 import os
 import logging
@@ -21,8 +24,16 @@ load_dotenv()
 
 # Try to create database tables if database is available
 try:
-    from backend.app.database import engine, Base
+    from backend.app.database import engine, Base, SessionLocal
+    # Register models on Base.metadata before create_all (incl. portfolios/holdings).
+    from backend.app import models as _models  # noqa: F401
     Base.metadata.create_all(bind=engine)
+    from backend.app.services.portfolio_bootstrap import ensure_default_portfolio
+    _db = SessionLocal()
+    try:
+        ensure_default_portfolio(_db)
+    finally:
+        _db.close()
 except Exception as e:
     print(f"Warning: Could not connect to database: {e}")
     print("The API will start but database operations will fail until database is configured.")
@@ -39,7 +50,7 @@ class NoCacheMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         # Add no-cache headers for API endpoints (not static files)
-        if request.url.path.startswith(("/stocks", "/watchlists", "/alerts", "/stock-data", "/screener", "/indices")):
+        if request.url.path.startswith(("/stocks", "/watchlists", "/alerts", "/stock-data", "/screener", "/indices", "/portfolio", "/investment-check")):
             response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
@@ -65,6 +76,8 @@ app.include_router(stock_data.router)
 app.include_router(alerts.router)
 app.include_router(screener.router)
 app.include_router(indices.router)
+app.include_router(portfolio.router)
+app.include_router(investment_check.router)
 
 
 # Startup event - start background scheduler

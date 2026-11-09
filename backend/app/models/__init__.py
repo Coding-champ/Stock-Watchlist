@@ -67,6 +67,7 @@ class Stock(Base):
     fundamental_data = relationship("StockFundamentalData", back_populates="stock", cascade="all, delete-orphan")
     alerts = relationship("Alert", back_populates="stock", cascade="all, delete-orphan")
     extended_cache = relationship("ExtendedStockDataCache", back_populates="stock", uselist=False, cascade="all, delete-orphan")
+    holdings = relationship("Holding", back_populates="stock", cascade="all, delete-orphan")
 
 
 class StockInWatchlist(Base):
@@ -91,6 +92,57 @@ class StockInWatchlist(Base):
     # Relationships
     watchlist = relationship("Watchlist", back_populates="stock_watchlist_entries")
     stock = relationship("Stock", back_populates="watchlist_entries")
+
+
+# v1: genau ein implizites Depot in der UI. Die Tabelle erlaubt später mehrere Portfolios
+# ohne Schema-Umbau; die UI blendet die Auswahl nicht ein.
+DEFAULT_PORTFOLIO_NAME = "Mein Portfolio"
+
+
+class Portfolio(Base):
+    """Container for holdings. v1 uses a single default row (DEFAULT_PORTFOLIO_NAME)."""
+    __tablename__ = "portfolios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    holdings = relationship("Holding", back_populates="portfolio", cascade="all, delete-orphan")
+
+
+class Holding(Base):
+    """Current portfolio position. One row per stock (not a transaction ledger).
+
+    Inventory rules (do not replace with FIFO, unweighted averages, or in-place
+    average edits — correction is delete + recreate):
+
+    - One row per stock in a portfolio (unique portfolio_id + stock_id).
+    - quantity is the sum of buys.
+    - purchase_price is the *quantity-weighted* average of buy prices:
+      p_bar = sum(n_i * p_i) / sum(n_i). Not an unweighted mean of prices.
+    - purchase_date is the date of the *first* buy and must stay unchanged on
+      subsequent buys (Nachkauf). Nachkauf payloads must not overwrite it.
+    - Current price, market value, and P/L are computed at read time; they are
+      not stored here.
+    """
+    __tablename__ = "holdings"
+    __table_args__ = (
+        UniqueConstraint("portfolio_id", "stock_id", name="uq_portfolio_stock"),
+        Index("idx_holding_portfolio", "portfolio_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    portfolio_id = Column(Integer, ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False)
+    stock_id = Column(Integer, ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False)
+    quantity = Column(Float, nullable=False)
+    purchase_price = Column(Float, nullable=False)
+    purchase_date = Column(Date, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    portfolio = relationship("Portfolio", back_populates="holdings")
+    stock = relationship("Stock", back_populates="holdings")
 
 
 class StockPriceData(Base):

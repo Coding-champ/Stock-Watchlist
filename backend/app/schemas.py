@@ -504,6 +504,52 @@ class BulkStockAddResponse(BaseModel):
     failed_count: int
 
 
+# Portfolio schemas
+class PortfolioHoldingCreate(BaseModel):
+    # Holdings are corrected by deleting and recreating them; average fields
+    # must not be directly edited after creation.
+    identifier: str = Field(..., min_length=1)
+    quantity: float = Field(..., gt=0)
+    purchase_price: float = Field(..., gt=0)
+    purchase_date: date
+
+
+class PortfolioHoldingBuy(BaseModel):
+    quantity: float = Field(..., gt=0)
+    purchase_price: float = Field(..., gt=0)
+    purchase_date: Optional[date] = None
+
+
+class PortfolioHoldingResponse(BaseModel):
+    id: int
+    stock_id: int
+    ticker_symbol: str
+    isin: Optional[str] = None
+    name: str
+    quantity: float
+    purchase_price: float
+    purchase_date: date
+    current_price: Optional[float] = None
+    currency: Optional[str] = None
+    market_value: Optional[float] = None
+    profit_loss: Optional[float] = None
+    profit_loss_percent: Optional[float] = None
+
+
+class PortfolioResponse(BaseModel):
+    id: int
+    name: str
+    holdings: List[PortfolioHoldingResponse]
+    total_value: float
+    has_mixed_currencies: bool
+    currency_warning: Optional[str] = None
+
+
+class InvestmentCheckRequest(BaseModel):
+    identifier: str = Field(..., min_length=1)
+    quantity: float = Field(..., gt=0)
+
+
 # Watchlist with stocks
 class WatchlistWithStocks(Watchlist):
     stocks: List[Stock] = []
