@@ -262,8 +262,8 @@ function IndexChart({ tickerSymbol }) {
                     />
                     {showOutperformance && (
                       <>
-                        <Area yAxisId="spread" type="monotone" dataKey="outperformance" name="Outperformance %" stroke="#7c3aed" fill="#7c3aed" fillOpacity={0.18} strokeWidth={3} />
-                        <Line yAxisId="spread" type="monotone" dataKey="outperformance" stroke="#7c3aed" dot={false} name="Outperformance %" strokeWidth={3} />
+                        <Area yAxisId="spread" type="monotone" dataKey="outperformance" name="Outperformance %" stroke="var(--brand-primary)" fill="var(--brand-primary)" fillOpacity={0.18} strokeWidth={3} />
+                        <Line yAxisId="spread" type="monotone" dataKey="outperformance" stroke="var(--brand-primary)" dot={false} name="Outperformance %" strokeWidth={3} />
                       </>
                     )}
                   </>

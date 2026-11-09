@@ -899,7 +899,7 @@ function PerformanceGallery({ period, onToast }) {
   );
 }
 
-function MiniSparkline({ data, w=140, h=48, color='#7c3aed' }){
+function MiniSparkline({ data, w=140, h=48, color='var(--brand-primary)' }){
   if (!data || data.length < 2) return <div className="sparkline sparkline--empty">–</div>;
   const min = Math.min(...data), max = Math.max(...data), range = max-min || 1;
   const pts = data.map((v,i)=>({ x: (i/(data.length-1))*w, y: h-((v-min)/range)*h }));

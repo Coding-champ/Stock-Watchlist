@@ -5,7 +5,7 @@ import { formatDisplayNumber } from '../utils/numberFormatting';
 import './SectorBreakdown.css';
 
 const COLORS = [
-  '#2563eb', '#7c3aed', '#dc2626', '#16a34a', '#ea580c',
+  '#2563eb', 'var(--brand-primary)', '#dc2626', '#16a34a', '#ea580c',
   '#0891b2', '#4f46e5', '#db2777', '#65a30d', '#ca8a04',
   '#0d9488', '#7e22ce', '#be123c', '#059669', '#b45309'
 ];

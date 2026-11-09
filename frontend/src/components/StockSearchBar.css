@@ -20,7 +20,7 @@
 
 .stock-search__input-wrapper:focus-within {
   border-color: var(--brand-primary);
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.08);
+  box-shadow: 0 2px 8px rgba(var(--brand-primary-rgb), 0.08);
   outline: none;
 }
 
@@ -159,11 +159,11 @@
 
 .stock-search__result-item:hover,
 .stock-search__result-item.is-selected {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(91, 33, 182, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(var(--brand-primary-rgb), 0.08) 0%, rgba(var(--brand-primary-dark-rgb), 0.05) 100%);
 }
 
 .stock-search__result-item.is-selected {
-  box-shadow: inset 0 0 0 1.5px rgba(124, 58, 237, 0.2);
+  box-shadow: inset 0 0 0 1.5px rgba(var(--brand-primary-rgb), 0.2);
 }
 
 .stock-search__result-main {
@@ -221,7 +221,7 @@
 
 /* Highlight matching text */
 .stock-search__result-item mark {
-  background-color: rgba(124, 58, 237, 0.2);
+  background-color: rgba(var(--brand-primary-rgb), 0.2);
   color: var(--brand-primary-dark);
   font-weight: 600;
   padding: 0 2px;

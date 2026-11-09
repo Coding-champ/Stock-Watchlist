@@ -37,7 +37,7 @@
 }
 .analyst-bar-strong-buy { background: #22c55e; }
 .analyst-bar-buy { background: #4ade80; }
-.analyst-bar-hold { background: #facc15; color: #7c3aed; }
+.analyst-bar-hold { background: #facc15; color: var(--brand-primary); }
 .analyst-bar-sell { background: #f87171; }
 .analyst-bar-strong-sell { background: #ef4444; }
 .analyst-bar-value {
@@ -75,7 +75,7 @@
   background: #f8faff;
   border: 1.5px solid #e0e7ef;
   border-radius: 18px;
-  box-shadow: 0 4px 18px rgba(124, 58, 237, 0.06);
+  box-shadow: 0 4px 18px rgba(var(--brand-primary-rgb), 0.06);
   padding: 22px 24px 18px 24px;
   display: flex;
   flex-direction: column;
@@ -128,7 +128,7 @@
   background: #fff;
   border-radius: 18px;
   border: 1.5px solid #e0e7ef;
-  box-shadow: 0 4px 18px rgba(124, 58, 237, 0.06);
+  box-shadow: 0 4px 18px rgba(var(--brand-primary-rgb), 0.06);
   padding: 24px 28px 18px 28px;
   margin-bottom: 18px;
 }
@@ -189,7 +189,7 @@
 }
 .analyst-recommendations__bar-strong-buy { background: #22c55e; }
 .analyst-recommendations__bar-buy { background: #4ade80; }
-.analyst-recommendations__bar-hold { background: #facc15; color: #7c3aed; }
+.analyst-recommendations__bar-hold { background: #facc15; color: var(--brand-primary); }
 .analyst-recommendations__bar-sell { background: #f87171; }
 .analyst-recommendations__bar-strong-sell { background: #a1a1aa; }
 
@@ -203,7 +203,7 @@
   padding: 6px 14px;
   margin-right: 8px;
   margin-bottom: 4px;
-  box-shadow: 0 2px 8px rgba(124,58,237,0.07);
+  box-shadow: 0 2px 8px rgba(var(--brand-primary-rgb), 0.07);
 }
 .analyst-recommendations__revision-box--blue {
   background: #e0f2fe;
@@ -211,7 +211,7 @@
 }
 .analyst-recommendations__revision-box--purple {
   background: #ede9fe;
-  color: #7c3aed;
+  color: var(--brand-primary);
 }
 .analyst-recommendations__revision-box--gray {
   background: #f3f4f6;
@@ -232,7 +232,7 @@
   display: flex;
   gap: 18px;
   font-size: 0.98rem;
-  color: #6366f1;
+  color: var(--brand-secondary);
   margin-bottom: 2px;
 }
 .analyst-recommendations__date {

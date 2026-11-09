@@ -1,6 +1,6 @@
 import React from 'react';
 
-function Sparkline({ data, id, width = 140, height = 48, color = '#7c3aed' }) {
+function Sparkline({ data, id, width = 140, height = 48, color = 'var(--brand-primary)' }) {
   if (!data || data.length < 2) {
     return <div className="sparkline sparkline--empty">Keine Daten</div>;
   }

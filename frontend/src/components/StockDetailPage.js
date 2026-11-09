@@ -278,10 +278,10 @@ function StockDetailPage({ stock, onBack, watchlistId, onShowToast, onOpenInvest
                   alignItems: 'center',
                   gap: '8px',
                   padding: '8px 14px',
-                  background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(91, 33, 182, 0.06) 100%)',
+                  background: 'linear-gradient(135deg, rgba(var(--brand-primary-rgb), 0.1) 0%, rgba(var(--brand-primary-dark-rgb), 0.06) 100%)',
                   borderRadius: '8px',
-                  border: '1px solid rgba(124, 58, 237, 0.25)',
-                  boxShadow: '0 2px 6px rgba(124, 58, 237, 0.08)',
+                  border: '1px solid rgba(var(--brand-primary-rgb), 0.25)',
+                  boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.08)',
                   fontSize: '0.85rem',
                   whiteSpace: 'nowrap'
                 }}>

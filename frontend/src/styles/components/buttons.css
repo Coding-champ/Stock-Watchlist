@@ -24,7 +24,7 @@
 }
 
 .btn:focus-visible {
-  outline: 3px solid rgba(124, 58, 237, 0.35);
+  outline: 3px solid rgba(var(--brand-primary-rgb), 0.35);
   outline-offset: 2px;
 }
 
@@ -45,14 +45,14 @@
 }
 
 .btn--ghost {
-  background: rgba(124, 58, 237, 0.12);
+  background: rgba(var(--brand-primary-rgb), 0.12);
   color: var(--brand-primary-dark);
   border: 1px solid var(--brand-border);
   border-bottom: 1px solid var(--brand-border-strong);
 }
 
 .btn--ghost:hover {
-  background: rgba(124, 58, 237, 0.18);
+  background: rgba(var(--brand-primary-rgb), 0.18);
   box-shadow: var(--shadow-soft);
 }
 

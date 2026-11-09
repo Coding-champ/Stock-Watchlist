@@ -56,7 +56,7 @@ function AnalystTab({ stockId }) {
               <div className="analyst-card high">
                 <div className="analyst-card__title">Höchstes Ziel</div>
                 <div className="analyst-card__value">{analystData.price_targets.target_high} €</div>
-                <div className="analyst-card__potential" style={{color: '#7c3aed'}}>
+                <div className="analyst-card__potential" style={{color: 'var(--brand-primary)'}}>
                   +{analystData.price_targets.upside_high}% Potential
                 </div>
               </div>
@@ -98,7 +98,7 @@ function AnalystTab({ stockId }) {
                 {[
                   {label: 'Strong Buy', value: analystData.recommendations.current.strong_buy, class: 'strong-buy', color: '#22c55e'},
                   {label: 'Buy', value: analystData.recommendations.current.buy, class: 'buy', color: '#4ade80'},
-                  {label: 'Hold', value: analystData.recommendations.current.hold, class: 'hold', color: '#facc15', textColor: '#7c3aed'},
+                  {label: 'Hold', value: analystData.recommendations.current.hold, class: 'hold', color: '#facc15', textColor: 'var(--brand-primary)'},
                   {label: 'Sell', value: analystData.recommendations.current.sell, class: 'sell', color: '#f87171'},
                   {label: 'Strong Sell', value: analystData.recommendations.current.strong_sell, class: 'strong-sell', color: '#ef4444'}
                 ].map((seg, idx) => {
