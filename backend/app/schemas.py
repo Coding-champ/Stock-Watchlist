@@ -489,9 +489,47 @@ class Stock(StockBase):
     updated_at: datetime
     stock_data: Optional[List[StockData]] = []  # DEPRECATED - kept for backwards compatibility
     latest_data: Optional[StockData] = None  # Populated from stock_price_data and stock_fundamental_data
+    is_active: bool = True
 
     class Config:
         from_attributes = True
+
+
+class AdminAssetUpdate(BaseModel):
+    name: Optional[str] = None
+    ticker_symbol: Optional[str] = None
+    isin: Optional[str] = None
+    wkn: Optional[str] = None
+    country: Optional[str] = None
+    industry: Optional[str] = None
+    sector: Optional[str] = None
+    business_summary: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class AdminAssetImport(BaseModel):
+    ticker_symbol: str
+    period: str = "max"
+    interval: str = "1d"
+
+
+class AdminAssetItem(BaseModel):
+    id: int
+    asset_type: str
+    name: str
+    ticker_symbol: str
+    isin: Optional[str] = None
+    data_source: str
+    last_successful_delivery: Optional[date] = None
+    expected_latest_trading_day: date
+    quality_status: str
+    price_record_count: int
+    is_active: bool
+
+
+class AdminAssetListResponse(BaseModel):
+    items: List[AdminAssetItem]
+    total: int
 
 
 class StockWithExtendedData(Stock):

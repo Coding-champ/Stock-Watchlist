@@ -13,6 +13,7 @@ import IndexDetailPage from './components/IndexDetailPage';
 import CorrelationHeatmap from './components/CorrelationHeatmap';
 import PortfolioView from './components/portfolio/PortfolioView';
 import InvestmentCheckView from './components/investment-check/InvestmentCheckView';
+import AdminView from './components/AdminView';
 import { formatDisplayNumber } from './utils/numberFormatting';
 
 import API_BASE from './config';
@@ -221,7 +222,10 @@ function App() {
             <button
               className="app-header__action"
               type="button"
-              onClick={() => showToast('Das Admin Panel wird noch eingerichtet.', 'info')}
+              onClick={() => {
+                setIsSettingsOpen(false);
+                setActiveView('admin');
+              }}
               aria-label="Admin Panel öffnen"
               title="Admin Panel"
             >
@@ -630,6 +634,8 @@ function App() {
             onOpenPortfolio={() => setActiveView('portfolio')}
           />
         )}
+
+        {activeView === 'admin' && <AdminView showToast={showToast} />}
 
         {activeView === 'indices' && (
           <main className="layout__content">

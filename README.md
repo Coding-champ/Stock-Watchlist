@@ -10,6 +10,11 @@ Professional Stock Analysis & Watchlist Management System
 - **Filtering & Sorting**: Advanced filtering by name, ISIN, ticker; sort by any column
 - **Detail View**: Click on any stock to see comprehensive information
 - **Price Alerts**: Create customizable alerts (price, P/E, RSI, volatility, MA cross, earnings, composite) plus new types: Trailing Stop, Percent-from-SMA, and enhanced Volume Spike (ratio or z-score)
+- **Administration**: Internal admin panel for asset CRUD, archival, ticker imports, data-quality checks, and targeted or bulk data reloads
+- **Application Settings**: Global display mode, start page, and theme settings
+
+Details zur Bedienung und den API-Endpunkten stehen in
+[`docs/ADMINISTRATION.md`](docs/ADMINISTRATION.md).
 
 ### 🚀 Advanced Analytics (NEW!)
 

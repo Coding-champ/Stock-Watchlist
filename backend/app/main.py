@@ -6,7 +6,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from backend.app.routes import (
     watchlists, stocks, alerts, stock_data, screener, indices, portfolio,
-    investment_check, settings,
+    investment_check, settings, admin,
 )
 from dotenv import load_dotenv
 import os
@@ -50,7 +50,7 @@ class NoCacheMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         # Add no-cache headers for API endpoints (not static files)
-        if request.url.path.startswith(("/stocks", "/watchlists", "/alerts", "/stock-data", "/screener", "/indices", "/portfolio", "/investment-check")):
+        if request.url.path.startswith(("/stocks", "/watchlists", "/alerts", "/stock-data", "/screener", "/indices", "/portfolio", "/investment-check", "/admin")):
             response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
@@ -79,6 +79,7 @@ app.include_router(indices.router)
 app.include_router(portfolio.router)
 app.include_router(investment_check.router)
 app.include_router(settings.router)
+app.include_router(admin.router)
 
 
 # Startup event - start background scheduler

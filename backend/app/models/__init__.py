@@ -66,6 +66,7 @@ class Stock(Base):
     industry = Column(String, nullable=True)
     sector = Column(String, nullable=True)
     business_summary = Column(Text, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true", index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

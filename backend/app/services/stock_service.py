@@ -223,6 +223,8 @@ class StockService:
             stocks = []
             for entry in entries:
                 stock = entry.stock
+                if not stock.is_active:
+                    continue
                 stock_dict = {
                     "id": stock.id,
                     "ticker_symbol": stock.ticker_symbol,

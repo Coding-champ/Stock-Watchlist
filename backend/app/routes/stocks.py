@@ -250,7 +250,7 @@ def get_stocks(
         return stocks[skip:skip+limit]
     else:
         # Get all stocks (no watchlist filter)
-        query = db.query(StockModel)
+        query = db.query(StockModel).filter(StockModel.is_active.is_(True))
         
         # Apply sorting
         if sort_by:
@@ -1458,6 +1458,7 @@ def search_stocks_in_database(
     
     # Search across multiple fields using OR conditions
     query = db.query(StockModel).filter(
+        StockModel.is_active.is_(True),
         (StockModel.name.ilike(search_term)) |
         (StockModel.ticker_symbol.ilike(search_term)) |
         (StockModel.isin.ilike(search_term)) |

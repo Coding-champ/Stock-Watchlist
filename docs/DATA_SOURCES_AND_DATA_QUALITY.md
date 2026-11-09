@@ -257,3 +257,16 @@ Diese Punkte sind die sinnvollste Grundlage für einen nächsten Schritt: zuerst
 ein kleines Ingestion-/Provenienzmodell, danach das Python-Prüfskript und
 anschließend die Darstellung der Ergebnisse im Backend oder in einem
 administrativen Bericht.
+
+## 8. Admin-Panel v1
+
+Die erste Admin-Ansicht ist unter `/admin` verfügbar und verwaltet aktuell
+Stocks. Sie bietet Stammdaten-CRUD, Archivieren statt physischem Löschen,
+Ticker-Import inklusive historischer Kurse und Fundamentaldaten sowie einen
+gezielten Reload je Asset.
+
+Die Datenqualitätsanzeige vergleicht den letzten gespeicherten Tageskurs mit
+dem letzten erwarteten Wochentag. Wochenenden und Börsenfeiertage werden in v1
+nicht über einen Börsenkalender berücksichtigt. Die Quelle wird deshalb
+transparent als `yfinance` angezeigt; ein persistiertes Abrufprotokoll und
+eine feinere Provenienz bleiben Folgearbeiten.

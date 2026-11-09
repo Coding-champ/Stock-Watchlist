@@ -55,6 +55,11 @@ This creates an optimized production build in the `build/` directory, which is s
 - **Sorting**: Click column headers to sort the stock table
 - **Stock Details**: Click on a stock row to view detailed information
 - **Responsive Design**: Works on desktop and mobile devices
+- **Admin Panel**: Accessible through the top-right Admin button; provides asset CRUD, archival, ticker import, data-quality status, and single/selected/all reload actions
+- **Settings**: The top-right settings menu controls display mode, start page, and theme
+
+The admin and settings behavior is documented in
+[`../docs/ADMINISTRATION.md`](../docs/ADMINISTRATION.md).
 
 ## API Integration
 
