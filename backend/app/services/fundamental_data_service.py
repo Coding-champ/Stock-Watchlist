@@ -5,7 +5,7 @@ Handles loading, storing, and retrieving quarterly fundamental financial data
 
 import yfinance as yf
 import pandas as pd
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
@@ -25,6 +25,15 @@ class FundamentalDataService:
     
     def __init__(self, db: Session):
         self.db = db
+
+    def needs_refresh(self, stock_id: int, max_age: timedelta = timedelta(days=7)) -> bool:
+        """Return whether stored fundamentals are missing or older than max_age."""
+        latest = self.db.query(StockFundamentalData).filter(
+            StockFundamentalData.stock_id == stock_id
+        ).order_by(desc(StockFundamentalData.updated_at)).first()
+        if latest is None or latest.updated_at is None:
+            return True
+        return datetime.utcnow() - latest.updated_at >= max_age
     
     def load_and_save_fundamental_data(self, stock_id: int) -> Dict[str, Any]:
         """
@@ -196,10 +205,32 @@ class FundamentalDataService:
             except:
                 pass
             return None
+
+        def safe_get_any(df: pd.DataFrame, keys: List[str], period) -> Optional[float]:
+            for key in keys:
+                value = safe_get(df, key, period)
+                if value is not None:
+                    return value
+            return None
         
         # Income Statement data
         revenue = safe_get(income_df, 'Total Revenue', period_date)
         earnings = safe_get(income_df, 'Net Income', period_date)
+        eps_basic = safe_get_any(
+            income_df,
+            ['Basic EPS', 'Basic EPS Continuing Operations'],
+            period_date,
+        )
+        eps_diluted = safe_get_any(
+            income_df,
+            ['Diluted EPS', 'Diluted EPS Continuing Operations'],
+            period_date,
+        )
+        shares_outstanding = safe_get_any(
+            income_df,
+            ['Basic Average Shares', 'Diluted Average Shares'],
+            period_date,
+        )
         operating_income = safe_get(income_df, 'Operating Income', period_date)
         gross_profit = safe_get(income_df, 'Gross Profit', period_date)
         ebitda = safe_get(income_df, 'EBITDA', period_date)
@@ -208,6 +239,16 @@ class FundamentalDataService:
         total_assets = safe_get(balance_df, 'Total Assets', period_date)
         total_liabilities = safe_get(balance_df, 'Total Liabilities Net Minority Interest', period_date)
         shareholders_equity = safe_get(balance_df, 'Stockholders Equity', period_date)
+        total_debt = safe_get_any(
+            balance_df,
+            ['Total Debt', 'Total Debt And Capital Lease Obligation'],
+            period_date,
+        )
+        total_cash = safe_get_any(
+            balance_df,
+            ['Cash Cash Equivalents And Short Term Investments', 'Cash And Cash Equivalents'],
+            period_date,
+        )
         
         # Cash Flow data
         operating_cashflow = safe_get(cashflow_df, 'Operating Cash Flow', period_date)
@@ -237,12 +278,17 @@ class FundamentalDataService:
         return {
             'revenue': revenue,
             'earnings': earnings,
+            'eps_basic': eps_basic,
+            'eps_diluted': eps_diluted,
+            'shares_outstanding': shares_outstanding,
             'operating_income': operating_income,
             'gross_profit': gross_profit,
             'ebitda': ebitda,
             'total_assets': total_assets,
             'total_liabilities': total_liabilities,
             'shareholders_equity': shareholders_equity,
+            'total_debt': total_debt,
+            'total_cash': total_cash,
             'operating_cashflow': operating_cashflow,
             'free_cashflow': free_cashflow,
             'profit_margin': profit_margin,
@@ -341,12 +387,15 @@ class FundamentalDataService:
                     'earnings': item.earnings,
                     'eps_basic': item.eps_basic,
                     'eps_diluted': item.eps_diluted,
+                    'shares_outstanding': item.shares_outstanding,
                     'operating_income': item.operating_income,
                     'gross_profit': item.gross_profit,
                     'ebitda': item.ebitda,
                     'total_assets': item.total_assets,
                     'total_liabilities': item.total_liabilities,
                     'shareholders_equity': item.shareholders_equity,
+                    'total_debt': item.total_debt,
+                    'total_cash': item.total_cash,
                     'operating_cashflow': item.operating_cashflow,
                     'free_cashflow': item.free_cashflow,
                     'profit_margin': item.profit_margin,

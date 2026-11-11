@@ -25,6 +25,10 @@ export function metricLabel(key) {
       return 'Bilanzsumme';
     case 'total_liabilities':
       return 'Verbindlichkeiten';
+    case 'total_debt':
+      return 'Gesamtschulden';
+    case 'total_cash':
+      return 'Cash';
     case 'shareholders_equity':
       return 'Eigenkapital';
     case 'operating_cashflow':

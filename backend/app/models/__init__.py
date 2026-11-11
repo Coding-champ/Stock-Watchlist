@@ -203,6 +203,7 @@ class StockFundamentalData(Base):
     earnings = Column(Float, nullable=True)  # Net Income
     eps_basic = Column(Float, nullable=True)
     eps_diluted = Column(Float, nullable=True)
+    shares_outstanding = Column(Float, nullable=True)
     operating_income = Column(Float, nullable=True)
     gross_profit = Column(Float, nullable=True)
     ebitda = Column(Float, nullable=True)
@@ -211,6 +212,8 @@ class StockFundamentalData(Base):
     total_assets = Column(Float, nullable=True)
     total_liabilities = Column(Float, nullable=True)
     shareholders_equity = Column(Float, nullable=True)
+    total_debt = Column(Float, nullable=True)
+    total_cash = Column(Float, nullable=True)
     
     # Cash Flow
     operating_cashflow = Column(Float, nullable=True)

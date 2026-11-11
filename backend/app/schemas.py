@@ -241,6 +241,7 @@ class StockFundamentalDataBase(BaseModel):
     earnings: Optional[float] = None
     eps_basic: Optional[float] = None
     eps_diluted: Optional[float] = None
+    shares_outstanding: Optional[float] = None
     operating_income: Optional[float] = None
     gross_profit: Optional[float] = None
     ebitda: Optional[float] = None
@@ -249,6 +250,8 @@ class StockFundamentalDataBase(BaseModel):
     total_assets: Optional[float] = None
     total_liabilities: Optional[float] = None
     shareholders_equity: Optional[float] = None
+    total_debt: Optional[float] = None
+    total_cash: Optional[float] = None
     
     # Cash Flow
     operating_cashflow: Optional[float] = None

@@ -26,7 +26,7 @@ const FINANCIAL_GROUPS = [
   {
     key: 'balance',
     label: 'Bilanz',
-    metrics: ['total_assets', 'shareholders_equity', 'total_liabilities']
+    metrics: ['total_assets', 'shareholders_equity', 'total_liabilities', 'total_debt', 'total_cash']
   },
   {
     key: 'cashflow',
@@ -73,7 +73,7 @@ function FundamentalsTimeSeriesTab({ stockId }) {
         }, { staleTime: 60000 });
         if (mounted) {
           setValuationData((json.series || []).map((item) => ({
-            date: formatDate(item.date, valuationPeriod),
+            date: item.date,
             value: item.value
           })));
         }
@@ -124,9 +124,9 @@ function FundamentalsTimeSeriesTab({ stockId }) {
   const financialSeries = useMemo(
     () => (financialData?.series || []).map((item) => ({
       ...item.values,
-      date: formatDate(item.date, financialFrequency === 'annual' ? '5y' : '1y')
+      date: item.date
     })),
-    [financialData, financialFrequency]
+    [financialData]
   );
 
   const toggleMetric = (metric) => {
@@ -234,7 +234,13 @@ function ValuationChart({ data, metric, loading, error }) {
     <div className="timeseries-chart">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data}>
-          <XAxis dataKey="date" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 12 }}
+            tickFormatter={formatAxisDate}
+            axisLine={false}
+            tickLine={false}
+          />
           <YAxis />
           <Tooltip content={<ValueTooltip metrics={[metric]} />} />
           <Legend />
@@ -257,7 +263,13 @@ function FinancialChart({ title, data, metrics }) {
           barSize={55}
           margin={{ top: 28, right: 12, bottom: 8, left: 12 }}
         >
-          <XAxis dataKey="date" tick={{ fontSize: 13 }} axisLine={false} tickLine={false} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 13 }}
+            tickFormatter={formatAxisDate}
+            axisLine={false}
+            tickLine={false}
+          />
           <Tooltip content={<ValueTooltip metrics={metrics} />} />
           <Legend itemSorter={(item) => metrics.indexOf(item.dataKey)} />
           {metrics.map((metric, index) => (
@@ -286,9 +298,10 @@ function ValueTooltip({ active, payload, label, metrics }) {
   if (!active || !payload || !payload.length) return null;
   return (
     <div className="chart-tooltip">
-      <div className="chart-tooltip__date">{label}</div>
+      <div className="chart-tooltip__date">{formatTooltipDate(label)}</div>
       {metrics.map((metric) => {
-        const item = payload.find((entry) => entry.dataKey === metric);
+        const item = payload.find((entry) => entry.dataKey === metric)
+          || (metrics.length === 1 ? payload[0] : null);
         return item && item.value !== null && item.value !== undefined ? (
           <div key={metric}>{metricLabel(metric)}: {formatNumber(Number(item.value), 2)}</div>
         ) : null;
@@ -297,11 +310,22 @@ function ValueTooltip({ active, payload, label, metrics }) {
   );
 }
 
-function formatDate(dateString, period) {
+function formatAxisDate(dateString) {
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return dateString;
   return date.toLocaleDateString('de-DE', {
-    year: 'numeric',
-    ...(period === '1y' ? { month: 'short', day: 'numeric' } : {})
+    month: 'short',
+    year: '2-digit'
+  });
+}
+
+function formatTooltipDate(dateString) {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return dateString;
+  return date.toLocaleDateString('de-DE', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
   });
 }
 

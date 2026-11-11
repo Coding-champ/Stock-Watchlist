@@ -553,7 +553,6 @@ def get_fundamentals_timeseries(
     Returns a valuation time-series for the legacy single-metric API or real
     financial statement data for the multi-metric API.
     """
-    import random
     from dateutil.relativedelta import relativedelta
     from datetime import datetime
 
@@ -563,6 +562,7 @@ def get_fundamentals_timeseries(
     financial_metrics = {
         "revenue", "earnings", "operating_income", "gross_profit", "ebitda",
         "total_assets", "total_liabilities", "shareholders_equity",
+        "total_debt", "total_cash",
         "operating_cashflow", "free_cashflow",
     }
 
@@ -623,17 +623,6 @@ def get_fundamentals_timeseries(
     series = []
     used_mock = False
 
-    # Helper to create mocked monthly series
-    def _mock_series(base, months=36):
-        out = []
-        today = datetime.utcnow().date()
-        for i in range(months, 0, -1):
-            d = (today - relativedelta(months=i-1)).replace(day=1)
-            # add some smooth noise
-            val = round(base * (1 + (random.random() - 0.5) * 0.2), 2)
-            out.append({"date": d.strftime("%Y-%m-%d"), "value": val})
-        return out
-
     # Try to compute real series for selected metrics using stored fundamentals and price data
     if df is not None and not df.empty:
         try:
@@ -654,24 +643,23 @@ def get_fundamentals_timeseries(
 
                 price = float(price_rec.close) if price_rec.close is not None else None
 
-                # EPS (basic or diluted)
-                eps = rec.get('eps_basic') or rec.get('eps_diluted') or None
-                # Revenue and operating income
+                # Use inputs from the same historical reporting period.
+                eps = rec.get('eps_basic') or rec.get('eps_diluted')
+                shares_outstanding = rec.get('shares_outstanding')
+                earnings = rec.get('earnings')
+                if (
+                    shares_outstanding is None
+                    and earnings is not None
+                    and eps not in (None, 0)
+                ):
+                    shares_outstanding = float(earnings) / float(eps)
+
                 revenue = rec.get('revenue')
                 operating_income = rec.get('operating_income')
 
-                # Try to obtain shares outstanding (from extended cache)
-                shares_outstanding = None
-                try:
-                    cache = db.query(ExtendedStockDataCacheModel).filter(ExtendedStockDataCacheModel.stock_id == stock_id).first()
-                    if cache and cache.extended_data:
-                        shares_outstanding = cache.extended_data.get('sharesOutstanding') or cache.extended_data.get('shares_outstanding')
-                except Exception:
-                    shares_outstanding = None
-
                 # Compute requested metric value if possible
                 computed = None
-                if metric == 'pe_ratio' and eps and eps != 0 and price:
+                if metric == 'pe_ratio' and eps not in (None, 0) and price:
                     try:
                         computed = price / float(eps)
                     except Exception:
@@ -691,24 +679,19 @@ def get_fundamentals_timeseries(
                         computed = None
                 elif metric == 'ev_ebit' and operating_income:
                     try:
-                        # Try to get enterprise value from cache or compute: EV = market_cap + total_debt - total_cash
-                        ev = None
-                        cache = db.query(ExtendedStockDataCacheModel).filter(ExtendedStockDataCacheModel.stock_id == stock_id).first()
-                        if cache and cache.extended_data:
-                            ev = cache.extended_data.get('enterpriseValue') or cache.extended_data.get('enterprise_value')
-                        if ev is None and shares_outstanding and price:
+                        total_debt = rec.get('total_debt')
+                        total_cash = rec.get('total_cash')
+                        if (
+                            shares_outstanding is not None
+                            and price
+                            and total_debt is not None
+                            and total_cash is not None
+                        ):
                             market_cap = price * float(shares_outstanding)
-                            total_debt = rec.get('total_liabilities') or 0
-                            # Try to get cash if present in cache
-                            total_cash = None
-                            if cache and cache.extended_data:
-                                total_cash = cache.extended_data.get('totalCash') or cache.extended_data.get('total_cash')
-                            if total_debt is not None:
-                                try:
-                                    ev = market_cap + float(total_debt) - (float(total_cash) if total_cash is not None else 0)
-                                except Exception:
-                                    ev = None
-                        if ev and operating_income and float(operating_income) != 0:
+                            ev = market_cap + float(total_debt) - float(total_cash)
+                        else:
+                            ev = None
+                        if ev is not None and float(operating_income) != 0:
                             computed = float(ev) / float(operating_income)
                     except Exception:
                         computed = None
@@ -717,20 +700,6 @@ def get_fundamentals_timeseries(
                     series.append({"date": period_end.strftime("%Y-%m-%d"), "value": round(computed, 2)})
         except Exception:
             series = []
-
-    # If we couldn't build a reliable series, return mock data
-    if not series:
-        used_mock = True
-        months = 12 if period == '1y' else (36 if period == '3y' else 60)
-        # Choose plausible bases per metric
-        base_map = {
-            'pe_ratio': 20.0,
-            'price_to_sales': 3.5,
-            'ev_ebit': 15.0,
-            'price_to_book': 4.0
-        }
-        base = base_map.get(metric, 10.0)
-        series = _mock_series(base=base, months=months)
 
     return {"stock_id": stock_id, "ticker": stock.ticker_symbol, "metric": metric, "period": period, "used_mock": used_mock, "series": series}
 
@@ -2487,6 +2456,12 @@ def update_market_data(
         raise HTTPException(status_code=404, detail="Stock not found")
     
     try:
+        fundamentals_refreshed = False
+        fundamental_service = FundamentalDataService(db)
+        if fundamental_service.needs_refresh(stock_id):
+            fundamental_result = fundamental_service.load_and_save_fundamental_data(stock_id)
+            fundamentals_refreshed = bool(fundamental_result.get("success"))
+
         # Get current stock data (includes optional normalized timestamp)
         # prefer the wrapper that provides a normalized `timestamp` when available
         current_data = None
@@ -2588,6 +2563,7 @@ def update_market_data(
             "stock_id": stock_id,
             "ticker_symbol": stock.ticker_symbol,
             "data": data_obj,
+            "fundamentals_refreshed": fundamentals_refreshed,
             "message": "Market data updated successfully"
         }
         
