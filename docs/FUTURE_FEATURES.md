@@ -63,11 +63,92 @@
 | WebSockets | ❌ | Nicht vorhanden |
 | Custom Columns Builder | ❌ | Nicht vorhanden |
 | Earnings / Corporate Actions | ❌ | Keine Tabelle |
+| Analysten-Historie & Revisionen | ❌ Teilweise | Aktuelle Revisionenzählung aus yfinance; keine eigene Persistenz |
 | Options Volatilität (IV) | ❌ | Nicht vorhanden |
 | Anomalie-Erkennung (ML) | ❌ | Nicht vorhanden |
 | RRG-Light Erweiterung | ❌ | Nur Grund-RS vorhanden |
 
 Kurzfazit: Kern-Indikatoren & Vergleichsfunktionen stehen; nächster Hebel sind Portfolio, erweiterte Alerts & Smart-Watchlists plus Infrastruktur (Auth, Caching).
+
+---
+
+## 📊 Analysten-Historie & Revisionen
+
+**Status:** ❌ Geplant
+**Priorität:** 🟡 Mittel-Hoch
+**Ziel:** In der Aktienansicht nicht nur den aktuellen Analystenstand, sondern die Entwicklung von Empfehlungen, Analystenzahl und Kurszielen über frei wählbare Zeiträume (z. B. 1 Monat, 3 Monate, 6 Monate, 1 Jahr) anzeigen.
+
+### Ausgangslage
+
+- Die Aktienansicht lädt den Analystenüberblick aktuell über `GET /stocks/{stock_id}/analyst-ratings`.
+- `revisions_1m` und `revisions_3m` werden aus der von yfinance gelieferten Recommendation-Zeitreihe berechnet.
+- Diese Daten werden derzeit nicht dauerhaft als Anwendungshistorie gespeichert.
+- Kursziele (`mean`, `high`, `low`, `median`) und `numberOfAnalystOpinions` sind momentan nur aktuelle Snapshots.
+- Der bestehende Cache enthält pro Aktie nur einen Datensatz und ist daher keine Historientabelle.
+
+### Geplanter Umsetzungsplan
+
+#### 1. Datenmodell & Speicherung
+
+- Neue Tabelle für Analysten-Snapshots, z. B. `analyst_data_snapshots`.
+- Pro Snapshot speichern:
+  - `stock_id`, `observed_at` und Datenquelle
+  - Kurszielwerte: `current`, `high`, `low`, `mean`, `median`
+  - Anzahl der Analysten
+  - Empfehlungssummen: `strong_buy`, `buy`, `hold`, `sell`, `strong_sell`
+  - optional den unveränderten Provider-Payload für spätere Nachberechnung
+- Eindeutigkeit bzw. Deduplizierung definieren, damit wiederholte Abrufe ohne Datenänderung keine unnötigen Datensätze erzeugen.
+- Aufbewahrungsstrategie und Fehlerstatus festlegen; fehlerhafte Abrufe dürfen keinen gültigen Snapshot überschreiben.
+- Migration, Indizes auf `(stock_id, observed_at)` und Bereinigung vorhandener Cache-Annahmen ergänzen.
+
+#### 2. Erfassung & Aktualisierung
+
+- Analystendaten über einen zentralen Service abrufen und nach erfolgreichem Abruf als Snapshot persistieren.
+- Aktualisierungsintervall festlegen (z. B. höchstens einmal täglich pro Aktie; manuelles Refresh weiterhin ermöglichen).
+- Zeitzonen und den Beobachtungszeitpunkt einheitlich als UTC speichern.
+- Provider-Zeitreihen von yfinance weiterhin nutzen, aber klar von der eigenen Snapshot-Historie unterscheiden.
+
+#### 3. Historische Berechnung
+
+- Revisionen aus eigenen Snapshots berechnen und nicht nur die aktuell von yfinance gelieferte Tabelle zählen.
+- Für jeden Zeitraum liefern:
+  - Anzahl tatsächlicher Änderungen
+  - Änderung der Konsensbewertung
+  - Änderung der Analystenzahl
+  - Änderung von durchschnittlichem, niedrigstem und höchstem Kursziel
+- Gleiche Datenstände deduplizieren; Änderungen an einzelnen Empfehlungskategorien oder Kurszielen nachvollziehbar erfassen.
+- Fehlende Daten und Provider-Lücken explizit kennzeichnen, statt sie als unveränderte Werte zu interpretieren.
+
+#### 4. API & Aktienansicht
+
+- Historien-Endpunkt ergänzen, z. B. `GET /stocks/{stock_id}/analyst-history`.
+- Parameter für Zeitraum, Granularität und optional Limit vorsehen.
+- Antwortformat als Zeitreihe mit Snapshot-Daten und berechneten Veränderungen definieren.
+- In der Analysten-Ansicht:
+  - Zeitraum-Auswahl (1M, 3M, 6M, 1J)
+  - Verlauf für durchschnittliches Kursziel und Analystenzahl
+  - Liste/Timeline der Empfehlungsänderungen
+  - klare Kennzeichnung des letzten Aktualisierungszeitpunkts
+  - Hinweis bei unvollständiger Historie
+- Die bestehende aktuelle Zusammenfassung und die bisherigen Revisionenzähler zunächst rückwärtskompatibel halten.
+
+#### 5. Qualität & Tests
+
+- Unit-Tests für Snapshot-Deduplizierung und Zeitraumberechnung.
+- API-Tests für leere, lückenhafte und vollständig vorhandene Historien.
+- Tests für unveränderte Daten, echte Änderungen und Provider-Fehler.
+- Frontend-Test für Zeitraumwechsel und fehlende Historie.
+- Logging/Metriken für Abrufzeitpunkt, Datenalter und fehlgeschlagene Snapshot-Erfassung.
+
+### Abgrenzung
+
+- Keine historische Bewertung einzelner namentlich bekannter Analysten in der ersten Version; yfinance liefert primär aggregierte Empfehlungen.
+- Keine rückwirkende Rekonstruktion von Daten, die vor Einführung der Snapshot-Erfassung nicht gespeichert wurden.
+- Options-IV-Historie bleibt ein separates Feature und wird nicht in dieses Datenmodell integriert.
+
+### Erfolgskriterium
+
+Für eine Aktie können Nutzer in der Aktienansicht einen Zeitraum auswählen und sehen, wie sich Konsens, Analystenzahl und Kursziele seit Beginn der eigenen Datenerfassung verändert haben. Jede angezeigte Änderung ist auf einen gespeicherten Snapshot mit Zeitstempel zurückführbar.
 
 ---
 

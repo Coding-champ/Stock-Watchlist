@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import CalculatedMetricsTab from './CalculatedMetricsTab';
 import AnalystTab from './AnalystTab';
 import '../styles/skeletons.css';
@@ -13,7 +13,6 @@ import { useAlerts } from '../hooks/useAlerts';
 import { useQueryClient } from '@tanstack/react-query';
 
 import API_BASE from '../config';
-import { OBSERVATION_REASON_OPTIONS } from './ObservationFields';
 import { useBenchmarkComparison, inferDefaultBenchmark, BENCHMARK_PERIODS } from '../hooks/useBenchmarkComparison';
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -28,6 +27,8 @@ function StockDetailPage({ stock, onBack, watchlistId, onShowToast, onOpenInvest
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('chart');
   const [alertModalConfig, setAlertModalConfig] = useState(null);
+  const [showAlertPopover, setShowAlertPopover] = useState(false);
+  const alertPopoverRef = useRef(null);
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(() => inferDefaultBenchmark(stock.country));
   const [benchmarkPeriod, setBenchmarkPeriod] = useState('1y');
   const [showAddToWatchlistModal, setShowAddToWatchlistModal] = useState(false);
@@ -42,7 +43,28 @@ function StockDetailPage({ stock, onBack, watchlistId, onShowToast, onOpenInvest
   useEffect(() => {
     setBookmarkedTicker(null);
     setShowAddToWatchlistModal(false);
+    setShowAlertPopover(false);
   }, [stock?.ticker_symbol]);
+
+  useEffect(() => {
+    if (!showAlertPopover) return undefined;
+
+    const handleOutsideClick = (event) => {
+      if (alertPopoverRef.current && !alertPopoverRef.current.contains(event.target)) {
+        setShowAlertPopover(false);
+      }
+    };
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') setShowAlertPopover(false);
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showAlertPopover]);
 
   const isBookmarked = React.useMemo(() => {
     if (!bookmarkedTicker) return false;
@@ -261,6 +283,96 @@ function StockDetailPage({ stock, onBack, watchlistId, onShowToast, onOpenInvest
                     />
                   </svg>
                 </button>
+                <div className="stock-alert-control" ref={alertPopoverRef}>
+                  <button
+                    type="button"
+                    className={`stock-alert-btn${alerts.length > 0 ? ' has-alerts' : ''}`}
+                    onClick={() => setShowAlertPopover((visible) => !visible)}
+                    aria-label={`Alarme für ${stock.ticker_symbol} anzeigen`}
+                    aria-expanded={showAlertPopover}
+                    title="Alarme anzeigen"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path
+                        d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    {alerts.length > 0 && <span className="stock-alert-count">{alerts.length}</span>}
+                  </button>
+                  {showAlertPopover && (
+                    <div className="stock-alert-popover" role="dialog" aria-label="Alarme">
+                      <div className="stock-alert-popover__header">
+                        <strong>Alarme</strong>
+                        <button
+                          type="button"
+                          className="stock-alert-popover__add"
+                          onClick={() => {
+                            setAlertModalConfig({ mode: 'create', alert: null });
+                            setShowAlertPopover(false);
+                          }}
+                        >
+                          + Alarm hinzufügen
+                        </button>
+                      </div>
+                      {alerts.length > 0 ? (
+                        <div className="stock-alert-popover__list">
+                          {alerts.map((alert) => {
+                            const unit = getUnitForAlertType(alert.alert_type, stock);
+                            return (
+                              <div
+                                key={alert.id}
+                                className={`stock-alert-popover__item ${alert.is_active ? 'active' : 'inactive'}`}
+                              >
+                                <div className="stock-alert-popover__item-main">
+                                  <span className="alert-type-badge">{getAlertTypeLabel(alert.alert_type)}</span>
+                                  <span className="stock-alert-popover__condition">
+                                    {getConditionLabel(alert.condition)}
+                                    {alert.alert_type !== 'ma_cross' && (
+                                      <> {formatNumber(alert.threshold_value, 2)}{unit && ` ${unit}`}</>
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="stock-alert-popover__actions">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleAlert(alert)}
+                                    title={alert.is_active ? 'Alarm deaktivieren' : 'Alarm aktivieren'}
+                                  >
+                                    {alert.is_active ? '⏸' : '▶'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAlertModalConfig({ mode: 'edit', alert });
+                                      setShowAlertPopover(false);
+                                    }}
+                                    title="Alarm bearbeiten"
+                                  >
+                                    ✎
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteAlert(alert.id)}
+                                    title="Alarm löschen"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="stock-alert-popover__empty">Keine Alarme gesetzt</p>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <button
                 type="button"
                 className="btn btn--ghost"
@@ -364,12 +476,6 @@ function StockDetailPage({ stock, onBack, watchlistId, onShowToast, onOpenInvest
               onClick={() => setActiveTab('analysis')}
             >
               Auswertung
-            </button>
-            <button 
-              className={`tab-button ${activeTab === 'investment' ? 'active' : ''}`}
-              onClick={() => setActiveTab('investment')}
-            >
-              Investment
             </button>
             <button
               key="Saisonalität"
@@ -827,113 +933,6 @@ function StockDetailPage({ stock, onBack, watchlistId, onShowToast, onOpenInvest
             {activeTab === 'analysten' && (
               <div className="tab-panel">
                 <AnalystTab stockId={stock.id} />
-              </div>
-            )}
-
-            {activeTab === 'investment' && (
-              <div className="tab-panel">
-                {stock.observation_reasons && stock.observation_reasons.length > 0 && (
-                  <div className="data-section">
-                    <h3>💡 Beobachtungsgründe</h3>
-                    <div className="observation-reasons">
-                      {stock.observation_reasons.map((reason, index) => {
-                        const label = OBSERVATION_REASON_OPTIONS.find(opt => opt.value === reason)?.label || reason;
-                        return (
-                          <div key={index} className="reason-tag">
-                            {label}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {stock.observation_notes && (
-                  <div className="data-section">
-                    <h3>📝 Bemerkungen</h3>
-                    <div className="observation-notes">
-                      <p>{stock.observation_notes}</p>
-                    </div>
-                  </div>
-                )}
-
-                <div className="data-section">
-                  <div className="section-header-with-action">
-                    <h3>🔔 Kursalarme</h3>
-                    <button
-                      className="btn btn-primary btn-sm"
-                      onClick={() => setAlertModalConfig({ mode: 'create', alert: null })}
-                    >
-                      ➕ Alarm hinzufügen
-                    </button>
-                  </div>
-                  {alerts.length > 0 ? (
-                    <div className="alerts-list">
-                      {alerts.map((alert) => {
-                        const unit = getUnitForAlertType(alert.alert_type, stock);
-                        return (
-                        <div 
-                          key={alert.id} 
-                          className={`alert-item ${alert.is_active ? 'active' : 'inactive'}`}
-                        >
-                          <div className="alert-header">
-                            <span className="alert-type-badge">{getAlertTypeLabel(alert.alert_type)}</span>
-                            <span className={`alert-status ${alert.is_active ? 'status-active' : 'status-inactive'}`}>
-                              {alert.is_active ? '✓ Aktiv' : '○ Inaktiv'}
-                            </span>
-                          </div>
-                          <div className="alert-details">
-                            <div className="alert-condition">
-                              <strong>{getConditionLabel(alert.condition)}</strong> 
-                              {alert.alert_type !== 'ma_cross' && (
-                                <> {formatNumber(alert.threshold_value, 2)}{unit && ` ${unit}`}</>
-                              )}
-                            </div>
-                            {alert.last_triggered && (
-                              <div className="alert-triggered" style={{ fontSize: '0.85em', color: '#ff9800', marginTop: '4px' }}>
-                                🔔 Zuletzt ausgelöst: {new Date(alert.last_triggered).toLocaleString('de-DE')}
-                                {alert.trigger_count > 1 && ` (${alert.trigger_count}x)`}
-                              </div>
-                            )}
-                            {alert.notes && (
-                              <div className="alert-note">
-                                💬 {alert.notes}
-                              </div>
-                            )}
-                            {alert.expiry_date && (
-                              <div className="alert-expiry">
-                                ⏰ Läuft ab: {new Date(alert.expiry_date).toLocaleDateString('de-DE')}
-                              </div>
-                            )}
-                          </div>
-                          <div className="alert-actions">
-                            <button
-                              className="btn btn-sm btn-secondary"
-                              onClick={() => handleToggleAlert(alert)}
-                            >
-                              {alert.is_active ? '⏸️ Deaktivieren' : '▶️ Aktivieren'}
-                            </button>
-                            <button
-                              className="btn btn-sm btn-info"
-                              onClick={() => setAlertModalConfig({ mode: 'edit', alert })}
-                            >
-                              ✏️ Bearbeiten
-                            </button>
-                            <button
-                              className="btn btn-sm btn-danger"
-                              onClick={() => handleDeleteAlert(alert.id)}
-                            >
-                              🗑️ Löschen
-                            </button>
-                          </div>
-                        </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="no-data">Keine Kursalarme gesetzt</p>
-                  )}
-                </div>
               </div>
             )}
 
