@@ -1,4 +1,4 @@
-# 🚀 Future Features - Stock Watchlist App
+# 🚀 Future Features (Roadmap) - Stock Watchlist App
 
 ## ✅ Recently Completed (2025-10-09)
 
@@ -71,6 +71,39 @@
 Kurzfazit: Kern-Indikatoren & Vergleichsfunktionen stehen; nächster Hebel sind Portfolio, erweiterte Alerts & Smart-Watchlists plus Infrastruktur (Auth, Caching).
 
 ---
+
+## 🔴 Hohe Priorität - Datenbankmigrationen zentralisieren
+
+**Status:** ❌ Offen
+**Priorität:** 🔴 Hoch
+**Einschätzung:** Aktuell besteht ein mittleres Risiko in der lokalen Entwicklung und ein hohes Risiko für Produktion oder mehrere Umgebungen. Das Backend verwendet beim Start `Base.metadata.create_all()`, führt bestehende Migrationen aber nicht automatisch aus. Die eigentlichen Schemaänderungen liegen in einzelnen, manuell auszuführenden Skripten unter `backend/app/migrations/`; eine zentrale Versionsverwaltung fehlt.
+
+### Risiken
+
+- Neue Spalten, Constraints oder Indizes werden bei bestehenden Tabellen nicht automatisch angelegt.
+- Das Backend kann trotz nicht aktualisiertem Schema starten; Fehler treten dann erst bei betroffenen API-Aufrufen auf.
+- Migrationen können vergessen oder in falscher Reihenfolge ausgeführt werden.
+- Es ist nicht zuverlässig nachvollziehbar, welche Migrationen auf einer Datenbank bereits angewendet wurden.
+- Wiederholte Ausführung einzelner älterer Skripte ist nicht durchgehend sicher.
+- Tests mit `Base.metadata.create_all()` können Unterschiede zwischen Modell und realem Migrationspfad verdecken.
+
+### Empfohlene Maßnahmen
+
+1. Bestehende Produktions- und Entwicklungsdatenbanken sichern und den aktuellen Schemazustand erfassen.
+2. Einen einheitlichen Migrationsmechanismus festlegen, vorzugsweise Alembic oder alternativ einen zentralen, versionierten eigenen Migration-Runner.
+3. Die vorhandenen Migrationen unter `backend/app/migrations/` in eine nachvollziehbare Versionshistorie überführen.
+4. Eine zentrale Versions-/Status-Tabelle einführen, damit jede Migration genau einmal und in definierter Reihenfolge ausgeführt wird.
+5. Migrationen beim Deployment beziehungsweise vor dem Backend-Start kontrolliert ausführen.
+6. `Base.metadata.create_all()` nicht mehr als Produktionsmigration verwenden; für Tests darf es weiterhin mit einer isolierten Testdatenbank eingesetzt werden.
+7. Tests ergänzen, die eine bestehende ältere Datenbank auf die aktuelle Version migrieren.
+8. `alembic.ini` und die Alembic-Abhängigkeit erst entfernen, nachdem entschieden wurde, ob Alembic verwendet oder bewusst durch einen eigenen Runner ersetzt wird.
+
+### Erfolgskriterien
+
+- Jede Datenbank besitzt eine eindeutig bekannte Schema-Version.
+- Migrationen laufen reproduzierbar, in definierter Reihenfolge und ohne manuelle Einzelaufrufe.
+- Ein Deployment schlägt sichtbar fehl, wenn eine erforderliche Migration nicht ausgeführt werden kann.
+- Eine neue oder bestehende Datenbank kann anhand einer dokumentierten Anleitung auf den aktuellen Stand gebracht werden.
 
 ## 📊 Analysten-Historie & Revisionen
 
