@@ -235,6 +235,7 @@ class StockService:
                     "industry": stock.industry,
                     "sector": stock.sector,
                     "business_summary": stock.business_summary,
+                    "is_active": stock.is_active,
                     # Watchlist context from StockInWatchlist
                     "watchlist_id": entry.watchlist_id,
                     "position": entry.position,

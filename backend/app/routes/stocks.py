@@ -538,18 +538,20 @@ def get_stock(
 
 
 # ------------------------------------------------------------------
-# Fundamentals time-series endpoint (supports mock fallback)
+# Fundamentals time-series endpoint
 # ------------------------------------------------------------------
 @router.get("/{stock_id}/fundamentals/timeseries")
 def get_fundamentals_timeseries(
     stock_id: int,
     metric: str = Query("pe_ratio", description="Metric to return: pe_ratio, price_to_sales, ev_ebit, price_to_book"),
-    period: str = Query("3y", description="Period to return: 1y,3y,5y"),
+    period: str = Query("5y", description="Period to return: 3y,5y,10y"),
+    frequency: str = Query("annual", description="Financial statement frequency: annual or quarterly"),
+    metrics: Optional[str] = Query(None, description="Comma-separated financial statement metrics"),
     db: Session = Depends(get_db)
 ):
     """
-    Returns a time-series for a requested fundamental metric for the given stock.
-    If reliable fundamental or price data is not available, returns a mocked series.
+    Returns a valuation time-series for the legacy single-metric API or real
+    financial statement data for the multi-metric API.
     """
     import random
     from dateutil.relativedelta import relativedelta
@@ -557,6 +559,61 @@ def get_fundamentals_timeseries(
 
     stock = StockQueryService(db).get_stock_id_or_404(stock_id)
     fund_service = FundamentalDataService(db)
+
+    financial_metrics = {
+        "revenue", "earnings", "operating_income", "gross_profit", "ebitda",
+        "total_assets", "total_liabilities", "shareholders_equity",
+        "operating_cashflow", "free_cashflow",
+    }
+
+    if metrics is not None:
+        selected_metrics = [item.strip() for item in metrics.split(",") if item.strip()]
+        invalid_metrics = sorted(set(selected_metrics) - financial_metrics)
+        if not selected_metrics or invalid_metrics:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported financial metric(s): {', '.join(invalid_metrics) or 'none'}",
+            )
+        if frequency not in {"annual", "quarterly"}:
+            raise HTTPException(status_code=400, detail="frequency must be annual or quarterly")
+
+        records = fund_service.get_fundamental_data(stock_id)
+        records = [
+            record for record in records
+            if record.period_end_date
+            and (
+                (frequency == "annual" and "Q" not in record.period)
+                or (frequency == "quarterly" and "Q" in record.period)
+            )
+        ]
+        records.sort(key=lambda record: record.period_end_date)
+
+        if frequency == "quarterly":
+            records = records[-5:]
+        else:
+            years = {"3y": 3, "5y": 5, "10y": 10}.get(period, 5)
+            cutoff = datetime.utcnow().date() - relativedelta(years=years)
+            records = [record for record in records if record.period_end_date >= cutoff]
+
+        series = [
+            {
+                "date": record.period_end_date.strftime("%Y-%m-%d"),
+                "values": {
+                    selected_metric: getattr(record, selected_metric)
+                    for selected_metric in selected_metrics
+                    if getattr(record, selected_metric) is not None
+                },
+            }
+            for record in records
+        ]
+        return {
+            "stock_id": stock_id,
+            "ticker": stock.ticker_symbol,
+            "frequency": frequency,
+            "period": period,
+            "metrics": selected_metrics,
+            "series": series,
+        }
 
     try:
         df = fund_service.get_fundamental_dataframe(stock_id)

@@ -28,7 +28,7 @@ class FundamentalDataService:
     
     def load_and_save_fundamental_data(self, stock_id: int) -> Dict[str, Any]:
         """
-        Load quarterly fundamental data from yfinance and save to database
+        Load quarterly and annual fundamental data from yfinance and save it.
         
         Args:
             stock_id: Database ID of the stock
@@ -45,22 +45,41 @@ class FundamentalDataService:
             # Fetch data from yfinance
             ticker = yf.Ticker(stock.ticker_symbol)
             
-            # Get quarterly financials
+            # Get quarterly and annual financials. Annual statements are
+            # needed for long-range charting; quarterly data remains available.
             quarterly_income = ticker.quarterly_income_stmt
             quarterly_balance = ticker.quarterly_balance_sheet
             quarterly_cashflow = ticker.quarterly_cashflow
+            annual_income = ticker.income_stmt
+            annual_balance = ticker.balance_sheet
+            annual_cashflow = ticker.cashflow
             
-            if quarterly_income.empty and quarterly_balance.empty and quarterly_cashflow.empty:
+            if (
+                quarterly_income.empty
+                and quarterly_balance.empty
+                and quarterly_cashflow.empty
+                and annual_income.empty
+                and annual_balance.empty
+                and annual_cashflow.empty
+            ):
                 logger.warning(f"No fundamental data available for {stock.ticker_symbol}")
                 return {"success": False, "error": "No data available", "count": 0}
             
-            # Save data to database
-            records_saved = self._save_fundamental_data(
+            quarterly_records = self._save_fundamental_data(
                 stock_id, 
                 quarterly_income, 
                 quarterly_balance, 
-                quarterly_cashflow
+                quarterly_cashflow,
+                frequency="quarterly",
             )
+            annual_records = self._save_fundamental_data(
+                stock_id,
+                annual_income,
+                annual_balance,
+                annual_cashflow,
+                frequency="annual",
+            )
+            records_saved = quarterly_records + annual_records
             
             logger.info(f"Saved {records_saved} fundamental records for {stock.ticker_symbol}")
             
@@ -78,7 +97,8 @@ class FundamentalDataService:
         stock_id: int, 
         income_df: pd.DataFrame,
         balance_df: pd.DataFrame,
-        cashflow_df: pd.DataFrame
+        cashflow_df: pd.DataFrame,
+        frequency: str = "quarterly",
     ) -> int:
         """
         Save fundamental data from DataFrames to database
@@ -109,7 +129,10 @@ class FundamentalDataService:
             for period_date in sorted(all_periods, reverse=True):
                 try:
                     # Extract data for this period (direct util call after removing deprecated wrapper)
-                    period_str = util_format_period(period_date)
+                    if frequency == "annual":
+                        period_str = f"FY{period_date.year}"
+                    else:
+                        period_str = util_format_period(period_date)
                     period_end = period_date.date() if hasattr(period_date, 'date') else period_date
                     
                     # Check if record already exists
