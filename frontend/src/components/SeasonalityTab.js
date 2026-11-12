@@ -547,8 +547,8 @@ function SeasonalityTab({ stockId }) {
             </ResponsiveContainer>
           </div>
 
-          <div className="table-container">
-            <table className="seasonality-table">
+          <div className="scroll-shadow table-container">
+            <table className="table seasonality-table">
               <thead>
                 <tr>
                   <th>Monat</th>

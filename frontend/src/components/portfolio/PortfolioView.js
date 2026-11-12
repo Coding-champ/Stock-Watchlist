@@ -134,10 +134,16 @@ function PortfolioView({ showToast, onOpenStock, onOpenInvestmentCheck }) {
   return (
     <main className="portfolio-view">
       <section className="panel">
-        <div className="panel__title-group">
-          <div className="panel__eyebrow">Bestand</div>
-          <div className="panel__title">{portfolio?.name || 'Mein Portfolio'}</div>
-          <div className="panel__subtitle">Positionen verwalten und Nachkäufe zum Einstand hinzufügen.</div>
+        <div className="portfolio-view__header">
+          <div className="panel__title-group">
+            <div className="panel__eyebrow">Bestand</div>
+            <div className="panel__title">{portfolio?.name || 'Mein Portfolio'}</div>
+            <div className="panel__subtitle">Positionen verwalten und Nachkäufe zum Einstand hinzufügen.</div>
+          </div>
+          <div className="portfolio-form__total">
+            <span>Gesamtwert</span>
+            <strong>{formatValue(portfolio?.total_value)}</strong>
+          </div>
         </div>
 
         <form className="portfolio-form" onSubmit={submit}>
@@ -165,8 +171,8 @@ function PortfolioView({ showToast, onOpenStock, onOpenInvestmentCheck }) {
         )}
 
         {portfolio?.holdings?.length ? (
-          <div className="portfolio-table-wrap">
-            <table className="portfolio-table">
+          <div className="scroll-shadow portfolio-table-wrap">
+            <table className="table portfolio-table">
               <thead>
                 <tr>
                   <th>Aktie</th>

@@ -268,12 +268,12 @@ function App() {
                   <span>Startseite</span>
                   <select value={settings.default_page} onChange={(event) => saveSettings({ default_page: event.target.value })}>
                     <option value="overview">Übersicht</option>
+                    <option value="portfolio">Portfolio</option>
                     <option value="watchlist">Watchlist</option>
                     <option value="screener">Screener</option>
+                    <option value="indices">Indizes</option>
                     <option value="earnings">Earnings</option>
                     <option value="alerts">Alerts</option>
-                    <option value="indices">Indizes</option>
-                    <option value="portfolio">Portfolio</option>
                     <option value="investment-check">Investitions-Check</option>
                   </select>
                 </label>
@@ -291,9 +291,6 @@ function App() {
             <span className="app-header__eyebrow">Dein Marktüberblick</span>
             <h1>Stock Watchlist</h1>
           </div>
-          <p className="app-header__subtitle">
-            Synchronisiere deine Watchlists mit aktuellen Kursen und behalte Chancen im Blick.
-          </p>
         </header>
 
         {/* Top Navigation */}
@@ -317,6 +314,13 @@ function App() {
               Übersicht
             </button>
             <button
+              className={`topnav__item ${activeView === 'portfolio' ? 'is-active' : ''}`}
+              onClick={() => setActiveView('portfolio')}
+              type="button"
+            >
+              Portfolio
+            </button>
+            <button
               className={`topnav__item ${activeView === 'watchlist' ? 'is-active' : ''}`}
               onClick={() => setActiveView('watchlist')}
               type="button"
@@ -331,20 +335,6 @@ function App() {
               Screener
             </button>
             <button
-              className={`topnav__item ${activeView === 'earnings' ? 'is-active' : ''}`}
-              onClick={() => setActiveView('earnings')}
-              type="button"
-            >
-              Earnings
-            </button>
-            <button
-              className={`topnav__item ${activeView === 'alerts' ? 'is-active' : ''}`}
-              onClick={() => setActiveView('alerts')}
-              type="button"
-            >
-              Alerts
-            </button>
-            <button
               className={`topnav__item ${activeView === 'indices' ? 'is-active' : ''}`}
               onClick={() => setActiveView('indices')}
               type="button"
@@ -352,27 +342,45 @@ function App() {
               Indizes
             </button>
             <button
-              className={`topnav__item ${activeView === 'portfolio' ? 'is-active' : ''}`}
-              onClick={() => setActiveView('portfolio')}
+              className={`topnav__item topnav__item--icon ${activeView === 'earnings' ? 'is-active' : ''}`}
+              onClick={() => setActiveView('earnings')}
+              title="Earnings"
+              aria-label="Earnings öffnen"
               type="button"
             >
-              Portfolio
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <rect x="3" y="5" width="18" height="16" rx="2" />
+                <path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 17h3" />
+              </svg>
             </button>
             <button
-              className={`topnav__item ${activeView === 'investment-check' ? 'is-active' : ''}`}
-              onClick={() => setActiveView('investment-check')}
+              className={`topnav__item topnav__item--icon ${activeView === 'alerts' ? 'is-active' : ''}`}
+              onClick={() => setActiveView('alerts')}
+              title="Alerts"
+              aria-label="Alerts öffnen"
               type="button"
             >
-              Investitions-Check
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4" />
+              </svg>
             </button>
-            {/* Gallery trigger icon at the far right */}
+            <button
+              className={`topnav__item topnav__item--icon ${activeView === 'investment-check' ? 'is-active' : ''}`}
+              onClick={() => setActiveView('investment-check')}
+              title="Investitions-Check"
+              aria-label="Investitions-Check öffnen"
+              type="button"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M8 3h8a2 2 0 0 1 2 2v16H6V5a2 2 0 0 1 2-2ZM9 3v3h6V3M9 13l2 2 4-4" />
+              </svg>
+            </button>
             <button
               className="topnav__item topnav__item--icon"
               onClick={() => setIsGalleryOpen(true)}
               title="Quick Insights Gallery"
               aria-label="Quick Insights Gallery öffnen"
               type="button"
-              style={{ marginLeft: 'auto' }}
             >
               {/* simple grid icon */}
               <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">

@@ -7,6 +7,13 @@
   text-align: center;
 }
 
+.portfolio-view__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
 .portfolio-form {
   display: grid;
   grid-template-columns: repeat(4, minmax(120px, 1fr)) auto;
@@ -34,6 +41,23 @@
   color: var(--text-main);
   background: var(--brand-surface);
   font: inherit;
+}
+
+.portfolio-form__total {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--brand-border);
+  border-radius: 10px;
+  background: var(--brand-surface-table);
+  color: var(--brand-primary-dark);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.portfolio-form__total strong {
+  font-size: 0.95rem;
 }
 
 .button {
@@ -83,32 +107,19 @@
 
 .portfolio-table-wrap {
   overflow-x: auto;
+  margin-top: 12px;
 }
 
 .portfolio-table {
   width: 100%;
-  border-collapse: collapse;
   min-width: 850px;
 }
 
-.portfolio-table th,
-.portfolio-table td {
-  padding: 14px 10px;
-  border-bottom: 1px solid var(--brand-border);
-  text-align: right;
-  white-space: nowrap;
-}
-
-.portfolio-table th:first-child,
-.portfolio-table td:first-child {
-  text-align: left;
-}
-
-.portfolio-table thead th {
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.portfolio-table tfoot th,
+.portfolio-table tfoot td {
+  background: var(--brand-surface-table);
+  color: var(--brand-primary-dark);
+  font-weight: 700;
 }
 
 .portfolio-table__stock {
@@ -159,6 +170,10 @@
 @media (max-width: 900px) {
   .portfolio-form {
     grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+
+  .portfolio-view__header {
+    align-items: stretch;
   }
 
   .portfolio-form .button {
