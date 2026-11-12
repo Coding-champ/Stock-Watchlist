@@ -1,0 +1,293 @@
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(8px);
+}
+
+/*
+  Important: Many panels/cards use CSS transforms on hover (e.g. lifting effects).
+  A transformed ancestor becomes the containing block for `position: fixed`, which
+  can make modals appear centered within that container instead of the viewport.
+  While any modal is open, disable panel transforms so modals stay viewport-centered.
+*/
+body:has(.modal) .panel {
+  transform: none !important;
+}
+
+.modal-content {
+  position: relative;
+  background: linear-gradient(185deg, rgba(255, 255, 255, 0.97), rgba(246, 243, 255, 0.94));
+  border-radius: var(--radius-large);
+  padding: 28px 32px;
+  width: min(640px, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
+  border: 1px solid var(--brand-border);
+  box-shadow: var(--shadow-strong);
+  
+  /* Einheitliche Scrollbar für alle Modals */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--brand-primary-rgb), 0.3) transparent;
+}
+
+/* Webkit Scrollbar Styling für alle Modals (Chrome, Safari, Edge) */
+.modal-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background: rgba(var(--brand-primary-rgb), 0.25);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--brand-primary-rgb), 0.4);
+}
+
+.modal-content.expanded {
+  width: min(960px, 100%);
+  max-height: 94vh;
+  padding: 32px 36px;
+}
+
+.modal-content.chart-modal {
+  width: min(960px, 100%);
+  max-height: 94vh;
+  padding: 24px 28px;
+}
+
+.close {
+  color: rgba(var(--brand-primary-dark-rgb), 0.65);
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-size: 26px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.2s ease, transform 0.2s ease;
+  z-index: 10;
+}
+
+.close:hover,
+.close:focus {
+  color: rgba(var(--brand-primary-dark-rgb), 0.95);
+  transform: scale(1.1);
+}
+
+/* Einheitliche Modal-Heading-Styles */
+.modal-content h2 {
+  margin-bottom: 8px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.modal-content h3 {
+  margin-bottom: 12px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.modal-subtitle {
+  color: #6b7280;
+  font-size: 0.95rem;
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.actions .btn {
+  margin-right: 0;
+}
+
+.action-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Override: anchor dropdown to the actions container so it stays inside the card */
+.stock-card__actions .action-menu { position: static; }
+
+.action-menu__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+  background-color: #fff;
+  color: #495057;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.action-menu__trigger:hover,
+.action-menu__trigger[aria-expanded="true"] {
+  background-color: #e7f1ff;
+  border-color: #b6d4fe;
+  color: #0b5ed7;
+}
+
+.action-menu__list {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 10px;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+  padding: 6px 0;
+  z-index: 20;
+}
+
+/* Portal variant: when rendered into body we position via inline styles but keep visual styles */
+.action-menu__list--portal {
+  /* Visual style for portal variant. Position is controlled inline via JS to allow fixed or absolute placement. */
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+  background: linear-gradient(180deg, #ffffff, #fbfbfe);
+  border: 2px solid rgba(var(--brand-primary-rgb), 0.12);
+  /* Ensure it's visible by default; JS can override other properties via inline style */
+  display: block;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (max-width: 720px) {
+  .action-menu__list--portal {
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+  }
+}
+
+.action-menu__item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #343a40;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.action-menu__item:hover {
+  background-color: #f1f3f5;
+  color: #0b5ed7;
+}
+
+.action-menu__item--danger {
+  color: #dc3545;
+}
+
+.action-menu__item--danger:hover {
+  background-color: #fdecea;
+  color: #c82333;
+}
+
+.action-menu__icon {
+  width: 20px;
+  text-align: center;
+  font-size: 16px;
+}
+
+.action-menu__move-panel {
+  padding: 12px 16px 16px;
+  border-top: 1px solid #f1f3f5;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.action-menu__move-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #6c757d;
+}
+
+.action-menu__move-panel select {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #ced4da;
+  font-size: 13px;
+  background-color: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.action-menu__move-panel select:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+  outline: none;
+}
+
+.action-menu__move-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.action-menu__move-button {
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.action-menu__move-button--cancel {
+  background-color: transparent;
+  border: 1px solid #dee2e6;
+  color: #495057;
+}
+
+.action-menu__move-button--cancel:hover {
+  border-color: #adb5bd;
+  color: #212529;
+}
+
+.action-menu__move-button--confirm {
+  background-color: #0d6efd;
+  color: #fff;
+}
+
+.action-menu__move-button--confirm:hover {
+  background-color: #0b5ed7;
+}
+
+.action-menu__hint {
+  padding: 8px 16px 10px;
+  font-size: 13px;
+  color: #6c757d;
+}

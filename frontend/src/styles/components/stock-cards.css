@@ -1,0 +1,431 @@
+/* Stock card layout, price details, and performance metrics */
+
+.stock-card {
+  display: grid;
+  grid-template-columns: minmax(240px, 3fr) minmax(160px, 1.6fr) minmax(140px, 1.4fr) minmax(330px, 2fr) minmax(44px, auto);
+  gap: 16px;
+  align-items: center;
+  padding: 20px 24px;
+  border-radius: 20px;
+  border: 1px solid rgba(var(--brand-primary-rgb), 0.12);
+  background: linear-gradient(135deg, rgba(243, 244, 255, 0.85), #ffffff);
+  box-shadow: 0 18px 38px rgba(var(--brand-primary-rgb), 0.12);
+  transition: transform var(--motion-short) ease, box-shadow var(--motion-short) ease, border-color var(--motion-short) ease;
+  cursor: pointer;
+  /* Clip tiny overflow to keep rounded corners clean */
+  overflow: hidden;
+  background-clip: padding-box;
+}
+
+/* Prevent intrinsic min-content from forcing overflow in grid columns */
+.stock-card > * { min-width: 0; }
+.stock-card__identity, .stock-card__price, .stock-card__chart, .stock-card__performance, .stock-card__actions { min-width: 0; }
+.stock-card__meta { min-width: 0; }
+.stock-card__title, .stock-card__subtitle { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* Mid-range responsive tightening to avoid slight overflow before full mobile layout kicks in */
+@media (max-width: 1400px) and (min-width: 1201px) {
+  .stock-table__header {
+    grid-template-columns: minmax(220px, 2.6fr) minmax(150px, 1.6fr) minmax(130px, 1.3fr) minmax(240px, 2fr) minmax(44px, auto);
+    padding: 0 18px;
+  }
+  .stock-card {
+    grid-template-columns: minmax(220px, 2.6fr) minmax(150px, 1.6fr) minmax(130px, 1.3fr) minmax(260px, 2fr) minmax(44px, auto);
+    gap: 14px;
+    padding: 18px 18px;
+    grid-template-rows: auto auto;
+    align-items: start;
+  }
+  .sparkline { width: 130px; height: 48px; }
+  .stock-card__title { font-size: 1.02rem; }
+  .stock-card__price-range-label { font-size: 0.66rem; }
+  /* keep 3-up layout in this width; no forced stacking */
+}
+
+@media (max-width: 1280px) and (min-width: 1201px) {
+  .stock-table__header {
+    grid-template-columns: minmax(210px, 2.4fr) minmax(145px, 1.55fr) minmax(120px, 1.25fr) minmax(220px, 1.9fr) minmax(44px, auto);
+  }
+  .stock-card {
+    grid-template-columns: minmax(210px, 2.4fr) minmax(145px, 1.55fr) minmax(120px, 1.25fr) minmax(260px, 1.9fr) minmax(44px, auto);
+    gap: 12px;
+    padding: 16px 16px;
+    grid-template-rows: auto auto;
+    align-items: start;
+  }
+  .sparkline { width: 120px; height: 46px; }
+  .stock-card__performance { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; grid-column: 1 / -2; grid-row: 2; margin-top: 4px; }
+  .stock-card__actions { align-self: start; }
+}
+
+.stock-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(var(--brand-primary-dark-rgb), 0.28);
+  box-shadow: 0 24px 48px rgba(var(--brand-primary-dark-rgb), 0.18);
+}
+
+/* When the action menu is open, keep the row stable and above neighbors */
+.stock-card--menu-open {
+  position: relative;
+  z-index: 30;
+  transform: none !important;
+  box-shadow: 0 24px 48px rgba(var(--brand-primary-dark-rgb), 0.18);
+}
+
+.stock-card--menu-open .action-menu__list {
+  z-index: 40;
+}
+
+.stock-card__identity {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.stock-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-light));
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  box-shadow: 0 12px 20px rgba(var(--brand-primary-dark-rgb), 0.22);
+}
+
+.stock-card__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stock-card__title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--brand-primary-dark);
+}
+
+.stock-card__subtitle {
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+
+.stock-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.75rem;
+  color: var(--brand-primary-light);
+}
+
+.stock-card__observations {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.stock-card__observation-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stock-card__observation-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(var(--brand-primary-rgb), 0.12);
+  color: var(--brand-primary-dark);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.stock-card__observation-note {
+  font-size: 0.78rem;
+  color: var(--brand-primary-dark);
+  line-height: 1.45;
+  background: rgba(var(--brand-primary-rgb), 0.1);
+  border-left: 3px solid rgba(var(--brand-primary-dark-rgb), 0.3);
+  padding: 8px 10px;
+  border-radius: 12px;
+  white-space: pre-line;
+}
+
+.stock-card__price {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #1f2937;
+}
+
+.stock-card__price-value {
+  font-size: 1.08rem;
+  font-weight: 600;
+}
+
+.stock-card__price-meta {
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+/* 52-Week Range Bar Styling */
+.stock-card__price-range-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  width: 100%;
+}
+
+.stock-card__price-range-bar {
+  position: relative;
+  width: 100%;
+  height: 6px;
+}
+
+.stock-card__price-range-track {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to right, #ef4444, #fbbf24, #10b981);
+  border-radius: 3px;
+  overflow: visible;
+}
+
+.stock-card__price-range-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+
+.stock-card__price-range-marker-dot {
+  width: 12px;
+  height: 12px;
+  background: #1f2937;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: all var(--motion-short) ease;
+}
+
+.stock-card__price-range-marker-dot:hover {
+  transform: scale(1.2);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+.stock-card__price-range-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.7rem;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.stock-card__price-range-label {
+  white-space: nowrap;
+}
+
+.stock-card__chart {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.stock-card__chart-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.stock-card__chart-caption {
+  font-size: 0.72rem;
+  color: var(--brand-primary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.sparkline {
+  width: 150px;
+  height: 52px;
+}
+
+.sparkline svg {
+  width: 100%;
+  height: 100%;
+}
+
+.sparkline__area {
+  fill-opacity: 0.22;
+}
+
+.sparkline__line {
+  fill: none;
+}
+
+.sparkline__dot {
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+.sparkline--empty {
+  width: 150px;
+  height: 52px;
+  border-radius: 14px;
+  border: 1px dashed #d1d5db;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  color: #9ca3af;
+  background: #f9fafb;
+}
+
+.stock-card__performance {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.performance-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 12px 8px;
+  border-radius: 11px;
+  border: 1px solid #e2e8f0;
+  background: #fdfcff;
+  transition: background 0.2s ease, border-color 0.2s ease;
+  min-height: auto;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 0;
+}
+
+.performance-metric__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: #6b21a8;
+  white-space: nowrap;
+  line-height: 1.05;
+  margin-bottom: 2px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.performance-metric__value {
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.05;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.performance-metric__delta {
+  font-size: 0.76rem;
+  white-space: nowrap;
+  line-height: 1.05;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.performance-metric__hint {
+  font-size: 0.7rem;
+  color: #6b7280;
+  white-space: nowrap;
+  line-height: 1.05;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.performance-metric--positive {
+  background: linear-gradient(135deg, rgba(220, 252, 231, 0.82), rgba(187, 247, 208, 0.72));
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+
+.performance-metric--positive .performance-metric__label,
+.performance-metric--positive .performance-metric__delta {
+  color: #15803d;
+}
+
+.performance-metric--negative {
+  background: linear-gradient(135deg, rgba(254, 226, 226, 0.85), rgba(254, 202, 202, 0.65));
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.performance-metric--negative .performance-metric__label,
+.performance-metric--negative .performance-metric__delta {
+  color: #b91c1c;
+}
+
+.performance-metric--neutral {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+.performance-metric--neutral .performance-metric__label {
+  color: #64748b;
+}
+
+.stock-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  cursor: default;
+  position: relative;
+  padding-right: 16px;
+}
+
+.stock-card__actions .action-menu__trigger {
+  margin-right: 2px;
+}
+
+.action-menu {
+  margin-left: auto;
+}
+
+@media (max-width: 1200px) {
+  .stock-table__header {
+    display: none;
+  }
+
+  .stock-card {
+    grid-template-columns: 1fr;
+    gap: 22px;
+    padding: 20px;
+  }
+
+  .stock-card__performance {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+
+  .stock-card__actions {
+    justify-content: flex-start;
+  }
+}
+

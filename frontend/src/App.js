@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
-import WatchlistSection from './components/WatchlistSection';
+import AppSidebar from './components/AppSidebar';
+import SidebarLayout from './components/SidebarLayout';
+import AppHeader from './components/AppHeader';
+import TopNavigation from './components/TopNavigation';
 import StocksSection from './components/StocksSection';
-import StockSearchBar from './components/StockSearchBar';
 import { useAlerts } from './hooks/useAlerts';
 import ScreenerView from './components/screener/ScreenerView';
 import EarningsView from './components/earnings/EarningsView';
@@ -14,7 +16,7 @@ import CorrelationHeatmap from './components/CorrelationHeatmap';
 import PortfolioView from './components/portfolio/PortfolioView';
 import InvestmentCheckView from './components/investment-check/InvestmentCheckView';
 import AdminView from './components/AdminView';
-import { formatDisplayNumber } from './utils/numberFormatting';
+import PerformanceGallery from './components/PerformanceGallery';
 
 import API_BASE from './config';
 import { useQueryClient } from '@tanstack/react-query';
@@ -199,6 +201,18 @@ function App() {
     setActiveView('investment-check');
   };
 
+  const sidebar = (
+    <AppSidebar
+      watchlists={watchlists}
+      currentWatchlist={currentWatchlist}
+      sidebarCollapsed={sidebarCollapsed}
+      onToggleCollapsed={() => setSidebarCollapsed((s) => !s)}
+      onWatchlistSelect={handleWatchlistSelectAndCollapse}
+      onWatchlistsChange={loadWatchlists}
+      onShowToast={showToast}
+    />
+  );
+
   return (
     <div className="app-shell">
       {toast && typeof document !== 'undefined' && (
@@ -217,181 +231,29 @@ function App() {
         </div>
       )}
       <div className="container">
-        <header className="app-header">
-          <div className="app-header__actions" ref={settingsRef}>
-            <button
-              className="app-header__action"
-              type="button"
-              onClick={() => {
-                setIsSettingsOpen(false);
-                setActiveView('admin');
-              }}
-              aria-label="Admin Panel öffnen"
-              title="Admin Panel"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 3 4 6v5c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V6l-8-3Zm0 4 4 1.5V11c0 2.8-1.7 5.2-4 6.3-2.3-1.1-4-3.5-4-6.3V8.5L12 7Zm-1 2v3h-2l3 3 3-3h-2V9h-2Z" />
-              </svg>
-              <span>Admin</span>
-            </button>
-            <button
-              className={`app-header__action ${isSettingsOpen ? 'is-active' : ''}`}
-              type="button"
-              onClick={() => setIsSettingsOpen((open) => !open)}
-              aria-expanded={isSettingsOpen}
-              aria-haspopup="dialog"
-              aria-label="Einstellungsmenü öffnen"
-              title="Einstellungen"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m19.4 13.5 1.6 1.2-1.8 3.1-1.9-.8a7.3 7.3 0 0 1-1.7 1l-.3 2h-3.6l-.3-2a7.3 7.3 0 0 1-1.7-1l-1.9.8L6 14.7l1.6-1.2a7.1 7.1 0 0 1 0-2L6 10.3l1.8-3.1 1.9.8a7.3 7.3 0 0 1 1.7-1l.3-2h3.6l.3 2a7.3 7.3 0 0 1 1.7 1l1.9-.8 1.8 3.1-1.6 1.2a7.1 7.1 0 0 1 0 2ZM13.5 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-              </svg>
-              <span>Einstellungen</span>
-            </button>
-            {isSettingsOpen && (
-              <div className="settings-popover" role="dialog" aria-label="Einstellungen">
-                <strong>Einstellungen</strong>
-                <label className="settings-popover__field">
-                  <span>Ansichtsmodus</span>
-                  <button
-                    type="button"
-                    className={`settings-toggle ${settings.display_mode === 'expert' ? 'is-on' : ''}`}
-                    role="switch"
-                    aria-checked={settings.display_mode === 'expert'}
-                    onClick={() => saveSettings({ display_mode: settings.display_mode === 'expert' ? 'compact' : 'expert' })}
-                  >
-                    <span className="settings-toggle__thumb" />
-                    <span>{settings.display_mode === 'expert' ? 'Experte' : 'Kompakt'}</span>
-                  </button>
-                </label>
-                <label className="settings-popover__field">
-                  <span>Startseite</span>
-                  <select value={settings.default_page} onChange={(event) => saveSettings({ default_page: event.target.value })}>
-                    <option value="overview">Übersicht</option>
-                    <option value="portfolio">Portfolio</option>
-                    <option value="watchlist">Watchlist</option>
-                    <option value="screener">Screener</option>
-                    <option value="indices">Indizes</option>
-                    <option value="earnings">Earnings</option>
-                    <option value="alerts">Alerts</option>
-                    <option value="investment-check">Investitions-Check</option>
-                  </select>
-                </label>
-                <label className="settings-popover__field">
-                  <span>Theme</span>
-                  <select value={settings.theme} onChange={(event) => saveSettings({ theme: event.target.value })}>
-                    {themes.map((theme) => <option key={theme.id} value={theme.id}>{theme.name}</option>)}
-                  </select>
-                </label>
-                <p className="settings-popover__hint">Der Expertenmodus ist gespeichert und wird später mit einer eigenen Ansicht aktiviert.</p>
-              </div>
-            )}
-          </div>
-          <div className="app-header__title-group">
-            <span className="app-header__eyebrow">Dein Marktüberblick</span>
-            <h1>Stock Watchlist</h1>
-          </div>
-        </header>
+        <AppHeader
+          isSettingsOpen={isSettingsOpen}
+          settings={settings}
+          themes={themes}
+          settingsRef={settingsRef}
+          onToggleSettings={() => setIsSettingsOpen((open) => !open)}
+          onOpenAdmin={() => {
+            setIsSettingsOpen(false);
+            setActiveView('admin');
+          }}
+          onSaveSettings={saveSettings}
+        />
 
-        {/* Top Navigation */}
-        <nav className="topnav" aria-label="Hauptnavigation">
-          <div className="topnav__search">
-            <StockSearchBar 
-              onStockSelect={(stock) => {
-                setSelectedStock(stock);
-                setActiveView('stock');
-                showToast(`Aktie geöffnet · ${stock.name}`, 'info');
-              }}
-              placeholder="Aktie suchen..."
-            />
-          </div>
-          <div className="topnav__items">
-            <button
-              className={`topnav__item ${activeView === 'overview' ? 'is-active' : ''}`}
-              onClick={() => setActiveView('overview')}
-              type="button"
-            >
-              Übersicht
-            </button>
-            <button
-              className={`topnav__item ${activeView === 'portfolio' ? 'is-active' : ''}`}
-              onClick={() => setActiveView('portfolio')}
-              type="button"
-            >
-              Portfolio
-            </button>
-            <button
-              className={`topnav__item ${activeView === 'watchlist' ? 'is-active' : ''}`}
-              onClick={() => setActiveView('watchlist')}
-              type="button"
-            >
-              Watchlist
-            </button>
-            <button
-              className={`topnav__item ${activeView === 'screener' ? 'is-active' : ''}`}
-              onClick={() => setActiveView('screener')}
-              type="button"
-            >
-              Screener
-            </button>
-            <button
-              className={`topnav__item ${activeView === 'indices' ? 'is-active' : ''}`}
-              onClick={() => setActiveView('indices')}
-              type="button"
-            >
-              Indizes
-            </button>
-            <button
-              className={`topnav__item topnav__item--icon ${activeView === 'earnings' ? 'is-active' : ''}`}
-              onClick={() => setActiveView('earnings')}
-              title="Earnings"
-              aria-label="Earnings öffnen"
-              type="button"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <rect x="3" y="5" width="18" height="16" rx="2" />
-                <path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 17h3" />
-              </svg>
-            </button>
-            <button
-              className={`topnav__item topnav__item--icon ${activeView === 'alerts' ? 'is-active' : ''}`}
-              onClick={() => setActiveView('alerts')}
-              title="Alerts"
-              aria-label="Alerts öffnen"
-              type="button"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4" />
-              </svg>
-            </button>
-            <button
-              className={`topnav__item topnav__item--icon ${activeView === 'investment-check' ? 'is-active' : ''}`}
-              onClick={() => setActiveView('investment-check')}
-              title="Investitions-Check"
-              aria-label="Investitions-Check öffnen"
-              type="button"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M8 3h8a2 2 0 0 1 2 2v16H6V5a2 2 0 0 1 2-2ZM9 3v3h6V3M9 13l2 2 4-4" />
-              </svg>
-            </button>
-            <button
-              className="topnav__item topnav__item--icon"
-              onClick={() => setIsGalleryOpen(true)}
-              title="Quick Insights Gallery"
-              aria-label="Quick Insights Gallery öffnen"
-              type="button"
-            >
-              {/* simple grid icon */}
-              <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <rect x="3" y="3" width="7" height="7" rx="1" fill="currentColor"/>
-                <rect x="14" y="3" width="7" height="7" rx="1" fill="currentColor"/>
-                <rect x="3" y="14" width="7" height="7" rx="1" fill="currentColor"/>
-                <rect x="14" y="14" width="7" height="7" rx="1" fill="currentColor"/>
-              </svg>
-            </button>
-          </div>
-        </nav>
+        <TopNavigation
+          activeView={activeView}
+          onNavigate={setActiveView}
+          onStockSelect={(stock) => {
+            setSelectedStock(stock);
+            setActiveView('stock');
+            showToast(`Aktie geöffnet · ${stock.name}`, 'info');
+          }}
+          onOpenGallery={() => setIsGalleryOpen(true)}
+        />
 
         {isGalleryOpen && (
           <div 
@@ -437,178 +299,63 @@ function App() {
         )}
 
         {activeView === 'screener' && (
-          <div className={`layout ${sidebarCollapsed ? 'layout--sidebar-collapsed' : ''}`}>
-            <aside className={`layout__sidebar ${sidebarCollapsed ? 'layout__sidebar--collapsed' : ''}`}>
-              <button
-                type="button"
-                className="sidebar-toggle"
-                aria-label={sidebarCollapsed ? 'Sidebar ausklappen' : 'Sidebar einklappen'}
-                onClick={() => setSidebarCollapsed((s) => !s)}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" fill="currentColor" />
-                </svg>
-              </button>
-              <WatchlistSection
-                watchlists={watchlists}
-                currentWatchlist={currentWatchlist}
-                onWatchlistSelect={handleWatchlistSelectAndCollapse}
-                onWatchlistsChange={loadWatchlists}
-                onShowToast={showToast}
-                collapsed={sidebarCollapsed}
-                onToggleCollapsed={() => setSidebarCollapsed((s) => !s)}
-              />
-            </aside>
-            <main className="layout__content">
-              <ScreenerView />
-            </main>
-          </div>
+          <SidebarLayout sidebarCollapsed={sidebarCollapsed} sidebar={sidebar}>
+            <ScreenerView />
+          </SidebarLayout>
         )}
 
         {activeView === 'earnings' && (
-          <div className={`layout ${sidebarCollapsed ? 'layout--sidebar-collapsed' : ''}`}>
-            <aside className={`layout__sidebar ${sidebarCollapsed ? 'layout__sidebar--collapsed' : ''}`}>
-              <button
-                type="button"
-                className="sidebar-toggle"
-                aria-label={sidebarCollapsed ? 'Sidebar ausklappen' : 'Sidebar einklappen'}
-                onClick={() => setSidebarCollapsed((s) => !s)}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" fill="currentColor" />
-                </svg>
-              </button>
-              <WatchlistSection
-                watchlists={watchlists}
-                currentWatchlist={currentWatchlist}
-                onWatchlistSelect={handleWatchlistSelectAndCollapse}
-                onWatchlistsChange={loadWatchlists}
-                onShowToast={showToast}
-                collapsed={sidebarCollapsed}
-                onToggleCollapsed={() => setSidebarCollapsed((s) => !s)}
-              />
-            </aside>
-            <main className="layout__content">
-              <EarningsView />
-            </main>
-          </div>
+          <SidebarLayout sidebarCollapsed={sidebarCollapsed} sidebar={sidebar}>
+            <EarningsView />
+          </SidebarLayout>
         )}
 
         {activeView === 'alerts' && (
-          <div className={`layout ${sidebarCollapsed ? 'layout--sidebar-collapsed' : ''}`}>
-            <aside className={`layout__sidebar ${sidebarCollapsed ? 'layout__sidebar--collapsed' : ''}`}>
-              <button
-                type="button"
-                className="sidebar-toggle"
-                aria-label={sidebarCollapsed ? 'Sidebar ausklappen' : 'Sidebar einklappen'}
-                onClick={() => setSidebarCollapsed((s) => !s)}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" fill="currentColor" />
-                </svg>
-              </button>
-              <WatchlistSection
-                watchlists={watchlists}
-                currentWatchlist={currentWatchlist}
-                onWatchlistSelect={handleWatchlistSelectAndCollapse}
-                onWatchlistsChange={loadWatchlists}
-                onShowToast={showToast}
-                collapsed={sidebarCollapsed}
-                onToggleCollapsed={() => setSidebarCollapsed((s) => !s)}
-              />
-            </aside>
-            <main className="layout__content">
-              <AlertsView showToast={showToast} />
-            </main>
-          </div>
+          <SidebarLayout sidebarCollapsed={sidebarCollapsed} sidebar={sidebar}>
+            <AlertsView showToast={showToast} />
+          </SidebarLayout>
         )}
 
         {activeView === 'watchlist' && (
-          <div className={`layout ${sidebarCollapsed ? 'layout--sidebar-collapsed' : ''}`}>
-            <aside className={`layout__sidebar ${sidebarCollapsed ? 'layout__sidebar--collapsed' : ''}`}>
-              <button
-                type="button"
-                className="sidebar-toggle"
-                aria-label={sidebarCollapsed ? 'Sidebar ausklappen' : 'Sidebar einklappen'}
-                onClick={() => setSidebarCollapsed((s) => !s)}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" fill="currentColor" />
-                </svg>
-              </button>
-              <WatchlistSection
+          <SidebarLayout sidebarCollapsed={sidebarCollapsed} sidebar={sidebar}>
+            {currentWatchlist ? (
+              <StocksSection
+                watchlist={currentWatchlist}
                 watchlists={watchlists}
-                currentWatchlist={currentWatchlist}
-                onWatchlistSelect={handleWatchlistSelectAndCollapse}
-                onWatchlistsChange={loadWatchlists}
                 onShowToast={showToast}
-                collapsed={sidebarCollapsed}
-                onToggleCollapsed={() => setSidebarCollapsed((s) => !s)}
+                onOpenStock={(stock) => { setSelectedStock(stock); setActiveView('stock'); }}
               />
-            </aside>
-            <main className="layout__content">
-              {currentWatchlist ? (
-                <StocksSection
-                  watchlist={currentWatchlist}
-                  watchlists={watchlists}
-                  onShowToast={showToast}
-                  onOpenStock={(stock) => { setSelectedStock(stock); setActiveView('stock'); }}
-                />
-              ) : (
-                <div className="empty-state empty-state--hero">
-                  <h2>Wähle eine Watchlist aus</h2>
-                  <p>
-                    Markiere eine Watchlist auf der linken Seite, um Kursverläufe, Kennzahlen und Performance-Insights zu sehen.
-                  </p>
-                  <p className="empty-state__hint">
-                    Du kannst jederzeit neue Watchlists anlegen oder bestehende anpassen.
-                  </p>
-                </div>
-              )}
-            </main>
-          </div>
+            ) : (
+              <div className="empty-state empty-state--hero">
+                <h2>Wähle eine Watchlist aus</h2>
+                <p>
+                  Markiere eine Watchlist auf der linken Seite, um Kursverläufe, Kennzahlen und Performance-Insights zu sehen.
+                </p>
+                <p className="empty-state__hint">
+                  Du kannst jederzeit neue Watchlists anlegen oder bestehende anpassen.
+                </p>
+              </div>
+            )}
+          </SidebarLayout>
         )}
 
         {activeView === 'stock' && (
-          <div className={`layout ${sidebarCollapsed ? 'layout--sidebar-collapsed' : ''}`}>
-            <aside className={`layout__sidebar ${sidebarCollapsed ? 'layout__sidebar--collapsed' : ''}`}>
-              <button
-                type="button"
-                className="sidebar-toggle"
-                aria-label={sidebarCollapsed ? 'Sidebar ausklappen' : 'Sidebar einklappen'}
-                onClick={() => setSidebarCollapsed((s) => !s)}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" fill="currentColor" />
-                </svg>
-              </button>
-              <WatchlistSection
-                watchlists={watchlists}
-                currentWatchlist={currentWatchlist}
-                onWatchlistSelect={handleWatchlistSelectAndCollapse}
-                onWatchlistsChange={loadWatchlists}
+          <SidebarLayout sidebarCollapsed={sidebarCollapsed} sidebar={sidebar}>
+            {selectedStock ? (
+              <StockDetailPage
+                stock={selectedStock}
+                watchlistId={currentWatchlist?.id}
                 onShowToast={showToast}
-                collapsed={sidebarCollapsed}
-                onToggleCollapsed={() => setSidebarCollapsed((s) => !s)}
+                onOpenInvestmentCheck={openInvestmentCheck}
+                onBack={() => { setActiveView('watchlist'); setSelectedStock(null); }}
               />
-            </aside>
-            <main className="layout__content">
-              {selectedStock ? (
-                <StockDetailPage
-                  stock={selectedStock}
-                  watchlistId={currentWatchlist?.id}
-                  onShowToast={showToast}
-                  onOpenInvestmentCheck={openInvestmentCheck}
-                  onBack={() => { setActiveView('watchlist'); setSelectedStock(null); }}
-                />
-              ) : (
-                <div className="empty-state empty-state--hero">
-                  <h2>Keine Aktie ausgewählt</h2>
-                  <p>Wähle eine Aktie aus der Watchlist aus, um Details zu sehen.</p>
-                </div>
-              )}
-            </main>
-          </div>
+            ) : (
+              <div className="empty-state empty-state--hero">
+                <h2>Keine Aktie ausgewählt</h2>
+                <p>Wähle eine Aktie aus der Watchlist aus, um Details zu sehen.</p>
+              </div>
+            )}
+          </SidebarLayout>
         )}
 
         {activeView === 'overview' && (
@@ -689,261 +436,3 @@ function App() {
 }
 
 export default App;
-
-// Minimal inline gallery (keeps patch tight). Consider moving to separate files later.
-// Duplicate import removed: React, useEffect, useState already imported at top
-function PerformanceGallery({ period, onToast }) {
-  const [items, setItems] = useState([]);
-  const [error, setError] = useState(null);
-  const [quickWatchlistId, setQuickWatchlistId] = useState(null);
-  const [busyTicker, setBusyTicker] = useState(null);
-  const [favoritedTickers, setFavoritedTickers] = useState(new Set());
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [loading, setLoading] = useState(false); // initial load
-  const [loadingMore, setLoadingMore] = useState(false); // pagination
-  const containerRef = useRef(null);
-  const loadMoreRef = useRef(null);
-  const PAGE_LIMIT = 60;
-
-  const fetchPage = useCallback(async (targetPage, replace = false) => {
-    const isFirst = targetPage === 1 && replace;
-    if (isFirst) setLoading(true); else setLoadingMore(true);
-    try {
-      setError(null);
-      const url = `${API_BASE}/stocks/performance?period=${encodeURIComponent(period)}&points=24&sort=desc&page=${targetPage}&limit=${PAGE_LIMIT}&includeSignals=true`;
-      const res = await fetch(url);
-      const text = await res.text();
-      if (!res.ok) {
-        console.error('Performance fetch failed', res.status, text);
-        throw new Error(`HTTP ${res.status} ${text?.slice(0,180)}`);
-      }
-      const json = text ? JSON.parse(text) : { items: [] };
-      const newItems = Array.isArray(json.items) ? json.items : [];
-      setHasMore(newItems.length === PAGE_LIMIT);
-      setItems((prev) => replace ? newItems : prev.concat(newItems));
-    } catch (e) {
-      setError('Konnte Performance nicht laden');
-    } finally {
-      if (isFirst) setLoading(false); else setLoadingMore(false);
-    }
-  }, [period]);
-
-  // Reset and load first page whenever period changes
-  useEffect(() => {
-    setItems([]);
-    setPage(1);
-    setHasMore(true);
-    fetchPage(1, true);
-  }, [period, fetchPage]);
-
-  useEffect(() => {
-    let cancel = false;
-    async function loadFavorites() {
-      try {
-        const listRes = await fetch(`${API_BASE}/watchlists/`);
-        if (!listRes.ok) return;
-        const lists = await listRes.json();
-        const quickList = Array.isArray(lists) ? lists.find((wl) => (wl.name || '').toLowerCase() === 'quick insights') : null;
-        if (!quickList?.id) return;
-        setQuickWatchlistId(quickList.id);
-        
-        const stocksRes = await fetch(`${API_BASE}/stocks/?watchlist_id=${quickList.id}`);
-        if (!stocksRes.ok) return;
-        const stocks = await stocksRes.json();
-        if (!cancel && Array.isArray(stocks)) {
-          setFavoritedTickers(new Set(stocks.map(s => s.ticker_symbol)));
-        }
-      } catch (e) {
-        console.error('Load favorites error', e);
-      }
-    }
-    loadFavorites();
-    return () => { cancel = true; };
-  }, []);
-
-  // IntersectionObserver to trigger loading more when sentinel enters view
-  useEffect(() => {
-    if (!hasMore) return;
-    const rootEl = containerRef.current ? containerRef.current.closest('.drawer__body') : null;
-    const sentinel = loadMoreRef.current;
-    if (!sentinel) return;
-    const obs = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting && !loading && !loadingMore && hasMore) {
-          const next = page + 1;
-          setPage(next);
-          fetchPage(next);
-        }
-      });
-    }, { root: rootEl || null, rootMargin: '200px', threshold: 0 });
-    obs.observe(sentinel);
-    return () => { obs.disconnect(); };
-  }, [page, hasMore, loading, loadingMore, fetchPage]);
-
-  const ensureQuickInsightsWatchlist = useCallback(async () => {
-    if (quickWatchlistId) return quickWatchlistId;
-    // Try to find existing
-    const listRes = await fetch(`${API_BASE}/watchlists/`);
-    if (listRes.ok) {
-      const lists = await listRes.json();
-      const found = Array.isArray(lists) ? lists.find((wl) => (wl.name || '').toLowerCase() === 'quick insights') : null;
-      if (found?.id) {
-        setQuickWatchlistId(found.id);
-        return found.id;
-      }
-    }
-    // Create if missing
-    const createRes = await fetch(`${API_BASE}/watchlists/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Quick Insights', description: 'Auto-created for Quick Insights' })
-    });
-    if (!createRes.ok) {
-      const t = await createRes.text();
-      throw new Error(`Watchlist erstellen fehlgeschlagen: ${createRes.status} ${t}`);
-    }
-    const created = await createRes.json();
-    setQuickWatchlistId(created.id);
-    return created.id;
-  }, [quickWatchlistId]);
-
-  const handleFavorite = useCallback(async (ticker, stockId) => {
-    try {
-      setBusyTicker(ticker);
-      const wlId = await ensureQuickInsightsWatchlist();
-      const already = favoritedTickers.has(ticker);
-      if (already) {
-        const del = await fetch(`${API_BASE}/stocks/${stockId}?watchlist_id=${wlId}`, { method: 'DELETE' });
-        if (del.status === 204) {
-          setFavoritedTickers(prev => { const next = new Set(prev); next.delete(ticker); return next; });
-          onToast?.(`Entfernt · ${ticker} aus Quick Insights`, 'info');
-        } else {
-          const txt = await del.text();
-          onToast?.(`Konnte ${ticker} nicht entfernen`, 'error');
-          console.error('Unfavorite failed', del.status, txt);
-        }
-      } else {
-        const res = await fetch(`${API_BASE}/stocks/add-by-ticker`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ticker_symbol: ticker, watchlist_id: wlId })
-        });
-        if (res.status === 201) {
-          setFavoritedTickers(prev => new Set([...prev, ticker]));
-          onToast?.(`✓ Hinzugefügt · ${ticker} → Quick Insights`, 'info');
-        } else {
-          const txt = await res.text();
-          if (txt && /exists|already/i.test(txt)) {
-            setFavoritedTickers(prev => new Set([...prev, ticker]));
-            onToast?.(`Bereits vorhanden · ${ticker} in Quick Insights`, 'info');
-          } else {
-            onToast?.(`Fehler beim Hinzufügen · ${ticker}`, 'error');
-            console.error('Favorite failed', res.status, txt);
-          }
-        }
-      }
-    } catch (e) {
-      console.error('Favorite error', e);
-      onToast?.('Aktion fehlgeschlagen · Quick Insights', 'error');
-    } finally {
-      setBusyTicker(null);
-    }
-  }, [ensureQuickInsightsWatchlist, onToast, favoritedTickers]);
-
-  if (loading && !items.length) return <div className="loading">Lade…</div>;
-  if (error && !items.length) return <div className="empty-state">{error}</div>;
-  if (!items.length) return <div className="empty-state">Keine Daten</div>;
-
-  return (
-    <div ref={containerRef}>
-      <div className="gallery-grid">
-      {items.map((it) => {
-        const isFavorited = favoritedTickers.has(it.ticker);
-        const isBusy = busyTicker === it.ticker;
-        return (
-          <div key={it.id} className={`gallery-card ${isFavorited ? 'gallery-card--favorited' : ''}`}>
-            <div className="gallery-card__header">
-              <div style={{display:'flex', flexDirection:'column'}}>
-                <div className="gallery-card__title">{it.name}</div>
-                <div className="gallery-card__subtitle">{it.ticker}</div>
-              </div>
-              <button
-                type="button"
-                className={`icon-btn ${isFavorited ? 'icon-btn--active' : ''}`}
-                title={isFavorited ? 'In Quick Insights' : 'Zu Quick Insights hinzufügen'}
-                onClick={() => handleFavorite(it.ticker, it.id)}
-                disabled={isBusy}
-              >
-                {isBusy ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" className="icon-spinner" aria-hidden>
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" opacity="0.25"/>
-                    <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="3" fill="none"/>
-                  </svg>
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden>
-                    <path d="M12 21s-6.716-3.868-9.193-6.346C.761 12.61.5 9.5 2.318 7.682 4.136 5.864 7.246 6.125 9.654 8.533L12 10.879l2.346-2.346c2.408-2.408 5.518-2.669 7.336-.851 1.818 1.818 1.557 4.928-.489 6.972C18.716 17.132 12 21 12 21z" fill="currentColor"/>
-                  </svg>
-                )}
-              </button>
-            </div>
-            <MiniSparkline data={(it.price_series||[]).map(p=>p.close)} />
-            <div className="gallery-card__footer">
-              <span className="perf">{it.performance_pct!=null ? `${formatDisplayNumber(it.performance_pct)}%` : '-'}</span>
-              <div className="badges">
-                <Badge label="RSI" value={it.signals?.rsi?.signal || '–'} />
-                <Badge label="MACD" value={it.signals?.macd?.trend || '–'} />
-              </div>
-            </div>
-          </div>
-        );
-      })}
-      </div>
-      {hasMore && (
-        <>
-          <div ref={loadMoreRef} className="infinite-sentinel" />
-          {loadingMore && (
-            <div className="infinite-loader" role="status" aria-live="polite">
-              <div className="spinner" style={{ width: 24, height: 24, borderWidth: 3 }} />
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-function MiniSparkline({ data, w=140, h=48, color='var(--brand-primary)' }){
-  if (!data || data.length < 2) return <div className="sparkline sparkline--empty">–</div>;
-  const min = Math.min(...data), max = Math.max(...data), range = max-min || 1;
-  const pts = data.map((v,i)=>({ x: (i/(data.length-1))*w, y: h-((v-min)/range)*h }));
-  const path = pts.reduce((a,p,i)=> i? `${a} L ${p.x},${p.y}`: `M ${p.x},${p.y}`,'');
-  const area = `${path} L ${w},${h} L 0,${h} Z`;
-  const last = pts[pts.length-1];
-  const gid = `g${Math.random().toString(36).slice(2)}`;
-  return (
-    <div className="sparkline" aria-hidden="true">
-      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
-        <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.35"/><stop offset="100%" stopColor={color} stopOpacity="0"/></linearGradient></defs>
-        <path d={area} fill={`url(#${gid})`} className="sparkline__area"/>
-        <path d={path} stroke={color} strokeWidth="2" className="sparkline__line"/>
-        <circle cx={last.x} cy={last.y} r="3.5" fill={color} className="sparkline__dot"/>
-      </svg>
-    </div>
-  );
-}
-
-function Badge({ label, value }){
-  // Treat 'oversold' as a positive (green) signal similar to 'bullish'
-  const tone = (value==='bullish' || value==='oversold')
-    ? 'success'
-    : (value==='bearish' || value==='overbought')
-      ? 'warning'
-      : 'neutral';
-  const displayValue = value==='bullish'
-    ? `↑ bullish`
-    : value==='bearish'
-      ? `↓ bearish`
-      : value; // prepend arrows for bullish/bearish
-  return <span className={`badge badge--${tone}`} title={`${label}: ${value}`}>{label}: {displayValue}</span>;
-}
